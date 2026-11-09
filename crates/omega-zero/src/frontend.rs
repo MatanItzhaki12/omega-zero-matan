@@ -95,6 +95,11 @@ pub struct Frontend {
     disc: DiscTexes,
     /// The disc of the UMD going in, spinning in its window while its game loads.
     spin_disc: Option<omega_gfx::TexId>,
+    /// A disc being made off the main thread, for the game by this stem.
+    spin_making: Option<(
+        String,
+        std::sync::mpsc::Receiver<Option<omega_ui::CartFace>>,
+    )>,
     pause: PauseTex,
     options: OptionsTex,
     title: TitleTex,
@@ -192,6 +197,7 @@ impl Frontend {
             link: LinkTexes::default(),
             disc: DiscTexes::default(),
             spin_disc: None,
+            spin_making: None,
             pause: PauseTex::default(),
             options: OptionsTex::default(),
             title: TitleTex::default(),
@@ -409,19 +415,7 @@ impl Frontend {
         );
         sync_link(self.session.app_mut(), compositor, &mut self.link);
         sync_disc(self.session.app_mut(), compositor, &mut self.disc);
-        // the disc of a UMD going in, made once, to spin in its window while its game loads
-        if let Some(cart) = self.session.app().wants_spin_disc() {
-            if let Some(face) = omega_ui::umd_disc(&cart) {
-                let id = crate::frontend::faces::upload_rgba(
-                    compositor,
-                    &mut self.spin_disc,
-                    face.w,
-                    face.h,
-                    &face.rgba,
-                );
-                self.session.app_mut().set_spin_disc(cart.stem.clone(), id);
-            }
-        }
+        self.make_spin_disc(compositor);
         sync_pause(self.session.app_mut(), compositor, &mut self.pause);
         sync_options(self.session.app_mut(), compositor, &mut self.options);
         sync_title(self.session.app_mut(), compositor, &mut self.title);
@@ -600,6 +594,53 @@ impl Frontend {
 
     pub fn drive_emulator(&mut self) {
         self.session.set_driven(true);
+    }
+
+    /// The disc of the UMD picked or going in, made on a thread of its own as it is picked, so
+    /// neither the shelf nor the spin waits on its label being read, and uploaded once made.
+    fn make_spin_disc(&mut self, compositor: &mut Compositor) {
+        if let Some((stem, rx)) = &self.spin_making {
+            match rx.try_recv() {
+                Ok(face) => {
+                    let stem = stem.clone();
+                    self.spin_making = None;
+                    if let Some(face) = face {
+                        let id = crate::frontend::faces::upload_rgba(
+                            compositor,
+                            &mut self.spin_disc,
+                            face.w,
+                            face.h,
+                            &face.rgba,
+                        );
+                        self.session.app_mut().set_spin_disc(stem, id);
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.spin_making = None,
+            }
+        }
+        let Some(cart) = self.session.app().wants_spin_disc() else {
+            return;
+        };
+        if self
+            .spin_making
+            .as_ref()
+            .is_some_and(|(s, _)| *s == cart.stem)
+        {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let stem = cart.stem.clone();
+        if std::thread::Builder::new()
+            .name("omega-disc".into())
+            .spawn(move || {
+                crate::spawn::stand_back();
+                let _ = tx.send(omega_ui::umd_disc(&cart));
+            })
+            .is_ok()
+        {
+            self.spin_making = Some((stem, rx));
+        }
     }
 
     pub fn step_emulator(&self, present: Duration, timeout: Duration) -> bool {

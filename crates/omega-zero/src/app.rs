@@ -2775,15 +2775,20 @@ impl App {
         .draw(out);
     }
 
-    /// The UMD going in, while its disc has no texture yet: for the frontend to make one.
+    /// The UMD picked on the shelf, or going in, while its disc has no texture yet: for the
+    /// frontend to make one, ahead of the game starting.
     pub fn wants_spin_disc(&self) -> Option<omega_store::Cart> {
-        let Phase::Inserting { cart, .. } = &self.phase else {
-            return None;
+        let c = match &self.phase {
+            Phase::Inserting { cart, .. } => self.shelf().find(cart)?.0,
+            Phase::Shelf => {
+                let shelf = self.shelf();
+                &shelf.carts[shelf.cart_at_offset(0)?]
+            }
+            _ => return None,
         };
-        if self.spin_disc.as_ref().is_some_and(|(s, _)| s == cart) {
+        if self.spin_disc.as_ref().is_some_and(|(s, _)| *s == c.stem) {
             return None;
         }
-        let (c, _) = self.shelf().find(cart)?;
         (omega_ui::model_of(c) == omega_ui::CartModel::Umd).then(|| c.clone())
     }
 

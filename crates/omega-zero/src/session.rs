@@ -524,6 +524,8 @@ impl Session {
         let spawned = std::thread::Builder::new()
             .name("omega-core-open".into())
             .spawn(move || {
+                // the cart going in is drawn meanwhile: it comes first
+                crate::spawn::stand_back();
                 let resume = wants_resume
                     .then(|| persist::read_resume(&root, platform, core, &theirs))
                     .flatten();

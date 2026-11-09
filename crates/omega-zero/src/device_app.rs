@@ -168,6 +168,7 @@ pub fn run() {
         pacer.wait();
         let began = Instant::now();
         frontend.advance(&mut input);
+        let advanced = began.elapsed();
         if frontend.restarting() {
             frontend.restart();
         }
@@ -177,7 +178,10 @@ pub fn run() {
         }
         let locked = frontend.emulator_locked();
         // a tick the emulator did not answer in time is drawn with the frame before it
+        let stepping = Instant::now();
         let answered = frontend.step_emulator(pacer.period, STEP_TIMEOUT);
+        let stepped = stepping.elapsed();
+        let rendering = Instant::now();
         unanswered = unanswered.saturating_add(u32::from(locked && !answered));
         frontend.render(&mut compositor, surface.window_size());
         let swap = Instant::now();
@@ -187,6 +191,24 @@ pub fn run() {
             return;
         }
         let swap_took = swap.elapsed();
+        // a frame a cart going in waited for: where its time went
+        let total = began.elapsed();
+        if total > Duration::from_millis(30)
+            && matches!(
+                frontend.app().phase(),
+                omega_zero::app::Phase::Inserting { .. }
+            )
+        {
+            let ms = |d: Duration| d.as_secs_f64() * 1e3;
+            eprintln!(
+                "omega-zero: slow frame going in: {:.0} ms: update {:.0}, emulator {:.0}, draw {:.0}, swap {:.0}",
+                ms(total),
+                ms(advanced),
+                ms(stepped),
+                ms(swap - rendering),
+                ms(swap_took)
+            );
+        }
         omega_zero::latency::swapped(swap_took.as_secs_f64() * 1000.0);
         let dropped = pacer.swapped(work, swap_took > Duration::from_millis(1));
         if omega_zero::latency::tracing() {
