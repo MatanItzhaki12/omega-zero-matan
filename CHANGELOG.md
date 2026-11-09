@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A UMD's hub is a real one's: white, UMD across it in blue and UNIVERSAL MEDIA DISC under it
+  in small grey letters. It is an element of its own, laid over the disc's print rather than
+  part of its label art, and it stands still over the disc as the disc spins while the game
+  loads. A white ring a render of a UMD leaves round its hole is taken into it.
+
 - Restarting takes START and a held POWER, as powering off takes a held POWER: START with POWER
   held, in either order, restarts once POWER has been held as long as a power-off takes, and
   both let go of sooner do nothing.

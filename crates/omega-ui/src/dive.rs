@@ -97,8 +97,9 @@ pub struct CartDive<'a> {
     /// How far the game's screen has come on.
     pub screen: f32,
     pub game: bool,
-    /// A UMD's disc, turned this far, drawn spinning in its window while the game loads.
-    pub disc: Option<(TexId, f32)>,
+    /// A UMD's disc, turned this far, drawn spinning in its window while the game loads, and
+    /// its hub, drawn still over it.
+    pub disc: Option<(TexId, f32, TexId)>,
 }
 
 impl CartDive<'_> {
@@ -169,16 +170,26 @@ impl CartDive<'_> {
         }
 
         // a UMD's disc turning in its window, the cart held square to the screen
-        if let (Some((tex, turn)), true) = (self.disc, pose.yaw == 0.0) {
+        if let (Some((tex, turn, hub)), true) = (self.disc, pose.yaw == 0.0) {
             let (wx, wy, ww, wh) = crate::cart::umd_window();
+            let (dx, dy, dw, dh) = (x + wx * cw, y + wy * ch, ww * cw, wh * ch);
             out.push(Draw::Turned {
-                x: x + wx * cw,
-                y: y + wy * ch,
-                w: ww * cw,
-                h: wh * ch,
+                x: dx,
+                y: dy,
+                w: dw,
+                h: dh,
                 tex,
                 alpha: 1.0,
                 turn,
+            });
+            let k = crate::cart::umd_hub_share();
+            out.push(Draw::Tex {
+                x: dx + dw * (1.0 - k) / 2.0,
+                y: dy + dh * (1.0 - k) / 2.0,
+                w: dw * k,
+                h: dh * k,
+                tex: hub,
+                alpha: 1.0,
             });
         }
 

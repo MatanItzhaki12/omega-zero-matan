@@ -304,7 +304,7 @@ pub struct App {
     pub(crate) alert_face: Option<TexId>,
     /// The disc of the UMD going in, by its game's stem, uploaded to spin in its window while
     /// the game loads.
-    spin_disc: Option<(String, TexId)>,
+    spin_disc: Option<(String, TexId, TexId)>,
     /// What holding POWER has put over the screen: its menu, or the screen after its choice.
     pub(crate) power_screen: Option<PowerScreen>,
     /// The slide to or from a power screen under way.
@@ -2295,7 +2295,7 @@ impl App {
             Phase::Inserting { cart, .. } => self
                 .spin_disc
                 .as_ref()
-                .is_some_and(|(stem, _)| stem == cart),
+                .is_some_and(|(stem, ..)| stem == cart),
             _ => false,
         };
         let next = match &mut self.phase {
@@ -2786,24 +2786,25 @@ impl App {
             }
             _ => return None,
         };
-        if self.spin_disc.as_ref().is_some_and(|(s, _)| *s == c.stem) {
+        if self.spin_disc.as_ref().is_some_and(|(s, ..)| *s == c.stem) {
             return None;
         }
         (omega_ui::model_of(c) == omega_ui::CartModel::Umd).then(|| c.clone())
     }
 
-    pub fn set_spin_disc(&mut self, stem: String, tex: TexId) {
-        self.spin_disc = Some((stem, tex));
+    /// The disc of the UMD by `stem`, and the hub drawn still over it.
+    pub fn set_spin_disc(&mut self, stem: String, tex: TexId, hub: TexId) {
+        self.spin_disc = Some((stem, tex, hub));
     }
 
     /// The disc of the UMD going in, and how far it has turned: while it goes in.
-    fn spinning_disc(&self, stem: &str) -> Option<(TexId, f32)> {
+    fn spinning_disc(&self, stem: &str) -> Option<(TexId, f32, TexId)> {
         if !matches!(self.phase, Phase::Inserting { .. }) {
             return None;
         }
-        let (s, tex) = self.spin_disc.as_ref()?;
+        let (s, tex, hub) = self.spin_disc.as_ref()?;
         let turned = self.now() as f32 / 1000.0 * DISC_SPIN * std::f32::consts::TAU;
-        (s == stem).then_some((*tex, turned % std::f32::consts::TAU))
+        (s == stem).then_some((*tex, turned % std::f32::consts::TAU, *hub))
     }
 
     pub fn alert_visible(&self) -> bool {

@@ -311,9 +311,10 @@ pub fn umd_disc(cart: &Cart) -> Option<CartFace> {
     }
     let s = spec(CartModel::Umd);
     let (_, _, lw, lh) = s.label;
+    // the print alone: the hub is laid over it as an element of its own, still as it spins
     let mut rgba = match cart.label.as_deref().and_then(|p| label_art(p, lw, lh)) {
-        Some(scan) => umd::with_hub(scan, lw, lh),
-        None => umd::generated_label(&s, &label_text(cart)),
+        Some(scan) => umd::with_middle(scan, lw, lh),
+        None => umd::generated_print(&s, &label_text(cart)),
     };
     // round, as the disc is: clear outside its edge
     let r = lw.min(lh) as f32 / 2.0;
@@ -326,6 +327,21 @@ pub fn umd_disc(cart: &Cart) -> Option<CartFace> {
         }
     }
     Some(CartFace { rgba, w: lw, h: lh })
+}
+
+/// The hub laid over a UMD's disc, `size` pixels across: for the frontend to draw over a
+/// spinning disc, still.
+pub fn umd_hub(size: u32) -> CartFace {
+    CartFace {
+        rgba: umd::hub_face(size),
+        w: size,
+        h: size,
+    }
+}
+
+/// How wide the hub is, as a share of the disc's window.
+pub fn umd_hub_share() -> f32 {
+    umd::HUB_SHARE
 }
 
 /// Where a UMD's disc shows in its face, as shares of the face: x, y, width and height.

@@ -49,7 +49,7 @@ const LABEL: (u32, u32, u32, u32) = (12, 12, 252, 252);
 const LABEL_ROUND: u32 = 126;
 
 /// The hub in the middle of a generated label, as a share of the print's radius.
-const HUB: f32 = 0.38;
+const HUB: f32 = 0.45;
 
 /// How far in from the outline the clear shell lightens at its rim, in pixels.
 const RIM: u32 = 6;
@@ -70,26 +70,42 @@ pub(crate) fn behind(x: u32, y: u32) -> Option<[u8; 3]> {
         .then_some(DISC_EDGE)
 }
 
+/// The print of a UMD with no scan, without its hub: what spins under the hub.
+pub(crate) fn generated_print(s: &Spec, title: &str) -> Vec<u8> {
+    let (_, _, lw, lh) = s.label;
+    let mut rgba = generated_label(s, title);
+    // the middle back to plain white, the hub taken off
+    let r = lw as f32 / 2.0;
+    for y in 0..lh {
+        for x in 0..lw {
+            let d = (x as f32 + 0.5 - lw as f32 / 2.0).hypot(y as f32 + 0.5 - lh as f32 / 2.0) / r;
+            if d < HUB_SHARE + 0.01 {
+                let i = ((y * lw + x) * 4) as usize;
+                rgba[i..i + 3].copy_from_slice(&HUB_WHITE);
+            }
+        }
+    }
+    rgba
+}
+
 /// The label a UMD with no scan wears, `s.label`'s size: its disc printed in the game's colour,
 /// a pale hub in its middle with the UMD's name on it, and the title under the hub.
 pub(crate) fn generated_label(s: &Spec, title: &str) -> Vec<u8> {
     let (lx, ly, lw, lh) = s.label;
     let bg = label_colour(title);
-    let pale = bg.map(|c| c + ((255 - c) as u32 * 3 / 4) as u8);
-    let ring = bg.map(|c| (c as u32 * 3 / 4) as u8);
     let r = lw as f32 / 2.0;
     let mut rgba = Vec::with_capacity((lw * lh * 4) as usize);
     for y in 0..lh {
         for x in 0..lw {
             let d = from_middle(x + lx, y + ly) / r;
             let c = match d {
-                d if d < HUB - 0.02 => pale,
-                d if d < HUB => ring,
+                d if d < HUB => HUB_WHITE,
                 _ => bg,
             };
             rgba.extend_from_slice(&[c[0], c[1], c[2], 255]);
         }
     }
+    lay_hub(&mut rgba, lw, lh);
     let Some(font) = text::label_font() else {
         return rgba;
     };
@@ -106,14 +122,7 @@ pub(crate) fn generated_label(s: &Spec, title: &str) -> Vec<u8> {
             }
         }
     };
-    // the hub's name, and the title on the print under it, clear of its round edge
-    let (hub_w, hub_h) = (lw * 2 / 5, lh / 9);
-    put(
-        "UMD",
-        ((lw - hub_w) / 2, (lh - hub_h) / 2, hub_w, hub_h),
-        1,
-        ring,
-    );
+    // the title on the print under the hub, clear of its round edge
     let title_y = (lh as f32 * (0.5 + HUB / 2.0)) as u32 + PAD;
     let title_w = lw * 3 / 5;
     put(
@@ -125,48 +134,117 @@ pub(crate) fn generated_label(s: &Spec, title: &str) -> Vec<u8> {
     rgba
 }
 
-/// The disc's hub, seen through what a scan of its print leaves clear: its middle, which a
-/// scan cuts out. Brushed metal, darker towards the spindle, so the middle reads as the disc's
-/// and not as the shell's white.
-const HUB_METAL: [u8; 3] = [0xb6, 0xba, 0xc4];
+/// The disc's middle, under its hub: white, as a real UMD's is.
+const HUB_WHITE: [u8; 3] = [0xf6, 0xf6, 0xf4];
 
-/// The scan `rgba`, `w` by `h`, laid over the disc's hub where it is clear.
-pub(crate) fn with_hub(mut rgba: Vec<u8>, w: u32, h: u32) -> Vec<u8> {
+/// The hub, an element of its own laid over the disc's middle: white, "UMD" across it in blue
+/// and "UNIVERSAL MEDIA DISC" under that in small grey letters, drawn twice the size it shows.
+const HUB_PNG: &[u8] = include_bytes!("../../assets/umd_hub.png");
+
+/// How wide the hub is, as a share of the disc's print: over the hole a print leaves, and a
+/// little of the print round it.
+pub const HUB_SHARE: f32 = 0.47;
+
+/// The hub as RGBA, `size` pixels across, each pixel the average of the drawing's under it.
+pub fn hub_face(size: u32) -> Vec<u8> {
+    static DRAWN: OnceLock<Option<(Vec<u8>, u32)>> = OnceLock::new();
+    let drawn = DRAWN.get_or_init(|| {
+        let mut dec = png::Decoder::new(std::io::Cursor::new(HUB_PNG));
+        dec.set_transformations(png::Transformations::normalize_to_color8());
+        let mut reader = dec.read_info().ok()?;
+        let mut buf = vec![0u8; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).ok()?;
+        (info.color_type == png::ColorType::Rgba)
+            .then(|| (buf[..info.buffer_size()].to_vec(), info.width))
+    });
+    let mut out = vec![0u8; (size * size * 4) as usize];
+    let Some((src, n)) = drawn else {
+        return out;
+    };
+    let k = *n as f32 / size as f32;
+    for y in 0..size {
+        for x in 0..size {
+            let (x0, y0) = ((x as f32 * k) as u32, (y as f32 * k) as u32);
+            let (x1, y1) = (
+                (((x + 1) as f32 * k) as u32).max(x0 + 1),
+                (((y + 1) as f32 * k) as u32).max(y0 + 1),
+            );
+            let mut acc = [0u32; 4];
+            let mut count = 0;
+            for sy in y0..y1.min(*n) {
+                for sx in x0..x1.min(*n) {
+                    let i = ((sy * n + sx) * 4) as usize;
+                    // premultiplied, so the clear round the hub bleeds no colour into its edge
+                    let a = src[i + 3] as u32;
+                    for c in 0..3 {
+                        acc[c] += src[i + c] as u32 * a;
+                    }
+                    acc[3] += a;
+                    count += 1;
+                }
+            }
+            let o = ((y * size + x) * 4) as usize;
+            for c in 0..3 {
+                out[o + c] = acc[c].checked_div(acc[3]).unwrap_or(0) as u8;
+            }
+            out[o + 3] = (acc[3] / count.max(1)) as u8;
+        }
+    }
+    out
+}
+
+/// The hub laid over the middle of `rgba`, a disc's print `w` by `h`.
+pub(crate) fn lay_hub(rgba: &mut [u8], w: u32, h: u32) {
+    let size = (w.min(h) as f32 * HUB_SHARE).round() as u32;
+    let hub = hub_face(size);
+    let (ox, oy) = ((w - size) / 2, (h - size) / 2);
+    for (j, px) in hub.chunks_exact(4).enumerate() {
+        let a = px[3] as u32;
+        if a == 0 {
+            continue;
+        }
+        let i = (((oy + j as u32 / size) * w + ox + j as u32 % size) * 4) as usize;
+        for c in 0..3 {
+            rgba[i + c] = ((px[c] as u32 * a + rgba[i + c] as u32 * (255 - a)) / 255) as u8;
+        }
+    }
+}
+
+/// The scan `rgba`, `w` by `h`, white where its print leaves the disc's middle clear, as a real
+/// UMD's is: the print alone, for the hub to be laid over. A white ring a render of a UMD leaves
+/// round its hole is taken for the middle's white.
+pub(crate) fn with_middle(mut rgba: Vec<u8>, w: u32, h: u32) -> Vec<u8> {
     let r = w.min(h) as f32 / 2.0;
     for y in 0..h {
         for x in 0..w {
             let d = (x as f32 + 0.5 - w as f32 / 2.0).hypot(y as f32 + 0.5 - h as f32 / 2.0) / r;
             let i = ((y * w + x) * 4) as usize;
-            let a = rgba[i + 3] as u32;
-            if a == 255 || d > 1.0 {
+            if d > 1.0 {
                 continue;
             }
-            // a darker ring where the hub meets the print
-            let hub = match d {
-                d if d < 0.42 => HUB_METAL,
-                _ => [0x88, 0x8c, 0x96],
+            let whiteish = rgba[i..i + 3].iter().all(|&c| c > 214);
+            let a = if d < 0.58 && whiteish {
+                0
+            } else {
+                rgba[i + 3] as u32
             };
+            if a == 255 {
+                continue;
+            }
             for c in 0..3 {
-                rgba[i + c] = ((rgba[i + c] as u32 * a + hub[c] as u32 * (255 - a)) / 255) as u8;
+                rgba[i + c] =
+                    ((rgba[i + c] as u32 * a + HUB_WHITE[c] as u32 * (255 - a)) / 255) as u8;
             }
             rgba[i + 3] = 255;
         }
     }
-    // the UMD's name across the hub, as the label a UMD with no scan wears has it
-    if let Some(font) = text::label_font() {
-        let (bw, bh) = (w * 2 / 5, h / 9);
-        let (bx, by) = ((w - bw) / 2, (h - bh) / 2);
-        let mut part = vec![0u8; (bw * bh * 4) as usize];
-        let layout = text::fit_box(font, "UMD", bw as f32, bh as f32, 1, 18.0, 18.0);
-        text::draw_centred(&mut part, bw, bh, &layout, [0x3a, 0x3e, 0x48]);
-        for (j, px) in part.chunks_exact(4).enumerate() {
-            let a = px[3] as u32;
-            let i = (((by + j as u32 / bw) * w + bx + j as u32 % bw) * 4) as usize;
-            for c in 0..3 {
-                rgba[i + c] = ((px[c] as u32 * a + rgba[i + c] as u32 * (255 - a)) / 255) as u8;
-            }
-        }
-    }
+    rgba
+}
+
+/// The scan with the hub over its middle, as the shelf shows a UMD.
+pub(crate) fn with_hub(rgba: Vec<u8>, w: u32, h: u32) -> Vec<u8> {
+    let mut rgba = with_middle(rgba, w, h);
+    lay_hub(&mut rgba, w, h);
     rgba
 }
 

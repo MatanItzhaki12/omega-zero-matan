@@ -95,6 +95,8 @@ pub struct Frontend {
     disc: DiscTexes,
     /// The disc of the UMD going in, spinning in its window while its game loads.
     spin_disc: Option<omega_gfx::TexId>,
+    /// The hub drawn still over a spinning disc, made once.
+    spin_hub: Option<omega_gfx::TexId>,
     /// A disc being made off the main thread, for the game by this stem.
     spin_making: Option<(
         String,
@@ -197,6 +199,7 @@ impl Frontend {
             link: LinkTexes::default(),
             disc: DiscTexes::default(),
             spin_disc: None,
+            spin_hub: None,
             spin_making: None,
             pause: PauseTex::default(),
             options: OptionsTex::default(),
@@ -612,7 +615,20 @@ impl Frontend {
                             face.h,
                             &face.rgba,
                         );
-                        self.session.app_mut().set_spin_disc(stem, id);
+                        let hub = match self.spin_hub {
+                            Some(hub) => hub,
+                            None => {
+                                let hub = omega_ui::umd_hub(232);
+                                crate::frontend::faces::upload_rgba(
+                                    compositor,
+                                    &mut self.spin_hub,
+                                    hub.w,
+                                    hub.h,
+                                    &hub.rgba,
+                                )
+                            }
+                        };
+                        self.session.app_mut().set_spin_disc(stem, id, hub);
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
