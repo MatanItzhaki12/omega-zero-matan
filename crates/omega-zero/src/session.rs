@@ -515,8 +515,6 @@ impl Session {
         };
         // the core and what its game needs off the card, opened on a thread of its own so the
         // cart goes on going in meanwhile
-        // noted before the core opens, so a core that takes omega-zero down as it opens is known
-        persist::mark_starting(&self.root, platform, stem);
         self.starting = true;
         let (tx, rx) = std::sync::mpsc::channel();
         let (root, theirs) = (self.root.clone(), stem.to_string());
@@ -526,6 +524,11 @@ impl Session {
             .spawn(move || {
                 // the cart going in is drawn meanwhile: it comes first
                 crate::spawn::stand_back();
+                // noted before the core opens, so a core that takes omega-zero down as it opens
+                // is known; here rather than on the main thread, as the note is synced to the
+                // card, which a PSP game's image is being read off as it starts, and the wait
+                // stalled the cart going in
+                persist::mark_starting(&root, platform, &theirs);
                 let resume = wants_resume
                     .then(|| persist::read_resume(&root, platform, core, &theirs))
                     .flatten();

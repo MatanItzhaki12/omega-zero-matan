@@ -422,6 +422,11 @@ fn a_core_is_noted_as_opening_until_it_has_run_a_moment() {
         16,
     );
     s.update(1.0 / 60.0);
+    // the note is written as the core opens, on the thread that opens it
+    let noting = std::time::Instant::now();
+    while !note.exists() && noting.elapsed() < std::time::Duration::from_secs(5) {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
     assert_eq!(
         std::fs::read_to_string(&note).ok().as_deref(),
         Some("GBA/Emerald"),
@@ -452,6 +457,10 @@ fn a_session_put_away_while_its_core_opens_leaves_no_note() {
         16,
     );
     s.update(1.0 / 60.0);
+    let noting = std::time::Instant::now();
+    while !note.exists() && noting.elapsed() < std::time::Duration::from_secs(5) {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
     assert!(note.exists(), "the core opened without a note");
     drop(s);
     assert!(!note.exists(), "a clean power-off was taken for a crash");

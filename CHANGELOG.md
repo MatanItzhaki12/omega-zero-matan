@@ -11,6 +11,10 @@
   held, in either order, restarts once POWER has been held as long as a power-off takes, and
   both let go of sooner do nothing.
 
+- A PSP game's disc spins smoothly as it loads: the note that a core is starting is written to
+  the card off the screen's thread, where waiting on the card while the game's image was being
+  read off it held up the screen for a third of a second.
+
 ## omega-zero 2.6.7
 
 - A PSP game's disc spins in its UMD's window as the game loads: the disc is drawn on its own,
