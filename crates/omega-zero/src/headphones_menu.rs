@@ -12,7 +12,10 @@ pub enum HpRow {
     Noise,
     Conversation,
     Adaptive,
+    /// The buds' batteries.
     Battery,
+    /// The case's.
+    Case,
 }
 
 /// How far a step of Adaptive's level goes.
@@ -24,7 +27,8 @@ impl HpRow {
             HpRow::Noise => "Noise Control",
             HpRow::Conversation => "Conversation Awareness",
             HpRow::Adaptive => "Adaptive Level",
-            HpRow::Battery => "Battery",
+            HpRow::Battery => "Buds Battery",
+            HpRow::Case => "Case Battery",
         }
     }
 
@@ -33,13 +37,14 @@ impl HpRow {
             HpRow::Noise => "What the headphones let in",
             HpRow::Conversation => "Talking lowers the sound",
             HpRow::Adaptive => "How much of the room Adaptive lets in",
-            HpRow::Battery => "Left, right and the case; + is charging",
+            HpRow::Battery => "Left and right; + is charging",
+            HpRow::Case => "As it last said, the buds out of it",
         }
     }
 
     /// Left and Right step it: all but the battery, which only says.
     pub fn steps(self) -> bool {
-        self != HpRow::Battery
+        !matches!(self, HpRow::Battery | HpRow::Case)
     }
 }
 
@@ -59,6 +64,7 @@ impl App {
             p.has_conversation().then_some(HpRow::Conversation),
             p.has_adaptive_level().then_some(HpRow::Adaptive),
             Some(HpRow::Battery),
+            Some(HpRow::Case),
         ]
         .into_iter()
         .flatten()
@@ -79,7 +85,8 @@ impl App {
                 None => wait(),
             },
             HpRow::Adaptive => p.adaptive_level.map_or_else(wait, |l| format!("{l}%")),
-            HpRow::Battery => p.battery_text(),
+            HpRow::Battery => p.buds_text(),
+            HpRow::Case => p.case_text(),
         }
     }
 
@@ -109,7 +116,7 @@ impl App {
                 };
                 link.set_adaptive_level(to);
             }
-            HpRow::Battery => {}
+            HpRow::Battery | HpRow::Case => {}
         }
     }
 
@@ -137,6 +144,14 @@ impl App {
                     crate::nav::Dir::Back,
                 );
             }
+        }
+    }
+
+    /// Says the mode the headphones were switched to on themselves.
+    pub(crate) fn tell_headphones_noise(&mut self) {
+        if let Some((mode, kind)) = self.phones.noise_switched() {
+            self.hud
+                .toast(omega_ui::Toast::Headphones(mode.told(kind)), self.now());
         }
     }
 

@@ -156,7 +156,9 @@ fn settings_opens_screen_gameplay_and_controls_and_b_steps_back() {
             PauseRow::Screen,
             PauseRow::Gameplay,
             PauseRow::Achievements,
-            PauseRow::Controls
+            PauseRow::Controls,
+            PauseRow::Wifi,
+            PauseRow::Bluetooth
         ]
     );
     press(&mut a, Btn::A);

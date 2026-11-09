@@ -102,6 +102,8 @@ impl PausePage {
                 PauseRow::Gameplay,
                 PauseRow::Achievements,
                 PauseRow::Controls,
+                PauseRow::Wifi,
+                PauseRow::Bluetooth,
             ],
             PausePage::Screen => &[
                 PauseRow::Picture,
@@ -195,6 +197,9 @@ pub enum PauseRow {
     Stick,
     /// The headphones connected: opens their page.
     Headphones,
+    /// Wi-Fi and Bluetooth, on or off.
+    Wifi,
+    Bluetooth,
     /// A row of the headphones' page.
     Hp(crate::headphones_menu::HpRow),
 }
@@ -225,6 +230,8 @@ impl PauseRow {
             PauseRow::Picture => "Picture",
             PauseRow::Stick => "D-Pad as Stick",
             PauseRow::Headphones => "Headphones",
+            PauseRow::Wifi => "Wi-Fi",
+            PauseRow::Bluetooth => "Bluetooth",
             PauseRow::Hp(row) => row.label(),
             PauseRow::Rumble => "Rumble",
             PauseRow::LoadOnInsert => "Load State on Insert",
@@ -267,6 +274,8 @@ impl PauseRow {
             PauseRow::Picture => "For this game: Fit fills the width",
             PauseRow::Stick => "For this game: L2 makes the D-pad the stick",
             PauseRow::Headphones => "Noise control and battery",
+            PauseRow::Wifi => "Switches Wi-Fi on or off",
+            PauseRow::Bluetooth => "Switches Bluetooth on or off",
             PauseRow::Hp(row) => row.note(),
             PauseRow::Rumble => "For games with a rumble pak",
             PauseRow::LoadOnInsert => "A picks up where you left off",
@@ -477,6 +486,8 @@ impl App {
                 PauseRow::RunAhead => self.core == Core::Gpsp,
                 PauseRow::Picture | PauseRow::Stick => self.platform == Platform::Psp,
                 PauseRow::Headphones => self.headphones_kind().is_some(),
+                PauseRow::Wifi => self.wifi.present(),
+                PauseRow::Bluetooth => self.bluetooth.present(),
                 PauseRow::Restart => !self.link_active(),
                 PauseRow::Achievements => crate::achievements::console_of(self.platform).is_some(),
                 PauseRow::Progress | PauseRow::List => {
@@ -555,6 +566,8 @@ impl App {
             }
             .to_string(),
             PauseRow::Hp(row) => self.headphones_value(row),
+            PauseRow::Wifi => on_off(self.wifi.enabled()),
+            PauseRow::Bluetooth => on_off(self.bluetooth.enabled()),
             PauseRow::Rumble => self.option_text(OptionRow::Rumble),
             PauseRow::LoadOnInsert => self.option_text(OptionRow::LoadOnInsert),
             PauseRow::SaveOnEject => self.option_text(OptionRow::SaveOnEject),
@@ -695,6 +708,8 @@ impl App {
             PauseRow::Picture => self.step_picture(right),
             PauseRow::Stick => self.step_stick(right),
             PauseRow::Hp(row) => self.change_headphones(row, right),
+            PauseRow::Wifi => self.toggle_wifi(),
+            PauseRow::Bluetooth => self.toggle_bluetooth(),
             PauseRow::Brightness | PauseRow::BlueLight => {
                 let (level, max) = match row {
                     PauseRow::Brightness => (&mut self.state.brightness, BRIGHTNESS_MAX),
@@ -902,4 +917,8 @@ impl App {
             }
         }
     }
+}
+
+fn on_off(on: bool) -> String {
+    if on { "ON" } else { "OFF" }.to_string()
 }

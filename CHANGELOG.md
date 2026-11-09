@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Headphones switched to another noise control mode on themselves, by a stem or a touch, say
+  the mode in a toast.
+- A noise control mode picked in the menu is sent once the row has rested on it for half a
+  second: stepping from noise cancelling past Adaptive to transparency goes straight to
+  transparency.
+- Headphones that connect are set to their volume here before the sound goes to them, so they
+  never play for a moment at whatever they were left at. Toasts say when the headphones connect
+  and disconnect, and the speaker is muted as they disconnect.
+- The headphones' menu has the case's battery on a row of its own, beside the buds', and the
+  AirPods' beacon fills it in where their channel has not said it.
+- The game's menu has Wi-Fi and Bluetooth on its SETTINGS page, to switch each on or off.
+
 ## omega-zero 2.6.2
 
 - Headphones that connect by themselves get the game's sound: AirPods taken out of their case

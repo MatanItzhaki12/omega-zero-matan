@@ -69,6 +69,17 @@ impl Noise {
         }
     }
 
+    /// What a toast says when the headphones are switched to it.
+    pub fn told(self, kind: Kind) -> &'static str {
+        match (self, kind) {
+            (Noise::Off, _) => "Noise control off",
+            (Noise::Cancellation, _) => "Noise cancelling",
+            (Noise::Transparency, Kind::Buds(_)) => "Ambient sound",
+            (Noise::Transparency, Kind::AirPods) => "Transparency",
+            (Noise::Adaptive, _) => "Adaptive",
+        }
+    }
+
     /// The mode beside this one among `modes`.
     pub fn step(self, modes: &[Noise], right: bool) -> Noise {
         let n = modes.len();
@@ -184,6 +195,29 @@ impl Phones {
         }
     }
 
+    /// The buds' batteries as a row says them: `L 80% R 75%`, a `+` for charging.
+    pub fn buds_text(&self) -> String {
+        let part = |name: &str, b: Option<Battery>| {
+            b.map(|b| format!("{name} {}%{}", b.level, if b.charging { "+" } else { "" }))
+        };
+        let parts: Vec<String> = [part("L", self.left), part("R", self.right)]
+            .into_iter()
+            .flatten()
+            .collect();
+        match parts.is_empty() {
+            true => "…".to_string(),
+            false => parts.join(" "),
+        }
+    }
+
+    /// The case's battery as its row says it: what it last said, the buds out of it.
+    pub fn case_text(&self) -> String {
+        match self.case {
+            Some(b) => format!("{}%{}", b.level, if b.charging { "+" } else { "" }),
+            None => "…".to_string(),
+        }
+    }
+
     /// The lowest bud not charging, for the low battery notice.
     pub fn lowest(&self) -> Option<u8> {
         [self.left, self.right]
@@ -244,7 +278,13 @@ pub struct Link {
     /// The reading thread is still reading: the channel is open.
     alive: Arc<AtomicBool>,
     out: Option<std::fs::File>,
+    /// A noise control mode picked in the menu, and when: sent once the row has rested on it,
+    /// so stepping past a mode never switches the headphones to it.
+    queued: Option<(Noise, std::time::Instant)>,
 }
+
+/// How long the noise control row must rest on a mode before the headphones are switched to it.
+pub const NOISE_REST: std::time::Duration = std::time::Duration::from_millis(500);
 
 impl Link {
     /// Opens the channel to the headphones at `mac` and reads it on a thread of its own: none
@@ -283,6 +323,7 @@ impl Link {
             phones,
             alive,
             out: Some(out),
+            queued: None,
         })
     }
 
@@ -293,6 +334,7 @@ impl Link {
             phones: Arc::new(Mutex::new(phones)),
             alive: Arc::new(AtomicBool::new(true)),
             out: None,
+            queued: None,
         }
     }
 
@@ -320,8 +362,31 @@ impl Link {
         }
     }
 
-    /// Sets the noise control mode, shown at once: the headphones say it back as they change.
+    /// Picks the noise control mode: shown at once, and sent once the row rests on it for
+    /// `NOISE_REST`.
     pub fn set_noise(&mut self, mode: Noise) {
+        let now = std::time::Instant::now();
+        self.queued = Some((mode, now));
+        self.change(|p| {
+            p.noise = Some(mode);
+            p.noise_pending = Some((mode, now));
+        });
+    }
+
+    /// Whether a mode picked in the menu is still waiting to be sent.
+    pub fn noise_queued(&self) -> bool {
+        self.queued.is_some()
+    }
+
+    /// Sends the mode picked once the row has rested on it.
+    pub fn flush(&mut self) {
+        let Some((mode, at)) = self.queued else {
+            return;
+        };
+        if at.elapsed() < NOISE_REST {
+            return;
+        }
+        self.queued = None;
         let Some(kind) = self.phones().map(|p| p.kind) else {
             return;
         };
@@ -330,10 +395,8 @@ impl Link {
             Kind::Buds(model) => galaxy::set_noise(model, mode),
         };
         self.send(&packets);
-        self.change(|p| {
-            p.noise = Some(mode);
-            p.noise_pending = Some((mode, std::time::Instant::now()));
-        });
+        // what they say back is weighed from now, when they were asked
+        self.change(|p| p.noise_pending = Some((mode, std::time::Instant::now())));
     }
 
     pub fn set_conversation(&mut self, on: bool) {
@@ -355,7 +418,9 @@ impl Link {
     /// The battery from the AirPods' beacon, where their channel has said none.
     fn take_beacon(&mut self, found: beacon::Beacon) {
         self.change(|p| {
+            // the channel says the buds: the beacon only fills in the case
             if p.left.is_some() && !p.beacon {
+                p.case = found.case.or(p.case);
                 return;
             }
             p.left = found.left;
@@ -387,12 +452,17 @@ pub struct Keeper {
     looking: Option<std::sync::mpsc::Receiver<Option<beacon::Beacon>>>,
     looked_at: Option<Millis>,
     low: LowNotice,
+    /// The noise control mode last seen, for a toast when the headphones are switched.
+    noise_seen: Option<Noise>,
 }
 
 impl Keeper {
     /// Keeps the channel to the headphones at `want`, the ones connected, of `kind`, or closes
     /// it for none.
     pub fn keep(&mut self, want: Option<(&str, Kind)>, now: Millis) {
+        if let Some(link) = self.link.as_mut() {
+            link.flush();
+        }
         if let Some((mac, rx)) = &self.opening {
             match rx.try_recv() {
                 Ok(link) => {
@@ -459,7 +529,8 @@ impl Keeper {
         let Some(phones) = self.phones() else {
             return;
         };
-        let lacking = phones.kind == Kind::AirPods && (phones.left.is_none() || phones.beacon);
+        let lacking = phones.kind == Kind::AirPods
+            && (phones.left.is_none() || phones.beacon || phones.case.is_none());
         let due = match self.looked_at {
             None => now.saturating_sub(self.opened_at) >= BEACON_MS,
             Some(at) => now.saturating_sub(at) >= BEACON_AGAIN_MS,
@@ -492,6 +563,21 @@ impl Keeper {
             .as_ref()
             .and_then(Link::phones)
             .filter(|p| p.heard)
+    }
+
+    /// The mode the headphones were just switched to on themselves, by a stem or a touch: not
+    /// one picked in the menu, nor the first they say as they connect.
+    pub fn noise_switched(&mut self) -> Option<(Noise, Kind)> {
+        let Some(p) = self.phones() else {
+            self.noise_seen = None;
+            return None;
+        };
+        let ours = p.noise_pending.is_some() || self.link.as_ref().is_some_and(Link::noise_queued);
+        let before = std::mem::replace(&mut self.noise_seen, p.noise);
+        match (before, p.noise) {
+            (Some(was), Some(now)) if was != now && !ours => Some((now, p.kind)),
+            _ => None,
+        }
     }
 
     /// The low battery step to say now, if the buds just went under one.
@@ -544,6 +630,44 @@ mod tests {
         assert_eq!(low.check(Some(60)), None);
         assert_eq!(low.check(Some(19)), Some(20));
         assert_eq!(low.check(None), None);
+    }
+
+    #[test]
+    fn a_mode_switched_on_the_headphones_is_told_once_and_one_picked_here_never() {
+        let mut k = Keeper::default();
+        let mut p = Phones::new(Kind::AirPods);
+        p.noise = Some(Noise::Off);
+        k.stand_in("AA:BB:CC:DD:EE:FF", p);
+        assert_eq!(k.noise_switched(), None, "the mode they connect with");
+        k.link()
+            .unwrap()
+            .change(|p| p.said_noise(Noise::Cancellation));
+        assert_eq!(
+            k.noise_switched(),
+            Some((Noise::Cancellation, Kind::AirPods))
+        );
+        assert_eq!(k.noise_switched(), None, "told twice");
+        k.link().unwrap().set_noise(Noise::Transparency);
+        assert_eq!(
+            k.noise_switched(),
+            None,
+            "a mode picked in the menu was told"
+        );
+    }
+
+    #[test]
+    fn a_mode_picked_in_the_menu_waits_for_the_row_to_rest() {
+        let mut k = Keeper::default();
+        k.stand_in("AA:BB:CC:DD:EE:FF", Phones::new(Kind::AirPods));
+        let link = k.link().unwrap();
+        link.set_noise(Noise::Adaptive);
+        link.set_noise(Noise::Transparency);
+        link.flush();
+        assert!(link.noise_queued(), "sent before the row rested");
+        assert_eq!(link.phones().unwrap().noise, Some(Noise::Transparency));
+        std::thread::sleep(NOISE_REST);
+        link.flush();
+        assert!(!link.noise_queued(), "never sent");
     }
 
     #[test]

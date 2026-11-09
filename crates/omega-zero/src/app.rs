@@ -382,6 +382,11 @@ pub struct App {
     /// Bluetooth headphones connected without their sound, since when, and when they were last
     /// asked to connect it.
     pub(crate) bt_audio_wait: Option<(String, Millis, Option<Millis>)>,
+    /// Headphones connected whose own volume is being set before sound goes to them, and since
+    /// when.
+    pub(crate) bt_volume_wait: Option<(String, Millis)>,
+    /// Sound went to Bluetooth headphones at the last tick.
+    pub(crate) bt_was_on: bool,
     pub(crate) snapshot: Option<Box<dyn Snapshot>>,
     pub(crate) core: Core,
     pub(crate) colour_pending: Option<bool>,
@@ -614,6 +619,8 @@ impl App {
             bt_volume_sent: None,
             bt_volume_seen: None,
             bt_audio_wait: None,
+            bt_volume_wait: None,
+            bt_was_on: false,
             snapshot: None,
             core: Core::default(),
             colour_pending: None,
@@ -2008,6 +2015,22 @@ impl App {
         }
     }
 
+    /// Switches Wi-Fi on or off, from the game's menu.
+    pub(crate) fn toggle_wifi(&mut self) {
+        let now = self.now();
+        self.wifi.set_enabled(!self.wifi.enabled(), now);
+        self.state.wifi = self.wifi.enabled();
+        self.persist();
+    }
+
+    /// Switches Bluetooth on or off, from the game's menu.
+    pub(crate) fn toggle_bluetooth(&mut self) {
+        let now = self.now();
+        self.bluetooth.set_enabled(!self.bluetooth.enabled(), now);
+        self.state.bluetooth = self.bluetooth.enabled();
+        self.persist();
+    }
+
     /// How loud the samples are made: on Bluetooth headphones, which play at a volume of their
     /// own, full but for mute and conversational awareness; else the volume.
     pub fn sample_volume(&self) -> u8 {
@@ -2021,11 +2044,55 @@ impl App {
         (100.0 * duck).round() as u8
     }
 
+    /// Whether sound may go to the headphones at `audio`: once their own volume is the one
+    /// they are kept at here, so they never play for a moment at whatever they were left at.
+    /// Should it not be set within 2.5 s, the sound goes to them all the same.
+    fn bluetooth_volume_ready(&mut self, audio: Option<&str>, now: Millis) -> bool {
+        const GIVE_UP_MS: Millis = 2_500;
+        let Some(mac) = audio else {
+            self.bt_volume_wait = None;
+            return false;
+        };
+        if crate::audio::on_bluetooth() {
+            return true;
+        }
+        let want = self.state.volume_hp;
+        if self.bt_volume_wait.as_ref().is_none_or(|(m, _)| m != mac) {
+            crate::audio::bt_volume::set(want);
+            self.bt_volume_wait = Some((mac.to_string(), now));
+        }
+        let since = self.bt_volume_wait.as_ref().map_or(now, |(_, at)| *at);
+        crate::audio::bt_volume::level().is_some_and(|l| l.abs_diff(want) <= 1)
+            || now.saturating_sub(since) >= GIVE_UP_MS
+    }
+
+    /// Says when the sound goes to Bluetooth headphones and when it comes back from them, and
+    /// mutes the speaker as it does, so a game playing aloud never surprises anyone.
+    fn tell_bluetooth_sound(&mut self) {
+        let on = crate::audio::on_bluetooth();
+        if on == self.bt_was_on {
+            return;
+        }
+        self.bt_was_on = on;
+        let now = self.now();
+        if on {
+            self.hud
+                .toast(Toast::Headphones("Headphones connected"), now);
+        } else {
+            self.hud
+                .toast(Toast::Headphones("Headphones disconnected"), now);
+            if !self.headphones && !self.state.muted {
+                self.state.muted = true;
+                self.persist();
+            }
+        }
+    }
+
     /// Headphones that connect by themselves can come without their sound: bluetoothd has
     /// them, but not the A2DP stream. Asking them to connect again, once they have gone a
     /// moment without it, brings it, and every 15 s while it stays away.
     fn connect_bluetooth_sound(&mut self, audio: Option<&str>, now: Millis) {
-        const WAIT_MS: Millis = 3_000;
+        const WAIT_MS: Millis = 5_000;
         const AGAIN_MS: Millis = 15_000;
         let Some(mac) = audio.filter(|_| !crate::audio::on_bluetooth()) else {
             self.bt_audio_wait = None;
@@ -2240,10 +2307,13 @@ impl App {
         self.wifi.tick(now, watch);
         self.bluetooth.tick(now, self.bluetooth_watch());
         let audio = self.bluetooth.connected_audio();
-        crate::audio::route_bluetooth(audio.as_deref());
         crate::audio::bt_volume::watch(audio.as_deref());
+        let ready = self.bluetooth_volume_ready(audio.as_deref(), now);
+        crate::audio::route_bluetooth(audio.as_deref().filter(|_| ready));
         self.connect_bluetooth_sound(audio.as_deref(), now);
         self.follow_bluetooth_volume(now);
+        self.tell_bluetooth_sound();
+        self.tell_headphones_noise();
         let phones = self.bluetooth.connected_headphones();
         self.phones.keep(
             phones.as_ref().map(|(mac, kind)| (mac.as_str(), *kind)),

@@ -41,11 +41,13 @@ fn headphones_connected_have_a_page_of_their_own_in_the_game_menu() {
             PauseRow::Hp(HpRow::Conversation),
             PauseRow::Hp(HpRow::Adaptive),
             PauseRow::Hp(HpRow::Battery),
+            PauseRow::Hp(HpRow::Case),
         ]
     );
     assert_eq!(app.headphones_value(HpRow::Noise), "NOISE CANCEL");
     assert_eq!(app.headphones_value(HpRow::Battery), "L 80% R 75%");
     assert_eq!(app.headphones_value(HpRow::Adaptive), "…", "not said yet");
+    assert_eq!(app.headphones_value(HpRow::Case), "…", "not said yet");
 }
 
 #[test]
@@ -58,7 +60,11 @@ fn settings_shows_the_same_rows_galaxy_buds_without_apple_s_own() {
     );
     assert_eq!(
         app.page_rows(OptionsPage::Headphones),
-        [OptionRow::Hp(HpRow::Noise), OptionRow::Hp(HpRow::Battery)]
+        [
+            OptionRow::Hp(HpRow::Noise),
+            OptionRow::Hp(HpRow::Battery),
+            OptionRow::Hp(HpRow::Case)
+        ]
     );
 }
 
