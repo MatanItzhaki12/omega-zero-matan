@@ -14,8 +14,10 @@
 - A PSP game's disc spins smoothly as it loads. Its game was hashed for RetroAchievements
   while the achievements client was held, and the screen, which looks in on the client every
   frame, waited out the third of a second hashing a disc takes. A game is hashed on a thread of
-  its own now, a cartridge's ROM as much as a disc, and only its hash handed to the client, so
-  no game hitches, nor waits to start, as its achievements load. The note that a core is
+  its own now, a cartridge's ROM as much as a disc, and only its hash handed to the client. The
+  site's answers, a game's achievements among them, which take the client up to a second to
+  take in, are taken in on a thread of their own too, and the screen and the game look in on
+  the client only when it is free, so no game hitches as its achievements load. The note that a core is
   starting is written to the card off the screen's thread too, and a slow frame says in the
   log where its time went.
 

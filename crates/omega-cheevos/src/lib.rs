@@ -125,6 +125,43 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// Runs `f` on the client, once it is made and only if no other thread is in it: for what the
+/// screen and the game look in on every frame, which skip a frame rather than wait out an
+/// answer being taken in, as a game's achievements take up to a second to.
+fn try_client<R>(f: impl FnOnce() -> R) -> Option<R> {
+    let _held = match CLIENT.try_lock() {
+        Ok(held) => held,
+        Err(std::sync::TryLockError::Poisoned(e)) => e.into_inner(),
+        Err(std::sync::TryLockError::WouldBlock) => return None,
+    };
+    STARTED.load(Ordering::Acquire).then(f)
+}
+
+/// An answer has come back: the thread that hands answers to the client is woken, and made if
+/// it is not yet.
+fn answer(id: u32, status: c_int, body: Vec<u8>) {
+    lock(&ANSWERS).push((id, status, body));
+    static WAKE: std::sync::Condvar = std::sync::Condvar::new();
+    static MADE: std::sync::Once = std::sync::Once::new();
+    MADE.call_once(|| {
+        let spawned = std::thread::Builder::new()
+            .name("omega-cheevos-answers".into())
+            .spawn(|| loop {
+                {
+                    let mut answers = lock(&ANSWERS);
+                    while answers.is_empty() {
+                        answers = WAKE.wait(answers).unwrap_or_else(|e| e.into_inner());
+                    }
+                }
+                with_client(deliver);
+            });
+        if let Err(e) = spawned {
+            eprintln!("omega-cheevos: no thread to take answers in: {e}");
+        }
+    });
+    WAKE.notify_one();
+}
+
 /// Runs `f` on the client, once it is made, under its lock.
 fn with_client<R>(f: impl FnOnce() -> R) -> Option<R> {
     let asked = std::time::Instant::now();
@@ -275,7 +312,7 @@ pub fn logout() {
 }
 
 pub fn login() -> Login {
-    with_client(|| {
+    let Some(login) = try_client(|| {
         let mut error = std::ptr::null();
         // SAFETY: under the lock; the error lives in the shim
         match unsafe { oc_login_state(&mut error) } {
@@ -288,8 +325,14 @@ pub fn login() -> Login {
             3 => Login::Refused(text(error)),
             _ => Login::Out,
         }
-    })
-    .unwrap_or(Login::Out)
+    }) else {
+        // another thread is in the client: as the client is made, or busy
+        return match STARTED.load(Ordering::Acquire) {
+            true => Login::Pending,
+            false => Login::Out,
+        };
+    };
+    login
 }
 
 /// Starts the achievements of the game `rom` of `console` the core has just loaded, read from
@@ -373,7 +416,7 @@ fn load_game(console: u32, rom: &Path, hash: Option<&str>) {
 }
 
 pub fn game_load() -> GameLoad {
-    with_client(|| {
+    let Some(load) = try_client(|| {
         let mut error = std::ptr::null();
         // SAFETY: under the lock
         match unsafe { oc_game_state(&mut error) } {
@@ -382,14 +425,19 @@ pub fn game_load() -> GameLoad {
             3 => GameLoad::Refused(text(error)),
             _ => GameLoad::None,
         }
-    })
-    .unwrap_or(GameLoad::None)
+    }) else {
+        return match STARTED.load(Ordering::Acquire) {
+            true => GameLoad::Pending,
+            false => GameLoad::None,
+        };
+    };
+    load
 }
 
 /// Loading the game's achievements failed for want of a network: worth trying again.
 pub fn game_unreachable() -> bool {
     // SAFETY: under the lock
-    with_client(|| unsafe { oc_game_unreachable() } != 0).unwrap_or(false)
+    try_client(|| unsafe { oc_game_unreachable() } != 0).unwrap_or(false)
 }
 
 /// The hash RetroAchievements knows the game `rom` of `console` by, where it can be made: a
@@ -423,7 +471,7 @@ pub fn reload_game(console: u32, rom: &Path) {
 
 /// The game's achievements, once they are loaded.
 pub fn summary() -> Option<Summary> {
-    with_client(|| {
+    try_client(|| {
         let mut title = std::ptr::null();
         let (mut id, mut unlocked, mut total, mut points_unlocked, mut points_total) =
             (0, 0, 0, 0, 0);
@@ -482,24 +530,19 @@ pub fn hardcore_active() -> bool {
     with_client(|| unsafe { oc_hardcore() } != 0).unwrap_or(false)
 }
 
-/// One frame of the game has run: hands the client the answers come back, and lets it check
-/// the game's memory for achievements.
+/// One frame of the game has run: the client checks the game's memory for achievements. A
+/// frame the client is busy for, taking in an answer, goes unchecked rather than waiting.
 pub fn frame() {
-    with_client(|| {
-        deliver();
-        // SAFETY: under the lock, on the thread that runs the core
-        unsafe { oc_frame() };
-    });
+    // SAFETY: under the lock, on the thread that runs the core
+    try_client(|| unsafe { oc_frame() });
 }
 
-/// Hands the client the answers come back and lets it do what it waits to do, without reading
-/// the game's memory: between games, or with the game paused.
+/// Lets the client do what it waits to do, without reading the game's memory: between games,
+/// or with the game paused. Answers come back are taken in on a thread of their own, and a
+/// pump the client is busy for is skipped.
 pub fn pump() {
-    with_client(|| {
-        deliver();
-        // SAFETY: under the lock
-        unsafe { oc_idle() };
-    });
+    // SAFETY: under the lock
+    try_client(|| unsafe { oc_idle() });
 }
 
 /// The game's memory jumped, as a state loads or the game rewinds: achievements start watching
@@ -532,7 +575,7 @@ fn deliver() {
 }
 
 /// The client asks for the network: the request goes out on a thread of its own, and its
-/// answer waits in ANSWERS for the next pump. Called by the shim, under the client's lock.
+/// answer is taken in on another. Called by the shim, under the client's lock.
 #[no_mangle]
 pub extern "C" fn omega_cheevos_server_call(
     id: u32,
@@ -552,7 +595,7 @@ pub extern "C" fn omega_cheevos_server_call(
     unsafe { oc_user_scores(&mut hardcore, &mut softcore) };
     let scores = (hardcore, softcore);
     if OFFLINE.load(Ordering::Acquire) {
-        lock(&ANSWERS).push((id, RETRYABLE, Vec::new()));
+        answer(id, RETRYABLE, Vec::new());
         return;
     }
     let spawned = std::thread::Builder::new()
@@ -578,13 +621,13 @@ pub extern "C" fn omega_cheevos_server_call(
                 },
                 (false, None) => (status, body),
             };
-            lock(&ANSWERS).push((id, answer.0, answer.1));
+            self::answer(id, answer.0, answer.1);
             if status == 200 {
                 sync(&agent);
             }
         });
     if spawned.is_err() {
-        lock(&ANSWERS).push((id, RETRYABLE, Vec::new()));
+        answer(id, RETRYABLE, Vec::new());
     }
 }
 
