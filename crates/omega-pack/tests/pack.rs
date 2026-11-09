@@ -132,3 +132,17 @@ fn a_manifest_naming_a_path_outside_system_is_refused() {
         assert_eq!(Manifest::parse(&text), None, "{path}");
     }
 }
+
+#[test]
+fn a_core_s_source_is_left_to_the_zip() {
+    let new = tempfile::tempdir().unwrap();
+    put(
+        new.path(),
+        "System/licenses/ppsspp-1.20.4.tar.xz",
+        b"source",
+    );
+    put(new.path(), "System/licenses/ppsspp-GPL-2.0.txt", b"licence");
+    let (m, _, _) = build(new.path(), "2.7.0", &[]).unwrap();
+    let paths: Vec<&str> = m.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(paths, ["System/licenses/ppsspp-GPL-2.0.txt"]);
+}

@@ -274,6 +274,12 @@ fn runs(path: &Path) -> bool {
     path.extension().is_some_and(|e| e == "sh") || path.extension().is_none()
 }
 
+/// A core's source, which the release's zip ships beside it for its licence: a handheld has no
+/// use for it, and PPSSPP's alone is most of what a release weighs, so updates leave it be.
+pub fn source_archive(rel: &str) -> bool {
+    rel.starts_with("System/licenses/") && [".tar.gz", ".tar.xz"].iter().any(|e| rel.ends_with(e))
+}
+
 /// The release of the card tree at `new`, version `version`: its manifest, its files data and
 /// its patches data, with a patch for each file that differs from the same file in one of the
 /// trees `before`, where the patch is smaller than the file.
@@ -289,7 +295,7 @@ pub fn build(
     let mut files = Vec::new();
     let mut patches = Vec::new();
     for (rel, path) in tree(new)? {
-        if !path_ok(&rel) {
+        if !path_ok(&rel) || source_archive(&rel) {
             continue;
         }
         let bytes = std::fs::read(&path)?;
