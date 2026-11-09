@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.6.2
+
 - Headphones that connect by themselves get the game's sound: AirPods taken out of their case
   reconnect without their A2DP stream, so the sound stayed on the speaker. Headphones connected
   for 3 s without it are asked to connect again, which brings it.
