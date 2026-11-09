@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.6.6
+
 - AirPods are changed by nothing the handheld does but what is asked of it in the
   HEADPHONES menu: the packet that turns on what they keep for Apple's own devices is sent
   only once Adaptive is picked, rather than each time they connect, and connecting reads them
