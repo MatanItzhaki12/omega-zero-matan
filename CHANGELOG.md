@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.6.5
+
 - The game's menu lists Wi-Fi's networks and Bluetooth's devices: Y on Wi-Fi or Bluetooth in
   its SETTINGS page, and A joins a network (saved or open; a new one with a password is joined
   from Settings, which has the keyboard) or pairs, connects or disconnects a device. X looks
