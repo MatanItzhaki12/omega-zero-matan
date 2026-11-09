@@ -74,7 +74,7 @@ impl Update {
             Update::Idle => format!("V{VERSION}"),
             Update::Checking => "CHECKING…".to_string(),
             Update::Latest => "UP TO DATE".to_string(),
-            Update::Available { release, .. } => format!("GET V{}", release.version),
+            Update::Available { .. } => "INSTALL".to_string(),
             Update::Downloading(_) => "DOWNLOADING…".to_string(),
             Update::Installed(_) => "RESTART".to_string(),
             Update::Failed(why) => why.to_string(),
@@ -109,43 +109,92 @@ impl Update {
     }
 }
 
+/// How long UP TO DATE, or what went wrong, stays on the row before the version shows again.
+pub const SAID_FOR: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// Where the update stands, and since when.
+struct Held {
+    update: Update,
+    at: std::time::Instant,
+}
+
 /// The update under way, shared with the thread doing it.
 #[derive(Clone)]
 pub struct Updater {
-    state: Arc<Mutex<Update>>,
+    state: Arc<Mutex<Held>>,
 }
 
 impl Default for Updater {
     fn default() -> Self {
         Updater {
-            state: Arc::new(Mutex::new(Update::Idle)),
+            state: Arc::new(Mutex::new(Held {
+                update: Update::Idle,
+                at: std::time::Instant::now(),
+            })),
         }
     }
 }
 
 impl Updater {
+    /// Where the update stands: UP TO DATE and what went wrong only for `SAID_FOR`, the
+    /// version after.
     pub fn state(&self) -> Update {
-        self.state.lock().map(|s| s.clone()).unwrap_or(Update::Idle)
+        let Ok(mut held) = self.state.lock() else {
+            return Update::Idle;
+        };
+        if matches!(held.update, Update::Latest | Update::Failed(_))
+            && held.at.elapsed() >= SAID_FOR
+        {
+            held.update = Update::Idle;
+        }
+        held.update.clone()
     }
 
     fn set(&self, to: Update) {
-        if let Ok(mut s) = self.state.lock() {
-            *s = to;
+        if let Ok(mut held) = self.state.lock() {
+            held.update = to;
+            held.at = std::time::Instant::now();
         }
     }
 
-    /// Settings closing: what the row said, a check's answer or what went wrong, goes, and the
-    /// version running shows again. A check or a download under way goes on, and an update put
-    /// in place still asks for its restart.
+    /// Settings closing: UP TO DATE or what went wrong goes, and the version running shows
+    /// again. An update found stays, for INSTALL; a check or a download under way goes on, and
+    /// an update put in place still asks for its restart.
     pub fn settle(&self) {
-        if let Ok(mut s) = self.state.lock() {
-            if matches!(
-                *s,
-                Update::Latest | Update::Available { .. } | Update::Failed(_)
-            ) {
-                *s = Update::Idle;
+        if let Ok(mut held) = self.state.lock() {
+            if matches!(held.update, Update::Latest | Update::Failed(_)) {
+                held.update = Update::Idle;
             }
         }
+    }
+
+    /// Checks without saying so: an update found shows as INSTALL, and nothing else shows,
+    /// neither UP TO DATE nor what went wrong. For the check as Wi-Fi first joins a network.
+    pub fn check_quietly(&self, root: Option<PathBuf>) {
+        if !matches!(self.state(), Update::Idle) {
+            return;
+        }
+        let me = self.clone();
+        let _ = std::thread::Builder::new()
+            .name("omega-update".into())
+            .spawn(move || {
+                crate::spawn::stand_back();
+                let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
+                let Fetched::Body(body) = fetch(&url) else {
+                    return;
+                };
+                let Some(release) = latest(&String::from_utf8_lossy(&body)) else {
+                    return;
+                };
+                if !newer(&release.version, VERSION) {
+                    return;
+                }
+                let system = root.and_then(|root| lacking(&root, &release));
+                // a check asked for meanwhile has the say
+                if matches!(me.state(), Update::Idle) {
+                    me.set(Update::Available { release, system });
+                }
+            });
     }
 
     /// Asks GitHub for the latest release, on a thread of its own, and, for one with a
@@ -701,9 +750,19 @@ mod tests {
     #[test]
     fn closing_settings_takes_a_message_away_but_not_a_restart_or_a_download() {
         let u = Updater::default();
+        let found = Update::Available {
+            release: Release {
+                version: "2.7.0".into(),
+                program: String::new(),
+                sum: String::new(),
+                system: None,
+            },
+            system: None,
+        };
         for (said, kept) in [
             (Update::Failed("CARD FULL"), Update::Idle),
             (Update::Latest, Update::Idle),
+            (found.clone(), found.clone()),
             (
                 Update::Downloading("2.2.0".into()),
                 Update::Downloading("2.2.0".into()),
@@ -762,6 +821,17 @@ mod tests {
         had[0].size += 1;
         assert_eq!(sum_on_card(root, "System/wifi.sh", &had), Some(real));
         assert_eq!(sum_on_card(root, "System/none.sh", &had), None);
+    }
+
+    #[test]
+    fn up_to_date_says_so_for_a_few_seconds_then_the_version_shows() {
+        let u = Updater::default();
+        u.set(Update::Latest);
+        assert_eq!(u.state(), Update::Latest);
+        if let Ok(mut held) = u.state.lock() {
+            held.at -= SAID_FOR;
+        }
+        assert_eq!(u.state(), Update::Idle);
     }
 
     #[test]

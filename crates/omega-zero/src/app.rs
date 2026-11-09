@@ -387,6 +387,11 @@ pub struct App {
     pub(crate) bt_volume_wait: Option<(String, Millis)>,
     /// Sound went to Bluetooth headphones at the last tick.
     pub(crate) bt_was_on: bool,
+    /// The check for an update as Wi-Fi first joins a network: since when it has been joined,
+    /// whether the check was made, and whether an update found was told of.
+    pub(crate) update_online_since: Option<Millis>,
+    pub(crate) update_checked: bool,
+    pub(crate) update_told: bool,
     pub(crate) snapshot: Option<Box<dyn Snapshot>>,
     pub(crate) core: Core,
     pub(crate) colour_pending: Option<bool>,
@@ -621,6 +626,9 @@ impl App {
             bt_audio_wait: None,
             bt_volume_wait: None,
             bt_was_on: false,
+            update_online_since: None,
+            update_checked: false,
+            update_told: false,
             snapshot: None,
             core: Core::default(),
             colour_pending: None,
@@ -2015,6 +2023,35 @@ impl App {
         }
     }
 
+    /// Checks for an update once a boot, quietly, once Wi-Fi has been joined to a network for
+    /// 5 s, at boot or after; and says when one is found.
+    fn check_for_update(&mut self, now: Millis) {
+        const SETTLE_MS: Millis = 5_000;
+        if !self.update_checked {
+            if !self.online() {
+                self.update_online_since = None;
+            } else {
+                let since = *self.update_online_since.get_or_insert(now);
+                if now.saturating_sub(since) >= SETTLE_MS {
+                    self.update_checked = true;
+                    self.updater.check_quietly(self.root.clone());
+                }
+            }
+        }
+        let found = matches!(
+            self.updater.state(),
+            crate::update::Update::Available { .. }
+        );
+        // in Settings the row says so itself
+        if found && !self.update_told {
+            self.update_told = true;
+            if !matches!(self.phase, Phase::Settings { .. }) {
+                self.hud
+                    .toast(Toast::Update("Update available in Settings"), now);
+            }
+        }
+    }
+
     /// Switches Wi-Fi on or off, from the game's menu.
     pub(crate) fn toggle_wifi(&mut self) {
         let now = self.now();
@@ -2314,6 +2351,7 @@ impl App {
         self.follow_bluetooth_volume(now);
         self.tell_bluetooth_sound();
         self.tell_headphones_noise();
+        self.check_for_update(now);
         let phones = self.bluetooth.connected_headphones();
         self.phones.keep(
             phones.as_ref().map(|(mac, kind)| (mac.as_str(), *kind)),

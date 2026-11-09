@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- omega-zero checks for an update by itself, once a boot, as Wi-Fi joins a network (at boot or
+  later): one found is told of in a toast, and Settings > Update offers to INSTALL it.
+- An update found stays on Settings > Update until it is installed, closing Settings or not.
+  UP TO DATE, and what went wrong, go after 4 seconds, or as Settings closes.
+
 ## omega-zero 2.6.3
 
 - Headphones switched to another noise control mode on themselves, by a stem or a touch, say
