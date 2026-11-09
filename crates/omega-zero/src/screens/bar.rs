@@ -59,10 +59,11 @@ pub const SCAN: Hint<'static> = Hint {
     word: "SCAN",
 };
 
-/// START on headphones connected on the Bluetooth screen: it opens their HEADPHONES menu.
+/// START on headphones connected on the Bluetooth screen: it opens their HEADPHONES menu. The
+/// bar has room for two hints, so it stands in for X SCAN there, which X still does.
 pub const HEADPHONES: Hint<'static> = Hint {
     key: "START",
-    word: "SETTINGS",
+    word: "MENU",
 };
 
 /// X on the save-state switcher: it asks whether to delete the save shown.

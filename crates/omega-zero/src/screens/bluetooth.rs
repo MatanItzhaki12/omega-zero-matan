@@ -124,10 +124,14 @@ impl App {
     pub(crate) fn bluetooth_hints(&self, screen: &BluetoothScreen) -> Vec<Hint<'static>> {
         let scan = screen.scans(&self.bluetooth).then_some(SCAN);
         let forget = screen.forgets(&self.bluetooth).then_some(FORGET);
-        let phones = screen
-            .headphones(&self.bluetooth)
-            .then_some(crate::screens::bar::HEADPHONES);
-        scan.into_iter().chain(forget).chain(phones).collect()
+        // two hints are all the bar has room for: on headphones, their menu takes SCAN's place
+        if screen.headphones(&self.bluetooth) {
+            return forget
+                .into_iter()
+                .chain([crate::screens::bar::HEADPHONES])
+                .collect();
+        }
+        scan.into_iter().chain(forget).collect()
     }
 
     pub fn set_bluetooth_jobs(&mut self, jobs: Box<dyn BluetoothJobs>) {

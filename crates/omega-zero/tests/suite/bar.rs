@@ -1088,3 +1088,22 @@ fn nothing_of_the_bars_own_is_between_return_and_load() {
     assert!(a.bar_hints(a.phase()).is_empty(), "the bar has hints");
     assert!(a.bar_hints_shown().is_empty(), "the bar shows hints");
 }
+
+/// Every pair of hints the Bluetooth screen shows fits between RETURN and CONFIRM at 640, the
+/// narrowest screen: on headphones connected, START MENU takes X SCAN's place.
+#[test]
+fn bluetooth_s_hints_fit_between_return_and_confirm() {
+    use omega_zero::screens::bar::{FORGET, HEADPHONES};
+    let (_d, a) = on_shelf();
+    let room = a.bar_faces().unwrap().sets[Actions::Menu.index()]
+        .layout
+        .hints[2];
+    let narrowest = if out_w() == 640 { room } else { room - 40 };
+    for hints in [[SCAN, FORGET], [FORGET, HEADPHONES]] {
+        let wide = omega_ui::kit::bar::hints_width(&hints);
+        assert!(
+            wide + 8 <= narrowest,
+            "{hints:?} are {wide} wide in a room {narrowest} wide"
+        );
+    }
+}
