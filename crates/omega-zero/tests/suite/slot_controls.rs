@@ -740,3 +740,34 @@ fn a_game_on_mgba_has_no_run_ahead_row() {
         rows(&a)
     );
 }
+
+/// Y on the game menu's Wi-Fi or Bluetooth opens its list, while it is on, and B goes back to
+/// SETTINGS on the row it came from.
+#[test]
+fn y_on_wifi_or_bluetooth_lists_their_networks_or_devices() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut a = app_playing_in(d.path(), "Emerald");
+    open_menu(&mut a);
+    down_to(&mut a, PauseRow::Settings);
+    press(&mut a, Btn::A);
+    for (row, title) in [
+        (PauseRow::Wifi, "WI-FI"),
+        (PauseRow::Bluetooth, "BLUETOOTH"),
+    ] {
+        down_to(&mut a, row);
+        let off = |a: &App| {
+            a.pause_view()
+                .unwrap()
+                .lines
+                .iter()
+                .any(|l| l.row == row && l.value.as_deref() == Some("OFF"))
+        };
+        if off(&a) {
+            press(&mut a, Btn::A);
+        }
+        press(&mut a, Btn::Y);
+        assert_eq!(a.pause_view().unwrap().title, title, "Y on {row:?}");
+        press(&mut a, Btn::B);
+        assert_eq!(a.pause_view().unwrap().title, "SETTINGS");
+    }
+}

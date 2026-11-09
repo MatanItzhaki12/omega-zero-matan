@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The game's menu lists Wi-Fi's networks and Bluetooth's devices: Y on Wi-Fi or Bluetooth in
+  its SETTINGS page, and A joins a network (saved or open; a new one with a password is joined
+  from Settings, which has the keyboard) or pairs, connects or disconnects a device. X looks
+  again.
+
 ## omega-zero 2.6.4
 
 - START held, then POWER, restarts the handheld, as POWER held, then START, did already.

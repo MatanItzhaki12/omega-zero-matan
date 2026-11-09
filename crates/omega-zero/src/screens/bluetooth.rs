@@ -95,6 +95,10 @@ impl App {
     /// more when X asks, and Settings names the one connected. Nothing else asks it anything: the
     /// top bar shows only whether Bluetooth is on.
     pub fn bluetooth_watch(&self) -> Watch {
+        // the game menu's list of devices looks as the Bluetooth screen does
+        if self.pause_page() == Some(crate::pause_menu::PausePage::Devices) {
+            return Watch::Devices;
+        }
         match self.phase {
             Phase::Bluetooth(_) => Watch::Devices,
             Phase::Settings { .. } => Watch::Status,

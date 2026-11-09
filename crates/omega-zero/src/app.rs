@@ -1730,6 +1730,9 @@ impl App {
     /// X's scans found, Settings names the network joined, and the shelf's top bar and Labels
     /// only need to know whether there is one.
     pub fn wifi_watch(&self) -> Watch {
+        if self.pause_page() == Some(crate::pause_menu::PausePage::Networks) {
+            return Watch::Networks;
+        }
         match self.phase {
             Phase::Network(_) | Phase::Info(_) => Watch::Networks,
             Phase::Settings { .. } => Watch::Status,

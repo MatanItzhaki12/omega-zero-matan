@@ -68,6 +68,11 @@ pub enum PausePage {
     List,
     /// The headphones connected: their noise control and battery.
     Headphones,
+    /// The Wi-Fi networks in reach and saved, Y on Wi-Fi: A joins one.
+    Networks,
+    /// The Bluetooth devices paired and found, Y on Bluetooth: A pairs, connects or
+    /// disconnects one.
+    Devices,
 }
 
 impl PausePage {
@@ -81,6 +86,8 @@ impl PausePage {
             PausePage::Achievements => "ACHIEVEMENTS",
             PausePage::List => "ALL ACHIEVEMENTS",
             PausePage::Headphones => "HEADPHONES",
+            PausePage::Networks => "WI-FI",
+            PausePage::Devices => "BLUETOOTH",
         }
     }
 
@@ -132,8 +139,8 @@ impl PausePage {
                 PauseRow::Cheevos,
                 PauseRow::Hardcore,
             ],
-            // what the headphones have: `App::pause_rows`
-            PausePage::Headphones => &[],
+            // what the headphones have, and the networks and devices: `App::pause_rows`
+            PausePage::Headphones | PausePage::Networks | PausePage::Devices => &[],
             // the game's own achievements, one row each
             PausePage::Controls | PausePage::List => &[],
         }
@@ -150,6 +157,8 @@ impl PausePage {
             PausePage::Achievements => Some((PausePage::Settings, PauseRow::Achievements)),
             PausePage::List => Some((PausePage::Achievements, PauseRow::List)),
             PausePage::Headphones => Some((PausePage::Main, PauseRow::Headphones)),
+            PausePage::Networks => Some((PausePage::Settings, PauseRow::Wifi)),
+            PausePage::Devices => Some((PausePage::Settings, PauseRow::Bluetooth)),
         }
     }
 }
@@ -197,9 +206,13 @@ pub enum PauseRow {
     Stick,
     /// The headphones connected: opens their page.
     Headphones,
-    /// Wi-Fi and Bluetooth, on or off.
+    /// Wi-Fi and Bluetooth, on or off; Y lists the networks or the devices.
     Wifi,
     Bluetooth,
+    /// A network of WI-FI's list, by its place in it.
+    Network(u16),
+    /// A device of BLUETOOTH's list, by its place in it.
+    Device(u16),
     /// A row of the headphones' page.
     Hp(crate::headphones_menu::HpRow),
 }
@@ -232,6 +245,8 @@ impl PauseRow {
             PauseRow::Headphones => "Headphones",
             PauseRow::Wifi => "Wi-Fi",
             PauseRow::Bluetooth => "Bluetooth",
+            // named by the network's or the device's own name
+            PauseRow::Network(_) | PauseRow::Device(_) => "",
             PauseRow::Hp(row) => row.label(),
             PauseRow::Rumble => "Rumble",
             PauseRow::LoadOnInsert => "Load State on Insert",
@@ -274,8 +289,10 @@ impl PauseRow {
             PauseRow::Picture => "For this game: Fit fills the width",
             PauseRow::Stick => "For this game: L2 makes the D-pad the stick",
             PauseRow::Headphones => "Noise control and battery",
-            PauseRow::Wifi => "Switches Wi-Fi on or off",
-            PauseRow::Bluetooth => "Switches Bluetooth on or off",
+            PauseRow::Wifi => "A switches it, Y lists networks",
+            PauseRow::Bluetooth => "A switches it, Y lists devices",
+            PauseRow::Network(_) => "A joins it; a new one with a password, in Settings",
+            PauseRow::Device(_) => "A pairs, connects or disconnects it; X looks again",
             PauseRow::Hp(row) => row.note(),
             PauseRow::Rumble => "For games with a rumble pak",
             PauseRow::LoadOnInsert => "A picks up where you left off",
@@ -309,7 +326,11 @@ impl PauseRow {
     fn steps(self) -> bool {
         !matches!(
             self,
-            PauseRow::Game | PauseRow::Progress | PauseRow::Achievement(_)
+            PauseRow::Game
+                | PauseRow::Progress
+                | PauseRow::Achievement(_)
+                | PauseRow::Network(_)
+                | PauseRow::Device(_)
         ) && !matches!(self, PauseRow::Hp(row) if !row.steps())
     }
 
@@ -504,6 +525,12 @@ impl App {
                     .into_iter()
                     .map(PauseRow::Hp)
                     .collect(),
+                PausePage::Networks => (0..self.wifi.entries().len().min(u16::MAX as usize))
+                    .map(|i| PauseRow::Network(i as u16))
+                    .collect(),
+                PausePage::Devices => (0..self.bluetooth.entries().len().min(u16::MAX as usize))
+                    .map(|i| PauseRow::Device(i as u16))
+                    .collect(),
                 _ => Vec::new(),
             })
             .collect()
@@ -568,6 +595,27 @@ impl App {
             PauseRow::Hp(row) => self.headphones_value(row),
             PauseRow::Wifi => on_off(self.wifi.enabled()),
             PauseRow::Bluetooth => on_off(self.bluetooth.enabled()),
+            PauseRow::Network(i) => {
+                use crate::wifi_screen::EntryState;
+                match self.wifi.entries().get(usize::from(i))?.state {
+                    EntryState::Joined => "JOINED",
+                    EntryState::Joining => "JOINING",
+                    EntryState::Saved => "SAVED",
+                    EntryState::New => "",
+                }
+                .to_string()
+            }
+            PauseRow::Device(i) => {
+                use crate::bluetooth_screen::DeviceState;
+                match self.bluetooth.entries().get(usize::from(i))?.state {
+                    DeviceState::Connected => "CONNECTED",
+                    DeviceState::Connecting => "CONNECTING",
+                    DeviceState::Pairing => "PAIRING",
+                    DeviceState::Paired => "PAIRED",
+                    DeviceState::Found => "",
+                }
+                .to_string()
+            }
             PauseRow::Rumble => self.option_text(OptionRow::Rumble),
             PauseRow::LoadOnInsert => self.option_text(OptionRow::LoadOnInsert),
             PauseRow::SaveOnEject => self.option_text(OptionRow::SaveOnEject),
@@ -639,6 +687,9 @@ impl App {
                         line.label = a.title.clone();
                         line.dim = !a.unlocked;
                     }
+                    if let Some(name) = self.listed_name(row) {
+                        line.label = name;
+                    }
                     line
                 })
                 .collect(),
@@ -671,6 +722,23 @@ impl App {
             Action::GbaDown(Btn::Left) => self.change_pause_row(row, false),
             Action::GbaDown(Btn::Right) => self.change_pause_row(row, true),
             Action::GbaDown(Btn::A) => self.choose_pause_row(menu.page, row),
+            // Y on Wi-Fi or Bluetooth: their list, looked for afresh
+            Action::GbaDown(Btn::Y) if row == PauseRow::Wifi && self.wifi.enabled() => {
+                self.wifi.scan();
+                let first = self.pause_rows(PausePage::Networks).first().copied();
+                self.pause_at(PausePage::Networks, first.unwrap_or(row));
+            }
+            Action::GbaDown(Btn::Y) if row == PauseRow::Bluetooth && self.bluetooth.enabled() => {
+                let now = self.now();
+                self.bluetooth.look(now);
+                let first = self.pause_rows(PausePage::Devices).first().copied();
+                self.pause_at(PausePage::Devices, first.unwrap_or(row));
+            }
+            Action::GbaDown(Btn::X) if menu.page == PausePage::Devices => {
+                let now = self.now();
+                self.bluetooth.look(now);
+            }
+            Action::GbaDown(Btn::X) if menu.page == PausePage::Networks => self.wifi.scan(),
             Action::GbaDown(Btn::B) => match menu.page.parent() {
                 Some((page, row)) => self.pause_at(page, row),
                 None => self.close_pause_menu(),
@@ -771,6 +839,8 @@ impl App {
                 self.close_pause_menu();
                 self.restart_game();
             }
+            PauseRow::Network(i) => self.join_listed_network(usize::from(i)),
+            PauseRow::Device(i) => self.use_listed_device(usize::from(i)),
             _ if page != PausePage::Main => self.change_pause_row(row, true),
             _ => {}
         }
@@ -921,4 +991,55 @@ impl App {
 
 fn on_off(on: bool) -> String {
     if on { "ON" } else { "OFF" }.to_string()
+}
+
+impl App {
+    /// The name a network or a device row of the game's menu goes by.
+    fn listed_name(&self, row: PauseRow) -> Option<String> {
+        match row {
+            PauseRow::Network(i) => self
+                .wifi
+                .entries()
+                .get(usize::from(i))
+                .map(|e| String::from_utf8_lossy(&e.ssid).into_owned()),
+            PauseRow::Device(i) => self
+                .bluetooth
+                .entries()
+                .get(usize::from(i))
+                .map(|e| e.name.clone()),
+            _ => None,
+        }
+    }
+
+    /// A on a network of WI-FI's list: joins a saved one or an open one. One that wants a
+    /// password typed is joined from Settings, which has the keyboard.
+    fn join_listed_network(&mut self, i: usize) {
+        use crate::wifi_screen::EntryState;
+        let Some(e) = self.wifi.entries().get(i).cloned() else {
+            return;
+        };
+        let now = self.now();
+        match (e.state, e.saved) {
+            (EntryState::Joined | EntryState::Joining, _) => {}
+            (_, Some(id)) => self.wifi.select(id, e.ssid, now),
+            _ if !e.secured => self.wifi.join(e.ssid, String::new(), None, now),
+            _ => self.refuse(),
+        }
+    }
+
+    /// A on a device of BLUETOOTH's list: pairs a found one, connects a paired one,
+    /// disconnects a connected one.
+    fn use_listed_device(&mut self, i: usize) {
+        use crate::bluetooth_screen::DeviceState;
+        let Some(e) = self.bluetooth.entries().get(i).cloned() else {
+            return;
+        };
+        let now = self.now();
+        match e.state {
+            DeviceState::Found => self.bluetooth.pair(&e.mac, now),
+            DeviceState::Paired => self.bluetooth.connect(&e.mac, now),
+            DeviceState::Connected => self.bluetooth.disconnect(&e.mac, now),
+            DeviceState::Pairing | DeviceState::Connecting => {}
+        }
+    }
 }
