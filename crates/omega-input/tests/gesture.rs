@@ -772,6 +772,29 @@ fn start_under_a_held_power_restarts_instead_of_powering_off() {
     assert_eq!(g.feed(Up(Btn::Start), 3100), vec![GbaUp(Btn::Start)]);
 }
 
+/// POWER pressed under a held START restarts as well: START, which the game had, is let go of
+/// at once, and neither its release nor POWER's powers off.
+#[test]
+fn power_under_a_held_start_restarts_too() {
+    let mut g = Gestures::new();
+    assert_eq!(g.feed(Down(Btn::Start), 0), vec![GbaDown(Btn::Start)]);
+    assert_eq!(
+        g.feed(Down(Btn::Power), 200),
+        vec![GbaUp(Btn::Start), PowerRestart]
+    );
+    assert!(
+        g.tick(POWER_HOLD_MS * 3).is_empty(),
+        "the hold fired as well"
+    );
+    assert!(
+        g.feed(Up(Btn::Start), 2000).is_empty(),
+        "START's release reached the game"
+    );
+    assert_eq!(g.feed(Up(Btn::Power), 2100), vec![PowerOff]);
+    // POWER on its own is a press again
+    assert_eq!(g.feed(Down(Btn::Power), 3000), vec![PowerPress]);
+}
+
 /// Once the hold has fired the console is going off, and START changes nothing.
 #[test]
 fn start_after_the_hold_has_fired_is_too_late() {

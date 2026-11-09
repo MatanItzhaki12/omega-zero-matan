@@ -108,6 +108,8 @@ pub struct Gestures {
     power_hold_fired: bool,
     /// START was pressed for a restart under POWER: its release goes nowhere either.
     start_for_power: bool,
+    /// START is held, as the game has it: POWER pressed under it restarts too.
+    start_held: bool,
     vol_up_at: Option<Millis>,
     vol_down_at: Option<Millis>,
     vol_up_ramp: Option<Millis>,
@@ -226,6 +228,15 @@ impl Gestures {
         match b {
             Btn::Select => self.select_down(now),
             Btn::Menu => self.menu_down(now),
+            // POWER under a held START restarts, as START under a held POWER does: START, which
+            // the game had, is let go of, and its release goes nowhere
+            Btn::Power if self.start_held => {
+                self.power_down_at = Some(now);
+                self.power_hold_fired = true;
+                self.start_held = false;
+                self.start_for_power = true;
+                vec![Action::GbaUp(Btn::Start), Action::PowerRestart]
+            }
             Btn::Power => {
                 self.power_down_at = Some(now);
                 self.power_hold_fired = false;
@@ -252,6 +263,9 @@ impl Gestures {
                         action => vec![action],
                     };
                 }
+                if b == Btn::Start {
+                    self.start_held = true;
+                }
                 let mut out = self.hand_over_select(now);
                 out.push(Action::GbaDown(b));
                 out
@@ -268,6 +282,10 @@ impl Gestures {
             Btn::Start if self.start_for_power => {
                 self.start_for_power = false;
                 Vec::new()
+            }
+            Btn::Start => {
+                self.start_held = false;
+                vec![Action::GbaUp(Btn::Start)]
             }
             Btn::VolUp | Btn::VolDown => self.volume_release(b),
             Btn::L2 if !self.keys.game_l2_r2 => self.l2_up(),

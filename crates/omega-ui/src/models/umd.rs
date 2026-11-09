@@ -141,10 +141,10 @@ pub(crate) fn with_hub(mut rgba: Vec<u8>, w: u32, h: u32) -> Vec<u8> {
             if a == 255 || d > 1.0 {
                 continue;
             }
+            // a darker ring where the hub meets the print
             let hub = match d {
-                d if d < 0.36 => HUB_METAL,
-                d if d < 0.38 => [0x88, 0x8c, 0x96],
-                _ => HUB_METAL,
+                d if d < 0.42 => HUB_METAL,
+                _ => [0x88, 0x8c, 0x96],
             };
             for c in 0..3 {
                 rgba[i + c] = ((rgba[i + c] as u32 * a + hub[c] as u32 * (255 - a)) / 255) as u8;
