@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Restarting takes START and a held POWER, as powering off takes a held POWER: START with POWER
+  held, in either order, restarts once POWER has been held as long as a power-off takes, and
+  both let go of sooner do nothing.
+
 ## omega-zero 2.6.7
 
 - A PSP game's disc spins in its UMD's window as the game loads: the disc is drawn on its own,

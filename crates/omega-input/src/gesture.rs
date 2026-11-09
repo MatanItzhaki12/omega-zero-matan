@@ -108,8 +108,11 @@ pub struct Gestures {
     power_hold_fired: bool,
     /// START was pressed for a restart under POWER: its release goes nowhere either.
     start_for_power: bool,
-    /// START is held, as the game has it: POWER pressed under it restarts too.
+    /// START is held, as the game has it: POWER held under it restarts too.
     start_held: bool,
+    /// START and POWER are held together: the hold, once it fires, restarts rather than
+    /// powers off.
+    restart_armed: bool,
     vol_up_at: Option<Millis>,
     vol_down_at: Option<Millis>,
     vol_up_ramp: Option<Millis>,
@@ -208,7 +211,10 @@ impl Gestures {
         if let Some(d) = self.power_down_at {
             if !self.power_hold_fired && now.saturating_sub(d) >= POWER_HOLD_MS {
                 self.power_hold_fired = true;
-                out.push(Action::PowerHold);
+                out.push(match self.restart_armed {
+                    true => Action::PowerRestart,
+                    false => Action::PowerHold,
+                });
             }
         }
         if !self.mute_fired {
@@ -228,14 +234,15 @@ impl Gestures {
         match b {
             Btn::Select => self.select_down(now),
             Btn::Menu => self.menu_down(now),
-            // POWER under a held START restarts, as START under a held POWER does: START, which
-            // the game had, is let go of, and its release goes nowhere
+            // POWER held under a held START restarts once the hold fires, as POWER held alone
+            // powers off: START, which the game had, is let go of, and its release goes nowhere
             Btn::Power if self.start_held => {
                 self.power_down_at = Some(now);
-                self.power_hold_fired = true;
+                self.power_hold_fired = false;
+                self.restart_armed = true;
                 self.start_held = false;
                 self.start_for_power = true;
-                vec![Action::GbaUp(Btn::Start), Action::PowerRestart]
+                vec![Action::GbaUp(Btn::Start)]
             }
             Btn::Power => {
                 self.power_down_at = Some(now);
@@ -243,12 +250,12 @@ impl Gestures {
                 vec![Action::PowerPress]
             }
             Btn::Lid => vec![Action::LidClose],
-            // START under a held POWER restarts rather than powers off, and the hold that would
-            // have powered off never fires; neither the game nor a menu sees START
+            // START under a held POWER makes the hold restart rather than power off, once it
+            // fires; neither the game nor a menu sees START
             Btn::Start if self.power_down_at.is_some() && !self.power_hold_fired => {
-                self.power_hold_fired = true;
+                self.restart_armed = true;
                 self.start_for_power = true;
-                vec![Action::PowerRestart]
+                Vec::new()
             }
             Btn::VolUp | Btn::VolDown => self.volume_press(b, now),
             Btn::L2 if !self.keys.game_l2_r2 => self.l2_down(),
@@ -432,8 +439,13 @@ impl Gestures {
 
     fn power_up(&mut self) -> Vec<Action> {
         let held = self.power_hold_fired;
+        let armed = std::mem::take(&mut self.restart_armed);
         self.power_down_at = None;
         self.power_hold_fired = false;
+        // START and POWER let go of before the hold: nothing, as POWER tapped with START held
+        if armed && !held {
+            return Vec::new();
+        }
         vec![if held {
             Action::PowerOff
         } else {
