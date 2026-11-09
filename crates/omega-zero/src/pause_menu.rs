@@ -66,8 +66,8 @@ pub enum PausePage {
     Achievements,
     /// Every achievement of the game.
     List,
-    /// The AirPods connected: their noise control, conversational awareness and battery.
-    AirPods,
+    /// The headphones connected: their noise control and battery.
+    Headphones,
 }
 
 impl PausePage {
@@ -80,7 +80,7 @@ impl PausePage {
             PausePage::Controls => "CONTROLS",
             PausePage::Achievements => "ACHIEVEMENTS",
             PausePage::List => "ALL ACHIEVEMENTS",
-            PausePage::AirPods => "AIRPODS",
+            PausePage::Headphones => "HEADPHONES",
         }
     }
 
@@ -93,7 +93,7 @@ impl PausePage {
                 PauseRow::UndoLoad,
                 PauseRow::States,
                 PauseRow::Settings,
-                PauseRow::AirPods,
+                PauseRow::Headphones,
                 PauseRow::Restart,
                 PauseRow::ExitGame,
             ],
@@ -130,11 +130,8 @@ impl PausePage {
                 PauseRow::Cheevos,
                 PauseRow::Hardcore,
             ],
-            PausePage::AirPods => &[
-                PauseRow::PodsNoise,
-                PauseRow::PodsConversation,
-                PauseRow::PodsBattery,
-            ],
+            // what the headphones have: `App::pause_rows`
+            PausePage::Headphones => &[],
             // the game's own achievements, one row each
             PausePage::Controls | PausePage::List => &[],
         }
@@ -150,7 +147,7 @@ impl PausePage {
             PausePage::Controls => Some((PausePage::Settings, PauseRow::Controls)),
             PausePage::Achievements => Some((PausePage::Settings, PauseRow::Achievements)),
             PausePage::List => Some((PausePage::Achievements, PauseRow::List)),
-            PausePage::AirPods => Some((PausePage::Main, PauseRow::AirPods)),
+            PausePage::Headphones => Some((PausePage::Main, PauseRow::Headphones)),
         }
     }
 }
@@ -196,11 +193,10 @@ pub enum PauseRow {
     Picture,
     /// A PSP game's D-pad as the stick: held L2, toggled by L2, or never, for this game.
     Stick,
-    /// The AirPods connected: opens their page.
-    AirPods,
-    PodsNoise,
-    PodsConversation,
-    PodsBattery,
+    /// The headphones connected: opens their page.
+    Headphones,
+    /// A row of the headphones' page.
+    Hp(crate::headphones_menu::HpRow),
 }
 
 impl PauseRow {
@@ -228,10 +224,8 @@ impl PauseRow {
             PauseRow::RunAhead => "Run-Ahead",
             PauseRow::Picture => "Picture",
             PauseRow::Stick => "D-Pad as Stick",
-            PauseRow::AirPods => "AirPods",
-            PauseRow::PodsNoise => "Noise Control",
-            PauseRow::PodsConversation => "Conversation Awareness",
-            PauseRow::PodsBattery => "Battery",
+            PauseRow::Headphones => "Headphones",
+            PauseRow::Hp(row) => row.label(),
             PauseRow::Rumble => "Rumble",
             PauseRow::LoadOnInsert => "Load State on Insert",
             PauseRow::SaveOnEject => "Save State on Eject",
@@ -272,10 +266,8 @@ impl PauseRow {
             PauseRow::RunAhead => "A frame sooner on gpSP",
             PauseRow::Picture => "For this game: Fit fills the width",
             PauseRow::Stick => "For this game: L2 makes the D-pad the stick",
-            PauseRow::AirPods => "Noise control and battery",
-            PauseRow::PodsNoise => "What the AirPods let in",
-            PauseRow::PodsConversation => "Talking lowers the sound",
-            PauseRow::PodsBattery => "Left, right and the case; + is charging",
+            PauseRow::Headphones => "Noise control and battery",
+            PauseRow::Hp(row) => row.note(),
             PauseRow::Rumble => "For games with a rumble pak",
             PauseRow::LoadOnInsert => "A picks up where you left off",
             PauseRow::SaveOnEject => "Ejecting saves where you were",
@@ -299,7 +291,7 @@ impl PauseRow {
                 | PauseRow::Controls
                 | PauseRow::Achievements
                 | PauseRow::List
-                | PauseRow::AirPods
+                | PauseRow::Headphones
         )
     }
 
@@ -308,8 +300,8 @@ impl PauseRow {
     fn steps(self) -> bool {
         !matches!(
             self,
-            PauseRow::Game | PauseRow::Progress | PauseRow::Achievement(_) | PauseRow::PodsBattery
-        )
+            PauseRow::Game | PauseRow::Progress | PauseRow::Achievement(_)
+        ) && !matches!(self, PauseRow::Hp(row) if !row.steps())
     }
 
     /// The page A opens on the row.
@@ -321,7 +313,7 @@ impl PauseRow {
             PauseRow::Controls => PausePage::Controls,
             PauseRow::Achievements => PausePage::Achievements,
             PauseRow::List => PausePage::List,
-            PauseRow::AirPods => PausePage::AirPods,
+            PauseRow::Headphones => PausePage::Headphones,
             _ => return None,
         })
     }
@@ -484,7 +476,7 @@ impl App {
                 // gpSP's alone: run-ahead is for no other core
                 PauseRow::RunAhead => self.core == Core::Gpsp,
                 PauseRow::Picture | PauseRow::Stick => self.platform == Platform::Psp,
-                PauseRow::AirPods => self.airpods.pods().is_some_and(|p| p.talking),
+                PauseRow::Headphones => self.headphones_kind().is_some(),
                 PauseRow::Restart => !self.link_active(),
                 PauseRow::Achievements => crate::achievements::console_of(self.platform).is_some(),
                 PauseRow::Progress | PauseRow::List => {
@@ -495,6 +487,11 @@ impl App {
             .chain(match page {
                 PausePage::List => (0..self.cheevos.list.len())
                     .map(PauseRow::Achievement)
+                    .collect(),
+                PausePage::Headphones => self
+                    .headphones_rows()
+                    .into_iter()
+                    .map(PauseRow::Hp)
                     .collect(),
                 _ => Vec::new(),
             })
@@ -557,16 +554,7 @@ impl App {
                 crate::input::Stick::Off => "OFF",
             }
             .to_string(),
-            PauseRow::PodsNoise => {
-                let pods = self.airpods.pods()?;
-                pods.noise.map_or("…", |n| n.word()).to_string()
-            }
-            PauseRow::PodsConversation => match self.airpods.pods()?.conversation {
-                Some(true) => "ON".to_string(),
-                Some(false) => "OFF".to_string(),
-                None => "…".to_string(),
-            },
-            PauseRow::PodsBattery => self.airpods.pods()?.battery_text(),
+            PauseRow::Hp(row) => self.headphones_value(row),
             PauseRow::Rumble => self.option_text(OptionRow::Rumble),
             PauseRow::LoadOnInsert => self.option_text(OptionRow::LoadOnInsert),
             PauseRow::SaveOnEject => self.option_text(OptionRow::SaveOnEject),
@@ -706,19 +694,7 @@ impl App {
             PauseRow::FastForward => self.step_ff_speed(right),
             PauseRow::Picture => self.step_picture(right),
             PauseRow::Stick => self.step_stick(right),
-            PauseRow::PodsNoise => {
-                let now = self.airpods.pods().and_then(|p| p.noise);
-                if let Some(link) = self.airpods.link() {
-                    let to = now.map_or(crate::airpods::Noise::Cancellation, |n| n.step(right));
-                    link.set_noise(to);
-                }
-            }
-            PauseRow::PodsConversation => {
-                let on = self.airpods.pods().and_then(|p| p.conversation);
-                if let Some(link) = self.airpods.link() {
-                    link.set_conversation(!on.unwrap_or(false));
-                }
-            }
+            PauseRow::Hp(row) => self.change_headphones(row, right),
             PauseRow::Brightness | PauseRow::BlueLight => {
                 let (level, max) = match row {
                     PauseRow::Brightness => (&mut self.state.brightness, BRIGHTNESS_MAX),

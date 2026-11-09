@@ -436,21 +436,24 @@ impl Bluetooth {
             .devices
             .iter()
             .find(|d| {
-                d.connected && (d.kind == DeviceKind::Audio || crate::airpods::is_airpods(&d.name))
+                d.connected
+                    && (d.kind == DeviceKind::Audio
+                        || crate::headphones::Kind::of(&d.name).is_some())
             })
             .map(|d| d.mac.clone())
     }
 
-    /// The AirPods connected, by their address: none while Bluetooth is off or no AirPods are.
-    pub fn connected_airpods(&self) -> Option<String> {
+    /// The headphones connected the handheld can talk to, AirPods or Galaxy Buds, by their
+    /// address and what they are: none while Bluetooth is off or none are.
+    pub fn connected_headphones(&self) -> Option<(String, crate::headphones::Kind)> {
         if !self.enabled {
             return None;
         }
         self.status
             .devices
             .iter()
-            .find(|d| d.connected && crate::airpods::is_airpods(&d.name))
-            .map(|d| d.mac.clone())
+            .filter(|d| d.connected)
+            .find_map(|d| crate::headphones::Kind::of(&d.name).map(|k| (d.mac.clone(), k)))
     }
 
     pub fn summary(&self) -> Summary {
@@ -541,6 +544,8 @@ impl Default for BluetoothScreen {
 pub enum Outcome {
     Stay,
     Close,
+    /// START on headphones connected: their HEADPHONES menu.
+    Headphones,
 }
 
 /// A device in the DEVICES list, as a kit list row shows it.
@@ -630,11 +635,28 @@ impl BluetoothScreen {
                 }
             }
             Action::GbaDown(Btn::X) => bt.look(now),
+            Action::GbaDown(Btn::Start) if self.headphones(bt) => return Outcome::Headphones,
             _ => {}
         }
         let rows = self.rows(bt);
         self.settle(&rows, bt);
         Outcome::Stay
+    }
+
+    /// Whether START opens the HEADPHONES menu for the device under the cursor: headphones
+    /// connected that the handheld can talk to.
+    pub fn headphones(&self, bt: &Bluetooth) -> bool {
+        self.entry(bt).is_some_and(|e| {
+            e.state == DeviceState::Connected && crate::headphones::Kind::of(&e.name).is_some()
+        })
+    }
+
+    /// The screen with the cursor on the device at `mac`.
+    pub fn on(mac: &str) -> Self {
+        BluetoothScreen {
+            sel: Sel::Device(mac.to_string()),
+            ..BluetoothScreen::default()
+        }
     }
 
     /// Whether Y forgets the device under the cursor: one paired, connected, connecting or not.

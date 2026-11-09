@@ -287,7 +287,7 @@ jobs:
           NOTES
           cat >> notes.md <<NOTES
 
-          Already on omega-zero-matan? **Settings > Update** brings the console's \`System\` folder to this release on the console itself, fetching only the files that changed, as patches where it can (\`system-manifest.txt\`, \`system-files.bin\`, \`system-patches.bin\`). Before 2.7.0 it fetched \`omega-zero-aarch64\` alone.
+          Already on omega-zero-matan? **Settings > Update** brings the console's \`System\` folder to this release on the console itself, fetching only the files that changed, as patches where it can (\`system-manifest.txt\`, \`system-files.bin\`, \`system-patches.bin\`). Before 2.6.1 it fetched \`omega-zero-aarch64\` alone.
           NOTES
           # a tag that is not there yet is made at the commit this run built
           gh release create "$TAG" "$ZIP" omega-zero-aarch64 omega-zero-aarch64.sha256 \

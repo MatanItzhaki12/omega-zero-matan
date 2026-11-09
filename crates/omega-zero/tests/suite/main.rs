@@ -37,6 +37,7 @@ mod frame_size;
 mod frames;
 mod gpsp;
 mod headphones;
+mod headphones_menu;
 mod input;
 mod keyboard;
 mod keys;

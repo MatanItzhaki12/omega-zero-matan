@@ -52,6 +52,8 @@ pub enum OptionsPage {
     Folder,
     /// The saves on the NAS that differ from the handheld's, opened from Sync From Backup.
     Restore,
+    /// The headphones connected, opened from Bluetooth with START on them.
+    Headphones,
 }
 
 /// The systems with more than one core to run on, so a default to pick.
@@ -69,6 +71,7 @@ impl OptionsPage {
             OptionsPage::Nas => "FIND NAS",
             OptionsPage::Folder => "FOLDER",
             OptionsPage::Restore => "FROM BACKUP",
+            OptionsPage::Headphones => "HEADPHONES",
         }
     }
 
@@ -103,6 +106,8 @@ impl OptionsPage {
             OptionsPage::Nas => &[OptionRow::NasAddress],
             OptionsPage::Folder => &[OptionRow::FolderUse],
             OptionsPage::Restore => &[OptionRow::RestoreItem(0)],
+            // what the headphones have: `App::page_rows`
+            OptionsPage::Headphones => &[],
             OptionsPage::Achievements => {
                 &[OptionRow::Cheevos, OptionRow::Account, OptionRow::Hardcore]
             }
@@ -133,6 +138,7 @@ impl OptionsPage {
             OptionsPage::Backup | OptionsPage::Nas | OptionsPage::Folder | OptionsPage::Restore => {
                 SettingsRow::Backup
             }
+            OptionsPage::Headphones => SettingsRow::Bluetooth,
         }
     }
 
@@ -148,7 +154,8 @@ impl OptionsPage {
             OptionsPage::Gameplay
             | OptionsPage::Shelf
             | OptionsPage::Achievements
-            | OptionsPage::Backup => None,
+            | OptionsPage::Backup
+            | OptionsPage::Headphones => None,
         }
     }
 }
@@ -212,6 +219,8 @@ pub enum OptionRow {
     FolderUse,
     FolderNew,
     FolderItem(u16),
+    /// A row of HEADPHONES.
+    Hp(crate::headphones_menu::HpRow),
 }
 
 impl OptionRow {
@@ -245,6 +254,7 @@ impl OptionRow {
                     | OptionRow::FolderUse
                     | OptionRow::RestoreItem(_)
             )
+            && !matches!(self, OptionRow::Hp(row) if !row.steps())
     }
 
     pub fn label(self) -> &'static str {
@@ -288,6 +298,7 @@ impl OptionRow {
             OptionRow::NasAddress => "Type Its Address",
             OptionRow::FolderUse => "Use This Folder",
             OptionRow::FolderNew => "New Folder",
+            OptionRow::Hp(row) => row.label(),
         }
     }
 
@@ -327,6 +338,7 @@ impl OptionRow {
             OptionRow::BackupNow => "A copies every save now",
             OptionRow::BackupRestore => "Saves on the NAS unlike the handheld's",
             OptionRow::RestoreItem(_) => "A copies it to the handheld",
+            OptionRow::Hp(row) => row.note(),
             OptionRow::NasFound(_) => "A picks this NAS",
             OptionRow::NasAddress => "Its name or address, as 192.168.1.5",
             OptionRow::FolderUse => "Saves go to the folder open",
@@ -524,6 +536,7 @@ impl App {
             | OptionRow::FolderUse
             | OptionRow::FolderNew
             | OptionRow::FolderItem(_) => self.backup_text(row),
+            OptionRow::Hp(row) => self.headphones_value(row),
         }
     }
 
@@ -535,12 +548,22 @@ impl App {
 
     /// The rows `page` shows now: its own, or what the NAS has.
     pub fn page_rows(&self, page: OptionsPage) -> Vec<OptionRow> {
+        if page == OptionsPage::Headphones {
+            return self
+                .headphones_rows()
+                .into_iter()
+                .map(OptionRow::Hp)
+                .collect();
+        }
         self.backup_rows(page)
             .unwrap_or_else(|| page.rows().to_vec())
     }
 
     /// Steps `row` on, or back, and keeps it; a change a game in play can take reaches it.
     pub(crate) fn change_option(&mut self, row: OptionRow, right: bool) {
+        if let OptionRow::Hp(row) = row {
+            return self.change_headphones(row, right);
+        }
         let s = &mut self.state;
         match row {
             OptionRow::FastForward => {
@@ -605,7 +628,8 @@ impl App {
             | OptionRow::NasAddress
             | OptionRow::FolderUse
             | OptionRow::FolderNew
-            | OptionRow::FolderItem(_) => return,
+            | OptionRow::FolderItem(_)
+            | OptionRow::Hp(_) => return,
             OptionRow::Relay => {
                 let n = crate::netplay_lobby::RELAYS.len() as u8;
                 s.relay = match right {
@@ -734,6 +758,14 @@ impl App {
             Action::GbaDown(Btn::Y) if row == OptionRow::Account => self.sign_out_achievements(),
             Action::GbaDown(Btn::Left) => self.change_option(row, false),
             Action::GbaDown(Btn::Right) => self.change_option(row, true),
+            // back to Bluetooth, on the headphones
+            Action::GbaDown(Btn::B) | Action::QuickMenu if page == OptionsPage::Headphones => {
+                let screen = match self.phones.link() {
+                    Some(link) => crate::bluetooth_screen::BluetoothScreen::on(&link.mac),
+                    None => crate::bluetooth_screen::BluetoothScreen::default(),
+                };
+                self.go(Phase::Bluetooth(screen), Dir::Back)
+            }
             Action::GbaDown(Btn::B) | Action::QuickMenu => match page.parent() {
                 Some((parent, row)) => self.go(
                     Phase::Options(OptionsScreen {

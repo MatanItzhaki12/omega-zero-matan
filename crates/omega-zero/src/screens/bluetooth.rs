@@ -70,13 +70,20 @@ impl App {
         let Phase::Bluetooth(screen) = &mut self.phase else {
             return;
         };
-        if screen.input(&mut self.bluetooth, action, now) == Outcome::Close {
-            self.go(
+        match screen.input(&mut self.bluetooth, action, now) {
+            Outcome::Close => self.go(
                 Phase::Settings {
                     row: SettingsRow::Bluetooth,
                 },
                 Dir::Back,
-            );
+            ),
+            Outcome::Headphones => self.go(
+                Phase::Options(crate::options::OptionsScreen::new(
+                    crate::options::OptionsPage::Headphones,
+                )),
+                Dir::Deeper,
+            ),
+            Outcome::Stay => {}
         }
         if self.state.bluetooth != self.bluetooth.enabled() {
             self.state.bluetooth = self.bluetooth.enabled();
@@ -117,7 +124,10 @@ impl App {
     pub(crate) fn bluetooth_hints(&self, screen: &BluetoothScreen) -> Vec<Hint<'static>> {
         let scan = screen.scans(&self.bluetooth).then_some(SCAN);
         let forget = screen.forgets(&self.bluetooth).then_some(FORGET);
-        scan.into_iter().chain(forget).collect()
+        let phones = screen
+            .headphones(&self.bluetooth)
+            .then_some(crate::screens::bar::HEADPHONES);
+        scan.into_iter().chain(forget).chain(phones).collect()
     }
 
     pub fn set_bluetooth_jobs(&mut self, jobs: Box<dyn BluetoothJobs>) {

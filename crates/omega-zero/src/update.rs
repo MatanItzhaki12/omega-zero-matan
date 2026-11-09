@@ -168,7 +168,7 @@ impl Updater {
                             Update::Available { release, system }
                         }
                         // this release, where the card lacks some of it: an update from before
-                        // 2.7.0 brought omega-zero alone
+                        // 2.6.1 brought omega-zero alone
                         Some(release) if release.version == VERSION => {
                             match root.and_then(|root| lacking(&root, &release)) {
                                 Some((manifest, bytes)) if bytes > 0 => Update::Available {

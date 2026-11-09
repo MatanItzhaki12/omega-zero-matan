@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Bluetooth headphones play the game's sound. They connected and dropped at once, as nothing
+  on the handheld took audio over Bluetooth: Bluetooth now starts bluez-alsa beside bluetoothd,
+  the sound moves to the headphones while they are connected and back to the speaker when they
+  go, and they keep a volume of their own, as wired ones do. The sound is written to them as
+  little ahead as bluez-alsa takes, for as little delay as the headphones allow.
+- AirPods and Galaxy Buds have a HEADPHONES menu: START on them in Settings > Bluetooth, and
+  Headphones in the game's menu while they are connected. Noise control (noise cancelling,
+  Adaptive, transparency or ambient sound, and off, as each pair has them), AirPods'
+  conversational awareness, which turns the game down while you talk, and how much of the room
+  their Adaptive lets in, and the battery of each bud and the case.
+- AirPods are talked to over Apple's own protocol, as LibrePods worked it out, and read their
+  battery from the beacon AirPods send, as OpenPods does, where that says none. Galaxy Buds
+  (Buds+ and every pair since) are talked to as GalaxyBudsClient does.
+- A toast says when the buds run low: at 20%, 10% and 5%, each once until they charge.
+- Settings > Update brings the card's whole System folder to the new release and fetches only
+  the files that changed, as small patches where it can: a release publishes a manifest of
+  every file and its SHA-256, and patches from the three releases before. The cores, the
+  scripts and PPSSPP's files now update too, not only omega-zero. The cores' source archives
+  stay in the release's zip. Updating from 2.6.0 still brings omega-zero alone; Update once
+  more on 2.6.1 brings the rest.
+
 ## omega-zero 2.6.0: PSP
 
 - PSP games, on PPSSPP 1.20.4: put them in `Games/PSP` as `.iso`, `.cso`, `.chd` or `.pbp`. A PSP

@@ -20,9 +20,9 @@ const PERIOD_FRAMES: usize = 512;
 
 const DEVICES: [&str; 4] = ["plug:default", "default", "plughw:0,0", "hw:0,0"];
 
-/// How far ahead Bluetooth headphones are written: the radio takes its time, and a buffer as
-/// short as the speaker's runs dry.
-const BLUETOOTH_LATENCY_US: c_uint = 150_000;
+/// How far ahead Bluetooth headphones are written: as little as bluez-alsa takes without
+/// running dry, as the headphones hold back a buffer of their own on top of it.
+const BLUETOOTH_LATENCY_US: c_uint = 50_000;
 
 /// How long after headphones would not open, or stopped taking sound, they are tried again.
 const BLUETOOTH_RETRY: Duration = Duration::from_secs(3);

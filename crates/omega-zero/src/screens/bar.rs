@@ -59,6 +59,12 @@ pub const SCAN: Hint<'static> = Hint {
     word: "SCAN",
 };
 
+/// START on headphones connected on the Bluetooth screen: it opens their HEADPHONES menu.
+pub const HEADPHONES: Hint<'static> = Hint {
+    key: "START",
+    word: "SETTINGS",
+};
+
 /// X on the save-state switcher: it asks whether to delete the save shown.
 pub const DELETE: Hint<'static> = Hint {
     key: "X",

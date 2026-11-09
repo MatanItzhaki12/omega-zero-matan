@@ -1,5 +1,4 @@
 pub mod achievements;
-pub mod airpods;
 pub mod app;
 pub mod audio;
 pub mod background_screen;
@@ -20,6 +19,8 @@ pub mod favorites;
 pub mod frames;
 pub mod frontend;
 pub mod gpu_core;
+pub mod headphones;
+pub mod headphones_menu;
 pub mod input;
 pub mod json;
 pub mod label_cutter;

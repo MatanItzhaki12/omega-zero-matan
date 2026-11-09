@@ -102,6 +102,7 @@ fn the_banner_says_what_happened_and_never_what_is_on_screen() {
             Toast::Emulator(""),
             Toast::StateDeleted,
             Toast::Backup(""),
+            Toast::Headphones(""),
         ],
         "a banner was added or dropped"
     );

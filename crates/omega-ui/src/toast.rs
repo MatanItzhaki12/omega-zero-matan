@@ -40,6 +40,8 @@ pub enum Toast {
     StateDeleted,
     /// Save Backup: saves copied to the NAS, a copy that failed, or one brought back.
     Backup(&'static str),
+    /// The headphones connected: their buds running low.
+    Headphones(&'static str),
 }
 
 /// What the toast says once disc `n` is in, for every disc a PlayStation game can have.
@@ -57,7 +59,7 @@ const DISC_IN: [&str; 9] = [
 
 impl Toast {
     /// Every toast there is, a disc's once, as disc 1.
-    pub const ALL: [Toast; 22] = [
+    pub const ALL: [Toast; 23] = [
         Toast::StateSaved,
         Toast::StateLoaded,
         Toast::NeedsGpsp,
@@ -80,6 +82,7 @@ impl Toast {
         Toast::Emulator(""),
         Toast::StateDeleted,
         Toast::Backup(""),
+        Toast::Headphones(""),
     ];
 
     /// Its place in `ALL`: every disc's toast is the one place.
@@ -107,6 +110,7 @@ impl Toast {
             Toast::Emulator(_) => 19,
             Toast::StateDeleted => 20,
             Toast::Backup(_) => 21,
+            Toast::Headphones(_) => 22,
         }
     }
 
@@ -132,6 +136,7 @@ impl Toast {
             Toast::Restarted => "GAME",
             Toast::Emulator(_) => "EMULATOR",
             Toast::Backup(_) => "SAVE BACKUP",
+            Toast::Headphones(_) => "HEADPHONES",
         }
     }
 
@@ -162,7 +167,8 @@ impl Toast {
             Toast::Achievement(title)
             | Toast::Cheevos(title)
             | Toast::Emulator(title)
-            | Toast::Backup(title) => title,
+            | Toast::Backup(title)
+            | Toast::Headphones(title) => title,
             Toast::Restarted => "Restarted",
             Toast::StateDeleted => "State deleted",
         }
