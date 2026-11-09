@@ -305,6 +305,10 @@ impl App {
         if !self.cheevos.told_game {
             if let Some(s) = omega_cheevos::summary() {
                 self.cheevos.told_game = true;
+                omega_cheevos::trace(&format!(
+                    "{}: {} of {} unlocked",
+                    s.title, s.unlocked, s.total
+                ));
                 if s.total > 0 {
                     let line = format!("{} of {} unlocked", s.unlocked, s.total);
                     self.hud.toast(Toast::Cheevos(shown(&line)), now);

@@ -157,9 +157,11 @@ static void RC_CCONV server_call(const rc_api_request_t* request,
   callback(&busy, data);
 }
 
+void omega_cheevos_log(const char* message);
+
 static void RC_CCONV log_message(const char* message, const rc_client_t* c) {
   (void)c;
-  fprintf(stderr, "omega-zero: cheevos: %s\n", message);
+  omega_cheevos_log(message);
 }
 
 static void RC_CCONV event_handler(const rc_client_event_t* event, rc_client_t* c) {
@@ -241,7 +243,7 @@ int oc_start(int hardcore) {
     client = rc_client_create(read_memory, server_call);
     if (!client)
       return 0;
-    rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_WARN, log_message);
+    rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_INFO, log_message);
     rc_client_set_event_handler(client, event_handler);
     /* memory is read only in oc_frame, on the thread that runs the core */
     rc_client_set_allow_background_memory_reads(client, 0);
