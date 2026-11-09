@@ -93,6 +93,8 @@ pub struct Frontend {
     link: LinkTexes,
     /// The DISC screen's panel and bar.
     disc: DiscTexes,
+    /// The disc of the UMD going in, spinning in its window while its game loads.
+    spin_disc: Option<omega_gfx::TexId>,
     pause: PauseTex,
     options: OptionsTex,
     title: TitleTex,
@@ -189,6 +191,7 @@ impl Frontend {
             label_view: None,
             link: LinkTexes::default(),
             disc: DiscTexes::default(),
+            spin_disc: None,
             pause: PauseTex::default(),
             options: OptionsTex::default(),
             title: TitleTex::default(),
@@ -406,6 +409,19 @@ impl Frontend {
         );
         sync_link(self.session.app_mut(), compositor, &mut self.link);
         sync_disc(self.session.app_mut(), compositor, &mut self.disc);
+        // the disc of a UMD going in, made once, to spin in its window while its game loads
+        if let Some(cart) = self.session.app().wants_spin_disc() {
+            if let Some(face) = omega_ui::umd_disc(&cart) {
+                let id = crate::frontend::faces::upload_rgba(
+                    compositor,
+                    &mut self.spin_disc,
+                    face.w,
+                    face.h,
+                    &face.rgba,
+                );
+                self.session.app_mut().set_spin_disc(cart.stem.clone(), id);
+            }
+        }
         sync_pause(self.session.app_mut(), compositor, &mut self.pause);
         sync_options(self.session.app_mut(), compositor, &mut self.options);
         sync_title(self.session.app_mut(), compositor, &mut self.title);

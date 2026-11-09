@@ -83,3 +83,24 @@ fn the_disc_s_print_catches_the_light_as_the_umd_turns_and_the_shell_does_not() 
         "the shell shines"
     );
 }
+
+/// A UMD's disc comes on its own, round and clear round its edge, for it to spin in the window
+/// while the game loads; a cart that is no UMD has none.
+#[test]
+fn a_umd_s_disc_comes_on_its_own_and_round() {
+    let disc = omega_ui::umd_disc(&game(Platform::Psp, "")).expect("a UMD's disc");
+    let alpha = |x: u32, y: u32| disc.rgba[((y * disc.w + x) * 4 + 3) as usize];
+    assert_eq!(alpha(0, 0), 0, "the disc's corner is not clear");
+    assert_eq!(alpha(disc.w / 2, disc.h / 2), 255, "the hub is not there");
+    assert_eq!(
+        alpha(disc.w / 2, 4),
+        255,
+        "the print near its edge is not there"
+    );
+    assert!(omega_ui::umd_disc(&game(Platform::Gba, "")).is_none());
+    let (x, y, w, h) = omega_ui::umd_window();
+    assert!(
+        x > 0.0 && y > 0.0 && x + w < 1.0 && y + h < 1.0,
+        "the window is not in the face"
+    );
+}

@@ -303,6 +303,39 @@ fn face_of(cart: &Cart, scans: bool) -> CartFace {
     face
 }
 
+/// A UMD's disc on its own, its print round and its hub in the middle, the size its window
+/// shows it: what spins in the window while the game loads. None for a cart that is no UMD.
+pub fn umd_disc(cart: &Cart) -> Option<CartFace> {
+    if model_of(cart) != CartModel::Umd {
+        return None;
+    }
+    let s = spec(CartModel::Umd);
+    let (_, _, lw, lh) = s.label;
+    let mut rgba = match cart.label.as_deref().and_then(|p| label_art(p, lw, lh)) {
+        Some(scan) => umd::with_hub(scan, lw, lh),
+        None => umd::generated_label(&s, &label_text(cart)),
+    };
+    // round, as the disc is: clear outside its edge
+    let r = lw.min(lh) as f32 / 2.0;
+    for y in 0..lh {
+        for x in 0..lw {
+            let d = (x as f32 + 0.5 - lw as f32 / 2.0).hypot(y as f32 + 0.5 - lh as f32 / 2.0);
+            let cover = (r - d).clamp(0.0, 1.0);
+            let i = ((y * lw + x) * 4 + 3) as usize;
+            rgba[i] = (rgba[i] as f32 * cover) as u8;
+        }
+    }
+    Some(CartFace { rgba, w: lw, h: lh })
+}
+
+/// Where a UMD's disc shows in its face, as shares of the face: x, y, width and height.
+pub fn umd_window() -> (f32, f32, f32, f32) {
+    let s = spec(CartModel::Umd);
+    let (lx, ly, lw, lh) = s.label;
+    let (w, h) = (s.w as f32, s.h as f32);
+    (lx as f32 / w, ly as f32 / h, lw as f32 / w, lh as f32 / h)
+}
+
 fn clip_to_silhouette(s: &Spec, face: &mut CartFace) {
     for (px, cover) in face.rgba.chunks_exact_mut(4).zip(s.mask) {
         px[3] = ((px[3] as u32 * *cover as u32 + 127) / 255) as u8;

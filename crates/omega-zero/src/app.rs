@@ -59,6 +59,12 @@ pub const SEATED_AT: f32 = INSERT_S - INSERT_HOLD_S;
 
 pub const EJECT_S: f32 = SEATED_AT;
 
+/// How far into its way in a cart waits for a game still loading: at the top of its rise.
+const LOADING_HOLD: f32 = 0.2;
+
+/// How fast a UMD's disc spins in its window as its game loads, in turns a second.
+const DISC_SPIN: f32 = 1.5;
+
 const EJECT_HOLD_S: f32 = 0.2;
 
 const POWER_ON_S: f32 = 0.6;
@@ -296,6 +302,9 @@ pub struct App {
     pub(crate) refusal: Option<Refusal>,
     pub(crate) refused_from: Option<f32>,
     pub(crate) alert_face: Option<TexId>,
+    /// The disc of the UMD going in, by its game's stem, uploaded to spin in its window while
+    /// the game loads.
+    spin_disc: Option<(String, TexId)>,
     /// What holding POWER has put over the screen: its menu, or the screen after its choice.
     pub(crate) power_screen: Option<PowerScreen>,
     /// The slide to or from a power screen under way.
@@ -567,6 +576,7 @@ impl App {
             refusal: None,
             refused_from: None,
             alert_face: None,
+            spin_disc: None,
             power_screen: None,
             power_slide: None,
             power_menu_panel: None,
@@ -2280,6 +2290,14 @@ impl App {
             self.power_slide = None;
         }
         let mut touched = false;
+        // a UMD whose disc is spinning in its window waits up for its game
+        let spinning = match &self.phase {
+            Phase::Inserting { cart, .. } => self
+                .spin_disc
+                .as_ref()
+                .is_some_and(|(stem, _)| stem == cart),
+            _ => false,
+        };
         let next = match &mut self.phase {
             Phase::Inserting {
                 cart,
@@ -2290,6 +2308,12 @@ impl App {
             } => {
                 let was = *t;
                 *t += dt;
+                // a game still loading holds its UMD up at the top of its rise, its disc
+                // spinning, and it goes in once the game is ready
+                let hold = SEATED_AT * LOADING_HOLD;
+                if spinning && !*core_ready && !*resumed && was <= hold {
+                    *t = t.min(hold);
+                }
                 let at = SEATED_AT - Sfx::Insert.lead();
                 touched = !*resumed && was < at && *t >= at;
                 (*t >= INSERT_S && *core_ready).then(|| Phase::Playing {
@@ -2746,8 +2770,35 @@ impl App {
             dim,
             screen: self.screen,
             game: self.game_ready,
+            disc: self.spinning_disc(stem),
         }
         .draw(out);
+    }
+
+    /// The UMD going in, while its disc has no texture yet: for the frontend to make one.
+    pub fn wants_spin_disc(&self) -> Option<omega_store::Cart> {
+        let Phase::Inserting { cart, .. } = &self.phase else {
+            return None;
+        };
+        if self.spin_disc.as_ref().is_some_and(|(s, _)| s == cart) {
+            return None;
+        }
+        let (c, _) = self.shelf().find(cart)?;
+        (omega_ui::model_of(c) == omega_ui::CartModel::Umd).then(|| c.clone())
+    }
+
+    pub fn set_spin_disc(&mut self, stem: String, tex: TexId) {
+        self.spin_disc = Some((stem, tex));
+    }
+
+    /// The disc of the UMD going in, and how far it has turned: while it goes in.
+    fn spinning_disc(&self, stem: &str) -> Option<(TexId, f32)> {
+        if !matches!(self.phase, Phase::Inserting { .. }) {
+            return None;
+        }
+        let (s, tex) = self.spin_disc.as_ref()?;
+        let turned = self.now() as f32 / 1000.0 * DISC_SPIN * std::f32::consts::TAU;
+        (s == stem).then_some((*tex, turned % std::f32::consts::TAU))
     }
 
     pub fn alert_visible(&self) -> bool {

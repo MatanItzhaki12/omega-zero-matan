@@ -97,6 +97,8 @@ pub struct CartDive<'a> {
     /// How far the game's screen has come on.
     pub screen: f32,
     pub game: bool,
+    /// A UMD's disc, turned this far, drawn spinning in its window while the game loads.
+    pub disc: Option<(TexId, f32)>,
 }
 
 impl CartDive<'_> {
@@ -164,6 +166,20 @@ impl CartDive<'_> {
                     ],
                 });
             }
+        }
+
+        // a UMD's disc turning in its window, the cart held square to the screen
+        if let (Some((tex, turn)), true) = (self.disc, pose.yaw == 0.0) {
+            let (wx, wy, ww, wh) = crate::cart::umd_window();
+            out.push(Draw::Turned {
+                x: x + wx * cw,
+                y: y + wy * ch,
+                w: ww * cw,
+                h: wh * ch,
+                tex,
+                alpha: 1.0,
+                turn,
+            });
         }
 
         // in the middle of the cart, to the nearest art pixel, as the cart moves between them

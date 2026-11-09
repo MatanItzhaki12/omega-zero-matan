@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A PSP game's disc spins in its UMD's window as the game loads: the disc is drawn on its own,
+  turned by the GPU, and a game not ready by the top of the UMD's rise holds it there, spinning,
+  until it is, then it goes in. A game ready sooner goes in as before.
+
 ## omega-zero 2.6.6
 
 - AirPods are changed by nothing the handheld does but what is asked of it in the

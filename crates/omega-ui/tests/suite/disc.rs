@@ -675,6 +675,7 @@ fn a_stack_goes_in_back_to_front_from_where_a_lone_disc_would() {
             dim: seat,
             screen: 0.0,
             game: false,
+            disc: None,
         }
         .draw(&mut out);
         out

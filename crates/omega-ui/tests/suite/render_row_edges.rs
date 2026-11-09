@@ -204,6 +204,7 @@ fn the_dive_takes_over_the_cart_where_the_row_had_it() {
         dim: 0.0,
         screen: 0.0,
         game: false,
+        disc: None,
     }
     .draw(&mut after);
     let after = composed(&mut c, &after);

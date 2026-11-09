@@ -776,6 +776,7 @@ fn both_cartridges_dive_into_the_handheld_at_their_shelf_size() {
                 dim: 0.0,
                 screen: 0.0,
                 game: false,
+                disc: None,
             }
             .draw(&mut out);
             let px = frame(&mut c, &out, &format!("insert-{name}-{beat}"));
@@ -882,6 +883,7 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
                     dim: 0.0,
                     screen: 0.0,
                     game: false,
+                    disc: None,
                 }
                 .draw(&mut out);
                 out.iter()

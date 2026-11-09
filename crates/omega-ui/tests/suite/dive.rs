@@ -152,6 +152,7 @@ fn going_in(c: &Cart, seat: f32) -> CartDive<'_> {
         dim: 0.0,
         screen: 0.0,
         game: false,
+        disc: None,
     }
 }
 
