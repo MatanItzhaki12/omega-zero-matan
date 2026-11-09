@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.6.4
+
 - START held, then POWER, restarts the handheld, as POWER held, then START, did already.
 - A game's sound is 26 ms closer to it: the ring under it is kept 2.4 video frames full rather
   than 4, as menu sounds, mixed in at its front, already were.
