@@ -8,7 +8,7 @@ mod sink;
 mod stub;
 pub mod volume;
 
-pub use alsa::AlsaSink;
+pub use alsa::{bluetooth_pcm, on_bluetooth, route_bluetooth, AlsaSink};
 #[cfg(feature = "host")]
 pub use host::HostAudio;
 pub use ring::{ring_capacity, Ring};

@@ -33,11 +33,13 @@ BLUETOOTHCTL="${AGS_BLUETOOTHCTL:-bluetoothctl}"
 SYSTEMCTL="${AGS_SYSTEMCTL:-systemctl}"
 TIMEOUT="${AGS_TIMEOUT:-timeout}"
 PIDOF="${AGS_PIDOF:-pidof}"
+BLUEALSA="${AGS_BLUEALSA:-bluealsa}"
 
 HCI=hci0
 UP_MARK="$RUN/omega-bt.up"
 ATTACH_PID="$RUN/omega-bt-attach.pid"
 SCAN_PID="$RUN/omega-bt-scan.pid"
+AUDIO_PID="$RUN/omega-bt-audio.pid"
 PAIR_FIFO="$RUN/omega-bt-pair.fifo"
 PAIR_LOG="$RUN/omega-bt-pair.log"
 
@@ -135,6 +137,16 @@ attach() {
 	echo $! > "$ATTACH_PID"
 }
 
+# bluez-alsa: the A2DP source headphones connect to, and the ALSA device omega-zero plays
+# into. Without it bluetoothd has no audio profile to give headphones, which then connect and
+# drop at once. It must be up before they connect, so it starts with bluetoothd.
+audio_up() {
+	command -v "$BLUEALSA" >/dev/null 2>&1 || return 0
+	alive "$AUDIO_PID" && return 0
+	"$BLUEALSA" -p a2dp-source --keep-alive=5 </dev/null >/dev/null 2>&1 &
+	echo $! > "$AUDIO_PID"
+}
+
 bt_up() {
 	: > "$UP_MARK"
 	block 0
@@ -144,6 +156,7 @@ bt_up() {
 	fi
 	$HCICONFIG "$HCI" up >/dev/null 2>&1 || return 1
 	$SYSTEMCTL start bluetooth >/dev/null 2>&1 || return 1
+	audio_up
 	# main.conf's AutoEnable powers the controller once bluetoothd finds it; ask, if it has not
 	wait_powered 2 && return 0
 	ctl power on >/dev/null
@@ -153,6 +166,7 @@ bt_up() {
 bt_down() {
 	/bin/rm -f "$UP_MARK"
 	stop_pid "$SCAN_PID"
+	stop_pid "$AUDIO_PID"
 	$SYSTEMCTL stop bluetooth >/dev/null 2>&1
 	if [ -d "$BT_SYS/$HCI" ]; then
 		$HCICONFIG "$HCI" down >/dev/null 2>&1

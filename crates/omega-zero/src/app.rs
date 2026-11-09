@@ -1878,7 +1878,7 @@ impl App {
         let level = match kind {
             HudKind::Brightness => &mut self.state.brightness,
             HudKind::BlueLight => &mut self.state.blue_light,
-            HudKind::Volume if self.headphones => &mut self.state.volume_hp,
+            HudKind::Volume if self.on_headphones() => &mut self.state.volume_hp,
             HudKind::Volume => &mut self.state.volume,
             HudKind::Rewind => return false,
         };
@@ -1960,8 +1960,14 @@ impl App {
         self.level()
     }
 
+    /// Headphones have their volume and mute of their own: wired ones in the jack, or
+    /// Bluetooth ones the sound is going to.
+    fn on_headphones(&self) -> bool {
+        self.headphones || crate::audio::on_bluetooth()
+    }
+
     fn level(&self) -> u8 {
-        if self.headphones {
+        if self.on_headphones() {
             self.state.volume_hp
         } else {
             self.state.volume
@@ -1969,7 +1975,7 @@ impl App {
     }
 
     fn level_mut(&mut self) -> &mut u8 {
-        if self.headphones {
+        if self.on_headphones() {
             &mut self.state.volume_hp
         } else {
             &mut self.state.volume
@@ -1977,7 +1983,7 @@ impl App {
     }
 
     pub fn muted(&self) -> bool {
-        if self.headphones {
+        if self.on_headphones() {
             self.state.muted_hp
         } else {
             self.state.muted
@@ -1985,7 +1991,7 @@ impl App {
     }
 
     fn muted_mut(&mut self) -> &mut bool {
-        if self.headphones {
+        if self.on_headphones() {
             &mut self.state.muted_hp
         } else {
             &mut self.state.muted
@@ -2151,6 +2157,7 @@ impl App {
         let (now, watch) = (self.now(), self.wifi_watch());
         self.wifi.tick(now, watch);
         self.bluetooth.tick(now, self.bluetooth_watch());
+        crate::audio::route_bluetooth(self.bluetooth.connected_audio().as_deref());
         let airpods = self.bluetooth.connected_airpods();
         self.airpods.keep(airpods.as_deref(), now);
         self.ssh.tick(now, self.state.ssh);

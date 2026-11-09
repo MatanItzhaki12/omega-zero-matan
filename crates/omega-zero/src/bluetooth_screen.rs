@@ -426,6 +426,21 @@ impl Bluetooth {
         out
     }
 
+    /// The headphones connected, by their address, for the sound to go to: none while
+    /// Bluetooth is off or none are.
+    pub fn connected_audio(&self) -> Option<String> {
+        if !self.enabled {
+            return None;
+        }
+        self.status
+            .devices
+            .iter()
+            .find(|d| {
+                d.connected && (d.kind == DeviceKind::Audio || crate::airpods::is_airpods(&d.name))
+            })
+            .map(|d| d.mac.clone())
+    }
+
     /// The AirPods connected, by their address: none while Bluetooth is off or no AirPods are.
     pub fn connected_airpods(&self) -> Option<String> {
         if !self.enabled {

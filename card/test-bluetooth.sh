@@ -200,6 +200,7 @@ run() {
 		AGS_RTK_HCIATTACH="$TMP/bin/rtk_hciattach" AGS_HCICONFIG="$TMP/bin/hciconfig" \
 		AGS_BLUETOOTHCTL="$TMP/bin/bluetoothctl" AGS_SYSTEMCTL="$TMP/bin/systemctl" \
 		AGS_TIMEOUT="$TMP/bin/timeout" AGS_PIDOF="$TMP/bin/pidof" \
+		AGS_BLUEALSA="$TMP/bin/bluealsa" \
 		sh "$SCRIPT" "$@"
 }
 
@@ -237,6 +238,24 @@ grep -qx 'start bluetooth' "$TMP/systemctl.log" || fail "up did not start blueto
 grep -qx 'power on' "$TMP/bluetoothctl.log" && fail "up powered a controller that AutoEnable had"
 run up >/dev/null
 [ "$(grep -c rtk_h5 "$TMP/rtk_hciattach.log")" = 1 ] || fail "a second up loaded the firmware again"
+
+# bluez-alsa comes up with bluetoothd, for headphones to have an audio profile to connect to,
+# and goes down with it
+reset
+cat > "$TMP/bin/bluealsa" <<FAKE
+#!/bin/sh
+printf '%s\n' "\$*" >> "$TMP/bluealsa.log"
+exec sleep 30
+FAKE
+chmod 755 "$TMP/bin/bluealsa"
+up
+grep -q -- '-p a2dp-source' "$TMP/bluealsa.log" || fail "up did not start bluez-alsa as an A2DP source"
+audio="$(cat "$TMP/run/omega-bt-audio.pid")"
+kill -0 "$audio" 2>/dev/null || fail "bluez-alsa was not left running"
+up
+[ "$(grep -c a2dp "$TMP/bluealsa.log")" = 1 ] || fail "a second up started bluez-alsa again"
+run down >/dev/null
+kill -0 "$audio" 2>/dev/null && fail "down left bluez-alsa running"
 
 reset
 FAKE_UNPOWERED=1 run up && rc=0 || rc=$?
