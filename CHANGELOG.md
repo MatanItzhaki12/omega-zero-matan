@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.6.3
+
 - Headphones switched to another noise control mode on themselves, by a stem or a touch, say
   the mode in a toast.
 - A noise control mode picked in the menu is sent once the row has rested on it for half a
