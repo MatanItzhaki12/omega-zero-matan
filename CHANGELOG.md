@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.6.1
+
 - Bluetooth headphones play the game's sound. They connected and dropped at once, as nothing
   on the handheld took audio over Bluetooth: Bluetooth now starts bluez-alsa beside bluetoothd,
   the sound moves to the headphones while they are connected and back to the speaker when they
