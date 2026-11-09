@@ -168,6 +168,9 @@ pub fn parse(data: &[u8]) -> Said {
 
 /// Takes in what a packet said; what it answers, if anything.
 pub fn take(p: &mut Phones, said: Said) -> Option<&'static [u8]> {
+    if said != Said::Other {
+        p.heard = true;
+    }
     match said {
         Said::HandshakeDone => return Some(&SET_FEATURES),
         Said::FeaturesDone => return Some(&REQUEST_NOTIFICATIONS),
@@ -180,7 +183,7 @@ pub fn take(p: &mut Phones, said: Said) -> Option<&'static [u8]> {
             }
             p.beacon = false;
         }
-        Said::Noise(n) => p.noise = Some(n),
+        Said::Noise(n) => p.said_noise(n),
         Said::Conversation(on) => p.conversation = Some(on),
         Said::AdaptiveLevel(level) => p.adaptive_level = Some(level),
         Said::Ears(..) => {}
@@ -207,11 +210,35 @@ pub fn read(mut sock: std::fs::File, mut answer: std::fs::File, phones: &Mutex<P
         }
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
+    // the notifications asked for again each second until the AirPods say something of
+    // their own: some take the first ask before they are ready for it
+    super::sock::read_timeout(&sock, Some(std::time::Duration::from_secs(1)));
+    let mut asked = 1;
     let mut buf = [0u8; 1024];
     loop {
         let n = match sock.read(&mut buf) {
-            Ok(0) | Err(_) => return,
+            Ok(0) => return,
             Ok(n) => n,
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                let told = phones.lock().map(|p| p.left.is_some() || p.noise.is_some());
+                if told.unwrap_or(true) || asked >= 8 {
+                    super::sock::read_timeout(&sock, None);
+                } else {
+                    asked += 1;
+                    for packet in [&SET_FEATURES[..], &REQUEST_NOTIFICATIONS] {
+                        if answer.write_all(packet).is_err() {
+                            return;
+                        }
+                    }
+                }
+                continue;
+            }
+            Err(_) => return,
         };
         let said = parse(&buf[..n]);
         let reply = phones.lock().ok().and_then(|mut p| take(&mut p, said));

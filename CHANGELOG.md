@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Headphones that connect by themselves get the game's sound: AirPods taken out of their case
+  reconnect without their A2DP stream, so the sound stayed on the speaker. Headphones connected
+  for 3 s without it are asked to connect again, which brings it.
+- Bluetooth headphones' own volume is the volume while sound goes to them: the console's
+  buttons set it, and a swipe on AirPods (or the volume on any headphones) shows on the gauge
+  and is kept. The sound is no longer turned down twice.
+- Noise control set quickly, a step after a step, stays where it was set: the modes the
+  headphones say back on their way to it no longer pull it back. A mode changed on the
+  headphones themselves shows in the menu, as AirPods are asked for their notifications until
+  they answer.
+- The game menu's Headphones row shows only once the headphones have said something, and their
+  page goes back to MENU, and Settings' back to Bluetooth, if they go while it is open.
+- On headphones connected, Bluetooth's bar says Y FORGET and START MENU, which fit, rather than
+  three hints that ran off its end; X still looks for devices.
+
 ## omega-zero 2.6.1
 
 - Bluetooth headphones play the game's sound. They connected and dropped at once, as nothing

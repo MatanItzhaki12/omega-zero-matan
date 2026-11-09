@@ -426,6 +426,14 @@ impl Bluetooth {
         out
     }
 
+    /// Asks the device at `mac`, connected already, to connect again: for headphones that came
+    /// without their sound. Nothing on the screen says so.
+    pub fn connect_quietly(&mut self, mac: &str) {
+        if self.doing.is_none() {
+            self.jobs.ask(BluetoothJob::Connect(mac.to_string()));
+        }
+    }
+
     /// The headphones connected, by their address, for the sound to go to: none while
     /// Bluetooth is off or none are.
     pub fn connected_audio(&self) -> Option<String> {

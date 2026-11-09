@@ -203,6 +203,7 @@ pub fn unframe(buf: &mut Vec<u8>) -> Vec<Message> {
 /// Takes in what a message from the Buds said.
 pub fn take(p: &mut Phones, m: &Message) {
     let b = &m.payload;
+    p.heard = true;
     let battery = |level: u8, charging: bool| (level <= 100).then_some(Battery { level, charging });
     match m.id {
         // revision, left, right, coupled, main, placement, case, charging
@@ -220,18 +221,18 @@ pub fn take(p: &mut Phones, m: &Message) {
         }
         NOISE_CONTROLS_UPDATE if !b.is_empty() => {
             if let Some(mode) = noise_of(b[0]) {
-                p.noise = Some(mode);
+                p.said_noise(mode);
             }
         }
         AMBIENT_MODE_UPDATED if !b.is_empty() => {
-            p.noise = Some(if b[0] != 0 {
+            p.said_noise(if b[0] != 0 {
                 Noise::Transparency
             } else {
                 Noise::Off
             });
         }
         NOISE_REDUCTION_MODE_UPDATE if !b.is_empty() => {
-            p.noise = Some(if b[0] != 0 {
+            p.said_noise(if b[0] != 0 {
                 Noise::Cancellation
             } else {
                 Noise::Off

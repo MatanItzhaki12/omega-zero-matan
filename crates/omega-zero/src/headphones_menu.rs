@@ -118,6 +118,28 @@ impl App {
         self.phones.stand_in(mac, phones);
     }
 
+    /// Headphones gone while their menu is open: the game's menu goes back to MENU, Settings
+    /// back to Bluetooth, rather than showing an empty page.
+    pub(crate) fn leave_gone_headphones(&mut self) {
+        if self.headphones_kind().is_some() {
+            return;
+        }
+        if let Some(menu) = &mut self.pause_menu {
+            if menu.page == crate::pause_menu::PausePage::Headphones {
+                menu.page = crate::pause_menu::PausePage::Main;
+                menu.row = crate::pause_menu::PauseRow::Resume;
+            }
+        }
+        if let crate::app::Phase::Options(screen) = &self.phase {
+            if screen.page == crate::options::OptionsPage::Headphones {
+                self.go(
+                    crate::app::Phase::Bluetooth(Default::default()),
+                    crate::nav::Dir::Back,
+                );
+            }
+        }
+    }
+
     /// Says when the headphones' buds run low, once a step of `headphones::LOW`.
     pub(crate) fn tell_low_headphones(&mut self) {
         if let Some(step) = self.phones.low_battery() {

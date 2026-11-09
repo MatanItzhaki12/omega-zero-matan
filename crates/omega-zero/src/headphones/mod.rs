@@ -108,6 +108,11 @@ pub struct Phones {
     pub duck: f32,
     /// The battery came from the AirPods' beacon, which says it to the nearest ten.
     pub beacon: bool,
+    /// The headphones have said something on their channel: until then they have no menu.
+    pub heard: bool,
+    /// The noise control mode last set from here, and when: the headphones say back each
+    /// mode a step at a time, so the ones they say just after are older steps, not theirs.
+    pub noise_pending: Option<(Noise, std::time::Instant)>,
 }
 
 impl Phones {
@@ -122,7 +127,21 @@ impl Phones {
             adaptive_level: None,
             duck: 1.0,
             beacon: false,
+            heard: false,
+            noise_pending: None,
         }
+    }
+
+    /// Takes in a noise control mode the headphones say: not one older than the one just set
+    /// from here, which they are still on their way to.
+    pub fn said_noise(&mut self, mode: Noise) {
+        if let Some((want, at)) = self.noise_pending {
+            if at.elapsed() < NOISE_SETTLE && mode != want {
+                return;
+            }
+            self.noise_pending = None;
+        }
+        self.noise = Some(mode);
     }
 
     /// The noise control modes these headphones have, in the order the row steps them.
@@ -175,6 +194,10 @@ impl Phones {
             .min()
     }
 }
+
+/// How long after the noise control mode is set from here the modes the headphones say back
+/// are taken for the steps on their way to it.
+pub const NOISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(2_500);
 
 /// How low a bud goes before the handheld says so, highest first.
 pub const LOW: [u8; 3] = [20, 10, 5];
@@ -307,7 +330,10 @@ impl Link {
             Kind::Buds(model) => galaxy::set_noise(model, mode),
         };
         self.send(&packets);
-        self.change(|p| p.noise = Some(mode));
+        self.change(|p| {
+            p.noise = Some(mode);
+            p.noise_pending = Some((mode, std::time::Instant::now()));
+        });
     }
 
     pub fn set_conversation(&mut self, on: bool) {
@@ -460,8 +486,12 @@ impl Keeper {
         self.link.as_mut()
     }
 
+    /// The headphones, once they have said something on their channel.
     pub fn phones(&self) -> Option<Phones> {
-        self.link.as_ref().and_then(Link::phones)
+        self.link
+            .as_ref()
+            .and_then(Link::phones)
+            .filter(|p| p.heard)
     }
 
     /// The low battery step to say now, if the buds just went under one.
@@ -471,7 +501,8 @@ impl Keeper {
     }
 
     /// For the menus' tests: headphones as `phones` says, on a channel that talks to nothing.
-    pub fn stand_in(&mut self, mac: &str, phones: Phones) {
+    pub fn stand_in(&mut self, mac: &str, mut phones: Phones) {
+        phones.heard = true;
         self.link = Some(Link::stand_in(mac, phones));
     }
 }

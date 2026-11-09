@@ -61,3 +61,25 @@ fn settings_shows_the_same_rows_galaxy_buds_without_apple_s_own() {
         [OptionRow::Hp(HpRow::Noise), OptionRow::Hp(HpRow::Battery)]
     );
 }
+
+#[test]
+fn a_noise_mode_said_on_the_way_to_the_one_just_set_is_not_taken() {
+    let mut p = airpods();
+    p.noise = Some(Noise::Adaptive);
+    p.noise_pending = Some((Noise::Adaptive, std::time::Instant::now()));
+    // the AirPods say back the step before, still on their way
+    p.said_noise(Noise::Cancellation);
+    assert_eq!(p.noise, Some(Noise::Adaptive));
+    // then the one set, and after that what they are switched to themselves
+    p.said_noise(Noise::Adaptive);
+    p.said_noise(Noise::Transparency);
+    assert_eq!(p.noise, Some(Noise::Transparency));
+}
+
+#[test]
+fn headphones_that_have_said_nothing_have_no_menu() {
+    let d = common::tmp_root_with_carts(&[]);
+    let app = common::boot(d.path());
+    assert_eq!(app.headphones_kind(), None);
+    assert!(app.headphones_rows().is_empty());
+}

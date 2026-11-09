@@ -1,4 +1,5 @@
 mod alsa;
+pub mod bt_volume;
 mod chime;
 #[cfg(feature = "host")]
 mod host;
