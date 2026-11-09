@@ -207,6 +207,9 @@ static void RC_CCONV login_done(int result, const char* error, rc_client_t* c, v
 static void RC_CCONV game_done(int result, const char* error, rc_client_t* c, void* userdata) {
   (void)c;
   (void)userdata;
+  /* a load another took the place of, or the game was put away during: that one says */
+  if (result == RC_ABORTED)
+    return;
   game_state = result == RC_OK ? 2 : 3;
   game_result = result;
   keep_error(game_error, error);
@@ -372,9 +375,15 @@ void oc_load_game(uint32_t console, const char* path) {
 
 /* The game by the hash made of it beforehand, off the client's lock: hashing a PSP game's
    disc takes a third of a second, which every other call into the client would wait out. */
-void oc_load_game_hash(const char* hash) {
+/* A game is being hashed, on a thread of its own: its achievements are on their way. */
+void oc_game_hashing(void) {
   game_state = 1;
   game_error[0] = ' ';
+}
+
+void oc_load_game_hash(const char* hash) {
+  game_state = 1;
+  game_error[0] = '\0';
   rc_client_begin_load_game(client, hash, game_done, NULL);
 }
 

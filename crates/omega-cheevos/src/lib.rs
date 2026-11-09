@@ -75,6 +75,7 @@ extern "C" {
     );
     fn oc_load_game(console: u32, path: *const c_char);
     fn oc_load_game_hash(hash: *const c_char);
+    fn oc_game_hashing();
     fn oc_game_state(error: *mut *const c_char) -> c_int;
     fn oc_unload_game();
     fn oc_summary(
@@ -113,6 +114,8 @@ static ANSWERS: Mutex<Vec<(u32, c_int, Vec<u8>)>> = Mutex::new(Vec::new());
 static EVENTS: Mutex<Vec<Event>> = Mutex::new(Vec::new());
 /// The game hashed last, its console and the hash: held while a game is hashed, outside the
 /// client's lock, so the game's achievements load again without hashing it again.
+/// Counts the games begun and put away, so a hash made for one put away since loads nothing.
+static GAME: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 #[allow(clippy::type_complexity)]
 static HASHED: Mutex<Option<(u32, std::path::PathBuf, Option<String>)>> = Mutex::new(None);
 /// What every request says it is, as RetroAchievements asks: omega-zero and rcheevos' versions.
@@ -277,8 +280,8 @@ pub fn login() -> Login {
 /// Starts the achievements of the game `rom` of `console` the core has just loaded, read from
 /// `memory`. Called on the thread that runs the core, which `frame` must be called on too.
 pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
-    let hash = hash_once(console, rom);
-    with_client(|| unsafe {
+    let game = GAME.fetch_add(1, Ordering::AcqRel) + 1;
+    let begun = with_client(|| unsafe {
         // SAFETY: the shim keeps the region pointers, the core's, for as long as the game is
         // loaded; `end_game` drops them before the core goes
         oc_set_memory(
@@ -292,8 +295,34 @@ pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
             memory.video.0,
             memory.video.1,
         );
-        load_game(console, rom, hash.as_deref());
+        oc_game_hashing();
     });
+    if begun.is_some() {
+        load_in_turn(game, console, rom);
+    }
+}
+
+/// Hashes the game `rom` of `console` on a thread of its own, and then starts loading its
+/// achievements, unless the game has been put away meanwhile. Hashing reads all of a
+/// cartridge's ROM, or much of a PSP game's disc, off the card, which takes up to a second:
+/// neither the game, which starts meanwhile, nor anything else that calls into the client
+/// waits for it.
+fn load_in_turn(game: u64, console: u32, rom: &Path) {
+    let rom = rom.to_path_buf();
+    let spawned = std::thread::Builder::new()
+        .name("omega-cheevos-hash".into())
+        .spawn(move || {
+            let hash = hash_once(console, &rom);
+            with_client(|| {
+                // SAFETY: under the lock
+                if GAME.load(Ordering::Acquire) == game && unsafe { oc_has_memory() } != 0 {
+                    load_game(console, &rom, hash.as_deref());
+                }
+            });
+        });
+    if let Err(e) = spawned {
+        eprintln!("omega-cheevos: could not hash the game: {e}");
+    }
 }
 
 /// The hash of the game `rom` of `console`, made outside the client's lock, as hashing a PSP
@@ -356,13 +385,19 @@ pub fn game_hash(console: u32, rom: &Path) -> Option<String> {
 /// Loads the achievements of the game `rom` of `console` again, its memory as `begin_game`
 /// set it: after a sign-in or a network that came too late for the game's start.
 pub fn reload_game(console: u32, rom: &Path) {
-    let hash = hash_once(console, rom);
-    with_client(|| {
+    let game = GAME.load(Ordering::Acquire);
+    let has_memory = with_client(|| {
         // SAFETY: under the lock
-        if unsafe { oc_has_memory() } != 0 {
-            load_game(console, rom, hash.as_deref());
+        let has = unsafe { oc_has_memory() } != 0;
+        if has {
+            // SAFETY: under the lock
+            unsafe { oc_game_hashing() };
         }
+        has
     });
+    if has_memory == Some(true) {
+        load_in_turn(game, console, rom);
+    }
 }
 
 /// The game's achievements, once they are loaded.
@@ -455,6 +490,7 @@ pub fn reset() {
 
 /// The game is put away: the client lets go of it and of its memory, before the core goes.
 pub fn end_game() {
+    GAME.fetch_add(1, Ordering::AcqRel);
     // SAFETY: under the lock
     with_client(|| unsafe { oc_unload_game() });
 }

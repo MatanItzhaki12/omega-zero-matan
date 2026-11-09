@@ -661,11 +661,26 @@ enum Wait {
 }
 
 impl Drop for EmuHandle {
+    /// The emulator's thread is told to stop, and left to close its core on its own: closing
+    /// PPSSPP takes a third of a second, which the screen does not wait out. The next core to
+    /// open waits for it, as two of one core cannot be open at once.
     fn drop(&mut self) {
         self.shared.stop.store(true, Ordering::Relaxed);
         if let Some(join) = self.join.take() {
-            let _ = join.join();
+            CLOSING.lock().unwrap_or_else(|e| e.into_inner()).push(join);
         }
+    }
+}
+
+/// The emulator threads told to stop, closing their cores.
+static CLOSING: Mutex<Vec<JoinHandle<()>>> = Mutex::new(Vec::new());
+
+/// Waits for every core an emulator's thread is closing to be closed: before another opens,
+/// and before the handheld powers off or restarts.
+pub fn wait_closed() {
+    let closing = std::mem::take(&mut *CLOSING.lock().unwrap_or_else(|e| e.into_inner()));
+    for join in closing {
+        let _ = join.join();
     }
 }
 

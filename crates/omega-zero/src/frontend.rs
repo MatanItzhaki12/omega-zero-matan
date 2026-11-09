@@ -720,10 +720,12 @@ impl Frontend {
     }
 
     pub fn restart(&mut self) {
+        crate::emu::wait_closed();
         self.session.app_mut().restart();
     }
 
     pub fn poweroff(&mut self) {
+        crate::emu::wait_closed();
         self.session.app_mut().poweroff();
     }
 }

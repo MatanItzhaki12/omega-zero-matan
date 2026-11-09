@@ -139,6 +139,8 @@ fn open_named(
     setup: Setup,
     paths: &[PathBuf],
 ) -> Option<Box<dyn RetroCore>> {
+    // a core put away a moment ago may still be closing on its emulator's thread
+    crate::emu::wait_closed();
     let system = system_dir(root, core);
     let saves = root::saves_dir(root);
     let (serial, colour, link) = setup.handheld();

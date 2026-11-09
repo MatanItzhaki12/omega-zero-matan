@@ -13,9 +13,14 @@
 
 - A PSP game's disc spins smoothly as it loads. Its game was hashed for RetroAchievements
   while the achievements client was held, and the screen, which looks in on the client every
-  frame, waited out the third of a second hashing a disc takes. The game is hashed first now,
-  and only its hash handed to the client. The note that a core is starting is written to the
-  card off the screen's thread too, and a slow frame says in the log where its time went.
+  frame, waited out the third of a second hashing a disc takes. A game is hashed on a thread of
+  its own now, a cartridge's ROM as much as a disc, and only its hash handed to the client, so
+  no game hitches, nor waits to start, as its achievements load. The note that a core is
+  starting is written to the card off the screen's thread too, and a slow frame says in the
+  log where its time went.
+
+- Putting a PSP game away no longer holds the shelf up as it comes back: its core closes on
+  the emulator's thread, and the next game's core waits for it rather than the screen.
 
 ## omega-zero 2.6.7
 
