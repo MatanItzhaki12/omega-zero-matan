@@ -432,6 +432,8 @@ pub struct App {
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
     pub(crate) link_faces: Option<LinkFaces>,
     pub(crate) bluetooth: Bluetooth,
+    /// The channel to the AirPods connected, for their noise control and battery.
+    pub(crate) airpods: crate::airpods::Keeper,
     /// The Bluetooth modal's faces, laid out as Network's.
     pub(crate) bluetooth_faces: Option<omega_ui::network::NetworkFaces>,
     pub(crate) labels: Labels,
@@ -515,6 +517,7 @@ impl App {
             keyboard_faces: None,
             link_faces: None,
             bluetooth: Bluetooth::new(bluetooth_jobs()),
+            airpods: Default::default(),
             bluetooth_faces: None,
             labels: Labels::new(Box::new(NoKey::default()), None),
             labels_panel: None,
@@ -1993,7 +1996,9 @@ impl App {
         if self.muted() {
             0
         } else {
-            self.level()
+            // AirPods hearing their wearer talk turn the sound down until they stop
+            let duck = self.airpods.pods().map_or(1.0, |p| p.duck);
+            (f32::from(self.level()) * duck).round() as u8
         }
     }
 
@@ -2146,6 +2151,8 @@ impl App {
         let (now, watch) = (self.now(), self.wifi_watch());
         self.wifi.tick(now, watch);
         self.bluetooth.tick(now, self.bluetooth_watch());
+        let airpods = self.bluetooth.connected_airpods();
+        self.airpods.keep(airpods.as_deref(), now);
         self.ssh.tick(now, self.state.ssh);
         self.labels.tick();
         self.take_labels();

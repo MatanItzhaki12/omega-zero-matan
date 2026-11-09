@@ -1,4 +1,5 @@
 pub mod achievements;
+pub mod airpods;
 pub mod app;
 pub mod audio;
 pub mod background_screen;

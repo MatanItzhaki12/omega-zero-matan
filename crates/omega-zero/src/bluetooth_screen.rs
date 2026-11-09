@@ -11,6 +11,10 @@ use crate::bluetooth::{
 };
 use crate::wifi_screen::SettingLine;
 
+/// How often the status is asked for while nothing on screen names a device, on top of
+/// `REFRESH_MS`.
+pub const IDLE_REFRESH_MS: Millis = 8_000;
+
 /// How long a pairing or a connection that failed is said under the list.
 pub const NOTE_MS: Millis = 5_000;
 /// How long a job for a device may take before it is called failed. The script gives up on a
@@ -295,7 +299,13 @@ impl Bluetooth {
         if left {
             self.unlook();
         }
-        if watch >= Watch::Status && !self.refreshing && now >= self.refresh_at {
+        // nothing on screen names a device: asked now and then all the same, so AirPods that
+        // connect by themselves have their controls in the game's menu
+        let due = match watch {
+            Watch::Idle => self.refresh_at + IDLE_REFRESH_MS,
+            _ => self.refresh_at,
+        };
+        if !self.refreshing && now >= due {
             self.refreshing = true;
             self.jobs.ask(BluetoothJob::Refresh);
         }
@@ -414,6 +424,18 @@ impl Bluetooth {
             (rank, e.name.to_lowercase(), e.mac.clone())
         });
         out
+    }
+
+    /// The AirPods connected, by their address: none while Bluetooth is off or no AirPods are.
+    pub fn connected_airpods(&self) -> Option<String> {
+        if !self.enabled {
+            return None;
+        }
+        self.status
+            .devices
+            .iter()
+            .find(|d| d.connected && crate::airpods::is_airpods(&d.name))
+            .map(|d| d.mac.clone())
     }
 
     pub fn summary(&self) -> Summary {
