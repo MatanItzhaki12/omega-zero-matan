@@ -268,17 +268,9 @@ impl Session {
     }
 
     pub fn update(&mut self, dt: f32) {
-        // where a slow update's time went, step by step
-        let began = std::time::Instant::now();
-        let mut steps: Vec<(&str, std::time::Duration)> = Vec::new();
-        let mut at = began;
-        let mut step = |name: &'static str| {
-            let now = std::time::Instant::now();
-            steps.push((name, now - at));
-            at = now;
-        };
+        let mut sw = crate::stopwatch::Stopwatch::new();
         self.bridge_link(|app| app.update(dt));
-        step("app");
+        sw.step("app");
         if let Some(emu) = &self.emu {
             emu.set_volume(self.app.sample_volume());
         }
@@ -332,11 +324,11 @@ impl Session {
         if let Some(sfx) = self.app.take_sfx() {
             self.play_sfx(sfx);
         }
-        step("options");
+        sw.step("options");
         self.sync_core();
-        step("core");
+        sw.step("core");
         self.settle_start();
-        step("settle");
+        sw.step("settle");
         self.sync_reload();
         self.keep_swapped_disc();
         if !self.has_core() {
@@ -351,14 +343,8 @@ impl Session {
         self.sync_ff_hud();
         self.sync_rumble();
         self.sync_pad();
-        step("rest");
-        if began.elapsed() > std::time::Duration::from_millis(30) {
-            let parts: Vec<String> = steps
-                .iter()
-                .map(|(name, d)| format!("{name} {:.0}", d.as_secs_f64() * 1e3))
-                .collect();
-            eprintln!("omega-zero: slow update: {}", parts.join(", "));
-        }
+        sw.step("rest");
+        sw.log_over("update", std::time::Duration::from_millis(30));
     }
 
     fn sync_rumble(&mut self) {

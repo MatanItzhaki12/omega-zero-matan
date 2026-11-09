@@ -52,6 +52,7 @@ pub mod session;
 pub mod spawn;
 pub mod ssh;
 pub mod start_notice;
+pub mod stopwatch;
 pub mod thumb;
 pub mod update;
 pub mod video_mode;

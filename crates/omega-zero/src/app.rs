@@ -2235,10 +2235,12 @@ impl App {
     }
 
     pub fn update(&mut self, dt: f32) {
+        let mut sw = crate::stopwatch::Stopwatch::new();
         self.clock += dt as f64 * 1000.0;
         self.step_boot_fade(dt);
         self.step_opening(dt);
         self.step_start_notice(dt);
+        sw.step("fades");
         // a letter jumped to shows in the pill for a while, then the system comes back
         if self.pill_letter.is_some()
             && self
@@ -2259,9 +2261,11 @@ impl App {
             self.shelf_named = Some(self.now());
         }
         self.timers();
+        sw.step("timers");
         self.poll_link();
         self.poll_rooms();
         self.poll_backup();
+        sw.step("polls");
         let now = self.now();
         let ready = self.core_faces_ready();
         if let Some(picker) = &mut self.core_picker {
@@ -2289,6 +2293,7 @@ impl App {
         if self.power_slide.is_some_and(|s| s.over(now)) {
             self.power_slide = None;
         }
+        sw.step("shelf");
         let mut touched = false;
         // a UMD whose disc is spinning in its window waits up for its game
         let spinning = match &self.phase {
@@ -2346,9 +2351,13 @@ impl App {
             if seated.is_none() {
                 self.link_loaded = None;
             }
+            sw.step("phase");
             self.record_cart(seated);
+            sw.step("record cart");
         }
         self.step_screen(dt);
+        sw.step("rest");
+        sw.log_over("app update", std::time::Duration::from_millis(30));
     }
 
     fn step_screen(&mut self, dt: f32) {
@@ -2379,10 +2388,14 @@ impl App {
     }
 
     fn timers(&mut self) {
+        let mut sw = crate::stopwatch::Stopwatch::new();
         self.tick_achievements();
+        sw.step("achievements");
         let (now, watch) = (self.now(), self.wifi_watch());
         self.wifi.tick(now, watch);
+        sw.step("wifi");
         self.bluetooth.tick(now, self.bluetooth_watch());
+        sw.step("bluetooth");
         let audio = self.bluetooth.connected_audio();
         crate::audio::bt_volume::watch(audio.as_deref());
         let ready = self.bluetooth_volume_ready(audio.as_deref(), now);
@@ -2391,7 +2404,9 @@ impl App {
         self.follow_bluetooth_volume(now);
         self.tell_bluetooth_sound();
         self.tell_headphones_noise();
+        sw.step("bluetooth sound");
         self.check_for_update(now);
+        sw.step("update check");
         let phones = self.bluetooth.connected_headphones();
         self.phones.keep(
             phones.as_ref().map(|(mac, kind)| (mac.as_str(), *kind)),
@@ -2399,16 +2414,21 @@ impl App {
         );
         self.tell_low_headphones();
         self.leave_gone_headphones();
+        sw.step("headphones");
         self.ssh.tick(now, self.state.ssh);
+        sw.step("ssh");
         self.labels.tick();
         self.take_labels();
+        sw.step("labels");
         self.play_hold();
         if self.doze_expired() {
             self.on_doze_timeout();
         }
+        sw.step("hold");
         if self.now() >= self.autosave_at {
             self.autosave();
         }
+        sw.step("autosave");
         if self.now() >= self.battery_at {
             self.battery_at = self.now() + BATTERY_POLL_MS;
             self.battery = self.power.as_ref().and_then(|p| p.battery());
@@ -2416,6 +2436,7 @@ impl App {
                 self.on_battery(b);
             }
         }
+        sw.step("battery");
         if self.now() >= self.headphones_at {
             self.headphones_at = self.now() + HEADPHONES_POLL_MS;
             let on = self.power.as_ref().is_some_and(|p| p.headphones());
@@ -2435,6 +2456,7 @@ impl App {
             let state = self.led_state();
             self.set_led(state);
         }
+        sw.step("headphones jack, charge");
         if let Some(GameMenu::Linked {
             since,
             opened: false,
@@ -2455,6 +2477,7 @@ impl App {
                 self.end_link();
             }
         }
+        sw.log_over("timers", std::time::Duration::from_millis(30));
     }
 
     pub fn led_state(&self) -> LedState {
