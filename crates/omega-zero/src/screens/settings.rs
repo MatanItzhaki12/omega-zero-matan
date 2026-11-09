@@ -194,11 +194,13 @@ impl App {
     fn press_update(&mut self) {
         use crate::update::Update;
         match self.updater.state() {
-            Update::Idle | Update::Latest | Update::Failed(_) => self.updater.check(),
-            // omega-zero on the card: the running program's own path is the loader it starts
+            Update::Idle | Update::Latest | Update::Failed(_) => {
+                self.updater.check(self.root.clone())
+            }
+            // the card's System folder: the running program's own path is the loader it starts
             // through
             Update::Available { .. } => match &self.root {
-                Some(root) => self.updater.install(crate::update::program(root)),
+                Some(root) => self.updater.install(root.clone()),
                 None => self.refuse(),
             },
             Update::Installed(_) => self.begin_restart(),

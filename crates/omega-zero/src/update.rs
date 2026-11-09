@@ -1,9 +1,18 @@
 //! Update, the row above About in Settings: omega-zero updating itself from its GitHub
 //! releases. A asks GitHub for the latest release; when it is newer than this build, A again
-//! downloads its `omega-zero-aarch64`, checks it against the SHA-256 published beside it and
-//! that it is an aarch64 program, and puts it in place of the running one, which is kept as
-//! `omega-zero.previous`. A once more restarts the handheld onto it. Only omega-zero itself is
-//! updated this way: the cores and the card's scripts change with a full release's zip.
+//! brings the card's `System/` folder to it and A once more restarts the handheld onto it.
+//!
+//! A release publishes its `System/` as a manifest of every file and its SHA-256, beside a data
+//! file of every file and one of patches from the releases before (see omega-pack). The check
+//! sums the files the card has and fetches only the ones that differ, by byte range: a patch
+//! where one runs from the file the card has, else the whole file. Each comes out checked
+//! against its sum, all are written beside the files they replace, and only then put in
+//! place, omega-zero itself kept as `omega-zero.previous`. What the card was given is kept in
+//! `System/.installed`, with each file's size and time, so the next check sums only files that
+//! changed since, and a file a release drops is taken away.
+//!
+//! A release with no manifest, from before, is installed as it was: its `omega-zero-aarch64`
+//! alone, checked against the SHA-256 published beside it and that it is an aarch64 program.
 //!
 //! The work runs on a thread of its own, through `curl`, as the label downloads do; the row
 //! reads where it stands each frame.
@@ -12,6 +21,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
+
+use omega_pack::{Manifest, Step};
 
 use crate::json::Json;
 
@@ -43,11 +54,11 @@ pub enum Update {
     Checking,
     /// This build is the latest release, or newer.
     Latest,
-    /// A newer release, by its version, with where to fetch it and its sum.
+    /// A newer release, and, for one with a manifest, it and how much of its data the card
+    /// lacks.
     Available {
-        version: String,
-        url: String,
-        sum_url: String,
+        release: Release,
+        system: Option<(Arc<Manifest>, u64)>,
     },
     Downloading(String),
     /// The newer release is in place, by its version: a restart runs it.
@@ -63,7 +74,7 @@ impl Update {
             Update::Idle => format!("V{VERSION}"),
             Update::Checking => "CHECKING…".to_string(),
             Update::Latest => "UP TO DATE".to_string(),
-            Update::Available { version, .. } => format!("GET V{version}"),
+            Update::Available { release, .. } => format!("GET V{}", release.version),
             Update::Downloading(_) => "DOWNLOADING…".to_string(),
             Update::Installed(_) => "RESTART".to_string(),
             Update::Failed(why) => why.to_string(),
@@ -77,7 +88,17 @@ impl Update {
                 format!("A checks for a newer omega-zero-matan than v{VERSION}")
             }
             Update::Checking => "Asking GitHub for the latest release".to_string(),
-            Update::Available { version, .. } => format!("A downloads and installs v{version}"),
+            Update::Available {
+                release,
+                system: Some((_, bytes)),
+            } => format!(
+                "A downloads {} and installs v{}",
+                size_text(*bytes),
+                release.version
+            ),
+            Update::Available { release, .. } => {
+                format!("A downloads and installs v{}", release.version)
+            }
             Update::Downloading(version) => format!("Downloading v{version}"),
             Update::Installed(version) => format!("A restarts onto v{version}"),
         }
@@ -127,8 +148,9 @@ impl Updater {
         }
     }
 
-    /// Asks GitHub for the latest release, on a thread of its own.
-    pub fn check(&self) {
+    /// Asks GitHub for the latest release, on a thread of its own, and, for one with a
+    /// manifest, what of it the card rooted at `root` lacks.
+    pub fn check(&self, root: Option<PathBuf>) {
         if self.state().busy() {
             return;
         }
@@ -137,14 +159,23 @@ impl Updater {
         let spawned = std::thread::Builder::new()
             .name("omega-update".into())
             .spawn(move || {
+                crate::spawn::stand_back();
                 let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
                 let found = match fetch(&url) {
                     Fetched::Body(body) => match latest(&String::from_utf8_lossy(&body)) {
-                        Some((version, url, sum_url)) if newer(&version, VERSION) => {
-                            Update::Available {
-                                version,
-                                url,
-                                sum_url,
+                        Some(release) if newer(&release.version, VERSION) => {
+                            let system = root.and_then(|root| lacking(&root, &release));
+                            Update::Available { release, system }
+                        }
+                        // this release, where the card lacks some of it: an update from before
+                        // 2.7.0 brought omega-zero alone
+                        Some(release) if release.version == VERSION => {
+                            match root.and_then(|root| lacking(&root, &release)) {
+                                Some((manifest, bytes)) if bytes > 0 => Update::Available {
+                                    release,
+                                    system: Some((manifest, bytes)),
+                                },
+                                _ => Update::Latest,
                             }
                         }
                         Some(_) => Update::Latest,
@@ -159,23 +190,23 @@ impl Updater {
         }
     }
 
-    /// Downloads the release found and puts it in place of `program`, omega-zero on the card,
-    /// on a thread of its own.
-    pub fn install(&self, program: PathBuf) {
-        let Update::Available {
-            version,
-            url,
-            sum_url,
-        } = self.state()
-        else {
+    /// Brings the card rooted at `root` to the release found, on a thread of its own.
+    pub fn install(&self, root: PathBuf) {
+        let Update::Available { release, system } = self.state() else {
             return;
         };
+        let version = release.version.clone();
         self.set(Update::Downloading(version.clone()));
         let me = self.clone();
         let spawned = std::thread::Builder::new()
             .name("omega-update".into())
             .spawn(move || {
-                let done = match install(&program, &url, &sum_url) {
+                crate::spawn::stand_back();
+                let done = match system {
+                    Some((manifest, _)) => install_system(&root, &release, &manifest),
+                    None => install(&program(&root), &release.program, &release.sum),
+                };
+                let done = match done {
                     Ok(()) => Update::Installed(version),
                     Err(why) => {
                         eprintln!("omega-zero: update: {why}");
@@ -190,9 +221,29 @@ impl Updater {
     }
 }
 
-/// The latest release's version, its omega-zero's address and its sum's, from GitHub's answer
-/// for it: none where it has no omega-zero for the handheld.
-pub fn latest(body: &str) -> Option<(String, String, String)> {
+/// A release, as GitHub lists it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Release {
+    pub version: String,
+    /// Its omega-zero-aarch64, and that one's sum.
+    pub program: String,
+    pub sum: String,
+    /// Its System manifest, files data and patches data, for a release that has them.
+    pub system: Option<[String; 3]>,
+}
+
+/// `bytes` as the note says it: in KB under a megabyte, else in MB to a tenth.
+pub fn size_text(bytes: u64) -> String {
+    if bytes < 1_000_000 {
+        format!("{} KB", bytes.div_ceil(1000).max(1))
+    } else {
+        format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+    }
+}
+
+/// The latest release, from GitHub's answer for it: none where it has no omega-zero for the
+/// handheld.
+pub fn latest(body: &str) -> Option<Release> {
     let release = Json::parse(body)?;
     let tag = release.get("tag_name")?.text()?;
     let version = tag.trim_start_matches('v').to_string();
@@ -206,7 +257,19 @@ pub fn latest(body: &str) -> Option<(String, String, String)> {
             .text()
             .map(str::to_string)
     };
-    Some((version, asset(ASSET)?, asset(ASSET_SUM)?))
+    let system = (|| {
+        Some([
+            asset(omega_pack::MANIFEST_ASSET)?,
+            asset(omega_pack::FILES_ASSET)?,
+            asset(omega_pack::PATCHES_ASSET)?,
+        ])
+    })();
+    Some(Release {
+        version,
+        program: asset(ASSET)?,
+        sum: asset(ASSET_SUM)?,
+        system,
+    })
 }
 
 /// Whether version `a` is newer than `b`, each as dotted numbers: `1.10.0` is newer than
@@ -260,6 +323,163 @@ fn install(program: &Path, url: &str, sum_url: &str) -> Result<(), &'static str>
     std::fs::copy(program, &previous).map_err(|e| unwritten(&e))?;
     std::fs::rename(&fresh, program).map_err(|e| unwritten(&e))?;
     Ok(())
+}
+
+/// Where the card keeps what it was given: one line a file, its sum, size, time and path.
+pub const INSTALLED: &str = "System/.installed";
+
+/// A file as `System/.installed` has it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Had {
+    pub sha: String,
+    pub size: u64,
+    pub mtime: u64,
+    pub path: String,
+}
+
+pub fn read_installed(root: &Path) -> Vec<Had> {
+    let text = std::fs::read_to_string(root.join(INSTALLED)).unwrap_or_default();
+    text.lines()
+        .filter_map(|line| {
+            let mut f = line.splitn(4, ' ');
+            Some(Had {
+                sha: f.next()?.to_string(),
+                size: f.next()?.parse().ok()?,
+                mtime: f.next()?.parse().ok()?,
+                path: f.next()?.to_string(),
+            })
+        })
+        .collect()
+}
+
+/// A file's size and time, as `System/.installed` keeps them.
+fn stamp(path: &Path) -> Option<(u64, u64)> {
+    let meta = std::fs::metadata(path).ok()?;
+    let mtime = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    meta.is_file().then_some((meta.len(), mtime))
+}
+
+/// The sum of the file at `rel` on the card rooted at `root`: the one `had` gives while its
+/// size and time are as they were, else summed afresh. None for no file.
+pub fn sum_on_card(root: &Path, rel: &str, had: &[Had]) -> Option<String> {
+    let path = root.join(rel);
+    let (size, mtime) = stamp(&path)?;
+    if let Some(h) = had
+        .iter()
+        .find(|h| h.path == rel && h.size == size && h.mtime == mtime)
+    {
+        return Some(h.sha.clone());
+    }
+    omega_pack::sha256::file(&path).ok()
+}
+
+/// The release's manifest, and how much of its data the card rooted at `root` lacks.
+fn lacking(root: &Path, release: &Release) -> Option<(Arc<Manifest>, u64)> {
+    let [manifest_url, ..] = release.system.as_ref()?;
+    let text = fetch(manifest_url).body().ok()?;
+    let manifest = Manifest::parse(&String::from_utf8_lossy(&text))?;
+    let had = read_installed(root);
+    let bytes = omega_pack::plan(&manifest, |rel| sum_on_card(root, rel, &had))
+        .iter()
+        .map(Step::bytes)
+        .sum();
+    Some((Arc::new(manifest), bytes))
+}
+
+/// The bytes `start` for `len` of the file at `url`.
+fn fetch_range(url: &str, start: u64, len: u64) -> Result<Vec<u8>, &'static str> {
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+    let range = format!("{start}-{}", start + len - 1);
+    let body = fetch_with(url, &["-r", &range]).body()?;
+    match body.len() as u64 {
+        // the range asked for
+        n if n == len => Ok(body),
+        // a server that sent all of it
+        n if n >= start + len => Ok(body[start as usize..(start + len) as usize].to_vec()),
+        _ => Err("BAD DOWNLOAD"),
+    }
+}
+
+/// Brings the card rooted at `root` to `manifest`: fetches what differs, writes each file
+/// beside the one it replaces, then, all of them made, puts them in place.
+fn install_system(root: &Path, release: &Release, manifest: &Manifest) -> Result<(), &'static str> {
+    let [_, files_url, patches_url] = release.system.as_ref().ok_or("BAD RELEASE")?;
+    if !program(root).is_file() {
+        return Err("NOT ON CARD");
+    }
+    let had = read_installed(root);
+    let steps = omega_pack::plan(manifest, |rel| sum_on_card(root, rel, &had));
+    let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let mut make = || -> Result<(), &'static str> {
+        for step in &steps {
+            let file = step.file();
+            let to = root.join(&file.path);
+            let (piece, old) = match step {
+                Step::Whole(f) => (fetch_range(files_url, f.offset, f.len)?, None),
+                Step::Patch(_, p) => (
+                    fetch_range(patches_url, p.offset, p.len)?,
+                    Some(std::fs::read(&to).map_err(|e| unwritten(&e))?),
+                ),
+            };
+            let bytes =
+                omega_pack::rebuild(step, &piece, old.as_deref()).map_err(|_| "BAD DOWNLOAD")?;
+            if file.path == PROGRAM && !is_aarch64_elf(&bytes) {
+                return Err("BAD RELEASE");
+            }
+            let fresh = PathBuf::from(format!("{}.download", to.display()));
+            if let Some(dir) = fresh.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| unwritten(&e))?;
+            }
+            std::fs::write(&fresh, &bytes).map_err(|e| unwritten(&e))?;
+            if file.exec {
+                set_executable(&fresh);
+            }
+            staged.push((fresh, to));
+        }
+        Ok(())
+    };
+    if let Err(why) = make() {
+        for (fresh, _) in &staged {
+            let _ = std::fs::remove_file(fresh);
+        }
+        return Err(why);
+    }
+    // the running one is kept to go back to
+    let program = program(root);
+    if staged.iter().any(|(_, to)| *to == program) {
+        let previous = program.with_file_name("omega-zero.previous");
+        std::fs::copy(&program, previous).map_err(|e| unwritten(&e))?;
+    }
+    for (fresh, to) in &staged {
+        std::fs::rename(fresh, to).map_err(|e| unwritten(&e))?;
+    }
+    let had_paths: Vec<String> = had.iter().map(|h| h.path.clone()).collect();
+    for rel in omega_pack::gone(&had_paths, manifest) {
+        let _ = std::fs::remove_file(root.join(rel));
+    }
+    write_installed(root, manifest).map_err(|e| unwritten(&e))?;
+    let _ = Command::new("sync").status();
+    Ok(())
+}
+
+/// Records the files of `manifest` the card rooted at `root` has, as they are now.
+pub fn write_installed(root: &Path, manifest: &Manifest) -> std::io::Result<()> {
+    let mut record = String::new();
+    for f in &manifest.files {
+        if let Some((size, mtime)) = stamp(&root.join(&f.path)) {
+            record += &format!("{} {size} {mtime} {}\n", f.sha, f.path);
+        }
+    }
+    let fresh = root.join(format!("{INSTALLED}.download"));
+    std::fs::write(&fresh, record)?;
+    std::fs::rename(&fresh, root.join(INSTALLED))
 }
 
 /// What the row says for a write to the card that failed with `e`: CARD FULL only when the
@@ -333,6 +553,11 @@ pub fn answered(out: &[u8]) -> Fetched {
 
 /// What `url` answers, following redirects.
 fn fetch(url: &str) -> Fetched {
+    fetch_with(url, &[])
+}
+
+/// What `url` answers, following redirects, curl given `extra` as well.
+fn fetch_with(url: &str, extra: &[&str]) -> Fetched {
     let child = Command::new("curl")
         .args([
             "-sL",
@@ -342,8 +567,9 @@ fn fetch(url: &str) -> Fetched {
             "omega-zero-matan",
             "-w",
             "\n%{http_code}",
-            url,
         ])
+        .args(extra)
+        .arg(url)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -365,68 +591,7 @@ fn fetch(url: &str) -> Fetched {
 
 /// `bytes`' SHA-256, in lower-case hex.
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    const K: [u32; 64] = [
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
-        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
-        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
-        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
-        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
-        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
-        0xc67178f2,
-    ];
-    let mut h: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-        0x5be0cd19,
-    ];
-    let mut data = bytes.to_vec();
-    let bits = (bytes.len() as u64).wrapping_mul(8);
-    data.push(0x80);
-    while data.len() % 64 != 56 {
-        data.push(0);
-    }
-    data.extend_from_slice(&bits.to_be_bytes());
-    for block in data.chunks_exact(64) {
-        let mut w = [0u32; 64];
-        for (i, word) in block.chunks_exact(4).enumerate() {
-            w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
-        }
-        for i in 16..64 {
-            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
-            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16]
-                .wrapping_add(s0)
-                .wrapping_add(w[i - 7])
-                .wrapping_add(s1);
-        }
-        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh] = h;
-        for i in 0..64 {
-            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-            let ch = (e & f) ^ (!e & g);
-            let t1 = hh
-                .wrapping_add(s1)
-                .wrapping_add(ch)
-                .wrapping_add(K[i])
-                .wrapping_add(w[i]);
-            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-            let maj = (a & b) ^ (a & c) ^ (b & c);
-            let t2 = s0.wrapping_add(maj);
-            hh = g;
-            g = f;
-            f = e;
-            e = d.wrapping_add(t1);
-            d = c;
-            c = b;
-            b = a;
-            a = t1.wrapping_add(t2);
-        }
-        for (x, y) in h.iter_mut().zip([a, b, c, d, e, f, g, hh]) {
-            *x = x.wrapping_add(y);
-        }
-    }
-    h.iter().map(|x| format!("{x:08x}")).collect()
+    omega_pack::sha256::hex(bytes)
 }
 
 #[cfg(test)]
@@ -467,11 +632,22 @@ mod tests {
             {"name":"omega-zero-aarch64.sha256","browser_download_url":"https://x/sum"}]}"#;
         assert_eq!(
             latest(body),
-            Some((
-                "1.3.0".to_string(),
-                "https://x/bin".to_string(),
-                "https://x/sum".to_string()
-            ))
+            Some(Release {
+                version: "1.3.0".to_string(),
+                program: "https://x/bin".to_string(),
+                sum: "https://x/sum".to_string(),
+                system: None,
+            })
+        );
+        let with_system = r#"{"tag_name":"v2.7.0","assets":[
+            {"name":"omega-zero-aarch64","browser_download_url":"https://x/bin"},
+            {"name":"omega-zero-aarch64.sha256","browser_download_url":"https://x/sum"},
+            {"name":"system-manifest.txt","browser_download_url":"https://x/m"},
+            {"name":"system-files.bin","browser_download_url":"https://x/f"},
+            {"name":"system-patches.bin","browser_download_url":"https://x/p"}]}"#;
+        assert_eq!(
+            latest(with_system).and_then(|r| r.system),
+            Some(["https://x/m", "https://x/f", "https://x/p"].map(String::from))
         );
         let zip_only = r#"{"tag_name":"v1.3.0","assets":[
             {"name":"omega-zero-v1.3.0-h700.zip","browser_download_url":"https://x/zip"}]}"#;
@@ -542,6 +718,50 @@ mod tests {
             assert_eq!(u.state(), kept);
         }
         assert_eq!(Update::Idle.text(), format!("V{VERSION}"));
+    }
+
+    #[test]
+    fn the_note_says_how_much_an_update_downloads() {
+        assert_eq!(size_text(1), "1 KB");
+        assert_eq!(size_text(412_300), "413 KB");
+        assert_eq!(size_text(6_595_088), "6.6 MB");
+    }
+
+    #[test]
+    fn a_file_is_summed_again_only_once_it_changes() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path();
+        std::fs::create_dir_all(root.join("System")).unwrap();
+        std::fs::write(root.join("System/wifi.sh"), b"echo wifi").unwrap();
+        let real = omega_pack::sha256::hex(b"echo wifi");
+        let m = Manifest {
+            version: "1".into(),
+            files: vec![omega_pack::FileEntry {
+                path: "System/wifi.sh".into(),
+                sha: real.clone(),
+                size: 9,
+                exec: true,
+                offset: 0,
+                len: 0,
+            }],
+            patches: vec![],
+        };
+        write_installed(root, &m).unwrap();
+        let mut had = read_installed(root);
+        assert_eq!(had.len(), 1);
+        assert_eq!(
+            sum_on_card(root, "System/wifi.sh", &had),
+            Some(real.clone())
+        );
+        // a record that says otherwise is taken while the file's size and time stand
+        had[0].sha = "f".repeat(64);
+        assert_eq!(
+            sum_on_card(root, "System/wifi.sh", &had),
+            Some("f".repeat(64))
+        );
+        had[0].size += 1;
+        assert_eq!(sum_on_card(root, "System/wifi.sh", &had), Some(real));
+        assert_eq!(sum_on_card(root, "System/none.sh", &had), None);
     }
 
     #[test]

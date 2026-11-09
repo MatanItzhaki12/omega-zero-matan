@@ -1686,6 +1686,7 @@ version = "2.6.0"
 dependencies = [
  "cc",
  "omega-retro",
+ "omega-store",
  "tempfile",
 ]
 

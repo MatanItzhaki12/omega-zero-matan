@@ -14,6 +14,7 @@ device = ["omega-gfx/device"]
 omega-cheevos = { path = "../omega-cheevos" }
 omega-gfx = { path = "../omega-gfx", default-features = false }
 omega-input = { path = "../omega-input" }
+omega-pack = { path = "../omega-pack" }
 omega-power = { path = "../omega-power" }
 omega-retro = { path = "../omega-retro" }
 omega-store = { path = "../omega-store" }

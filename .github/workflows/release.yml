@@ -116,7 +116,7 @@ jobs:
           sed -i '/bullseye-security/d' /etc/apt/sources.list
           apt-get -o Acquire::Check-Valid-Until=false update
           # PPSSPP's build wants OpenGL ES's headers, though it links no GL of its own
-          apt-get install -y --no-install-recommends zip cmake libgles2-mesa-dev xz-utils
+          apt-get install -y --no-install-recommends zip unzip cmake libgles2-mesa-dev xz-utils
           # Task at a version named here, checked against the sum its release gives, rather
           # than whatever an install script fetches on the day
           curl -fsSL -o /tmp/task.tar.gz \
@@ -216,6 +216,33 @@ jobs:
           cp "$out/System/omega-zero" update/omega-zero-aarch64
           (cd update && sha256sum omega-zero-aarch64 > omega-zero-aarch64.sha256)
 
+      # Settings' Update on the console: the System folder as a manifest, every file and patches
+      # from the three releases before, so a console fetches only what changed since its own
+      - name: System update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -eu
+          rm -rf before
+          mkdir -p before
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/releases?per_page=6" > before/releases.json
+          # each release's card zip, newest first: the three before this one
+          grep -o '"browser_download_url": *"[^"]*-h700\.zip"' before/releases.json \
+            | sed 's/.*"\(https[^"]*\)"$/\1/' | grep -v "/download/$TAG/" | head -n 3 > before/zips.txt || true
+          roots=""
+          i=0
+          while read -r url; do
+            i=$((i + 1))
+            if curl -fsSL -o "before/$i.zip" "$url" && unzip -q "before/$i.zip" -d "before/$i"; then
+              system="$(find "before/$i" -maxdepth 2 -type d -name System | head -n 1)"
+              [ -n "$system" ] && roots="$roots $(dirname "$system")"
+            fi
+          done < before/zips.txt
+          echo "patches from:$roots"
+          cargo run --release -p omega-pack -- "$TREE" "${TAG#v}" update $roots
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.zip }}
@@ -260,9 +287,10 @@ jobs:
           NOTES
           cat >> notes.md <<NOTES
 
-          Already on omega-zero-matan? **Settings > Update** fetches this release's omega-zero-matan on the console itself (\`omega-zero-aarch64\`, checked against \`omega-zero-aarch64.sha256\`). The cores and the card's scripts only change with the zip.
+          Already on omega-zero-matan? **Settings > Update** brings the console's \`System\` folder to this release on the console itself, fetching only the files that changed, as patches where it can (\`system-manifest.txt\`, \`system-files.bin\`, \`system-patches.bin\`). Before 2.7.0 it fetched \`omega-zero-aarch64\` alone.
           NOTES
           # a tag that is not there yet is made at the commit this run built
           gh release create "$TAG" "$ZIP" omega-zero-aarch64 omega-zero-aarch64.sha256 \
+            system-manifest.txt system-files.bin system-patches.bin \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "$TAG" --notes-file notes.md
