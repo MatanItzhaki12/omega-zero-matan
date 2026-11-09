@@ -129,7 +129,6 @@ pub(crate) fn generated_label(s: &Spec, title: &str) -> Vec<u8> {
 /// scan cuts out. Brushed metal, darker towards the spindle, so the middle reads as the disc's
 /// and not as the shell's white.
 const HUB_METAL: [u8; 3] = [0xb6, 0xba, 0xc4];
-const HUB_SPINDLE: [u8; 3] = [0x5a, 0x5e, 0x68];
 
 /// The scan `rgba`, `w` by `h`, laid over the disc's hub where it is clear.
 pub(crate) fn with_hub(mut rgba: Vec<u8>, w: u32, h: u32) -> Vec<u8> {
@@ -143,14 +142,29 @@ pub(crate) fn with_hub(mut rgba: Vec<u8>, w: u32, h: u32) -> Vec<u8> {
                 continue;
             }
             let hub = match d {
-                d if d < 0.1 => HUB_SPINDLE,
-                d if d < 0.13 => [0x88, 0x8c, 0x96],
+                d if d < 0.36 => HUB_METAL,
+                d if d < 0.38 => [0x88, 0x8c, 0x96],
                 _ => HUB_METAL,
             };
             for c in 0..3 {
                 rgba[i + c] = ((rgba[i + c] as u32 * a + hub[c] as u32 * (255 - a)) / 255) as u8;
             }
             rgba[i + 3] = 255;
+        }
+    }
+    // the UMD's name across the hub, as the label a UMD with no scan wears has it
+    if let Some(font) = text::label_font() {
+        let (bw, bh) = (w * 2 / 5, h / 9);
+        let (bx, by) = ((w - bw) / 2, (h - bh) / 2);
+        let mut part = vec![0u8; (bw * bh * 4) as usize];
+        let layout = text::fit_box(font, "UMD", bw as f32, bh as f32, 1, 18.0, 18.0);
+        text::draw_centred(&mut part, bw, bh, &layout, [0x3a, 0x3e, 0x48]);
+        for (j, px) in part.chunks_exact(4).enumerate() {
+            let a = px[3] as u32;
+            let i = (((by + j as u32 / bw) * w + bx + j as u32 % bw) * 4) as usize;
+            for c in 0..3 {
+                rgba[i + c] = ((px[c] as u32 * a + rgba[i + c] as u32 * (255 - a)) / 255) as u8;
+            }
         }
     }
     rgba
