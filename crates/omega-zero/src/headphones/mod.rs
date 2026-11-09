@@ -80,6 +80,17 @@ impl Noise {
         }
     }
 
+    /// What the toast as the headphones connect says, with the mode they connected in.
+    pub fn connected(self, kind: Kind) -> &'static str {
+        match (self, kind) {
+            (Noise::Off, _) => "Connected: noise control off",
+            (Noise::Cancellation, _) => "Connected: noise cancelling",
+            (Noise::Transparency, Kind::Buds(_)) => "Connected: ambient sound",
+            (Noise::Transparency, Kind::AirPods) => "Connected: transparency",
+            (Noise::Adaptive, _) => "Connected: adaptive",
+        }
+    }
+
     /// The mode beside this one among `modes`.
     pub fn step(self, modes: &[Noise], right: bool) -> Noise {
         let n = modes.len();
@@ -431,6 +442,10 @@ impl Link {
     }
 }
 
+/// How long after the channel opens a mode the headphones say is theirs as they connect, and
+/// no switch of theirs to toast.
+pub const CONNECT_QUIET_MS: Millis = 6_000;
+
 /// How long after a channel would not open it is tried again.
 pub const RETRY_MS: Millis = 5_000;
 /// How long the channel may go without a battery before the AirPods' beacon is looked for, and
@@ -567,11 +582,16 @@ impl Keeper {
 
     /// The mode the headphones were just switched to on themselves, by a stem or a touch: not
     /// one picked in the menu, nor the first they say as they connect.
-    pub fn noise_switched(&mut self) -> Option<(Noise, Kind)> {
+    pub fn noise_switched(&mut self, now: Millis) -> Option<(Noise, Kind)> {
         let Some(p) = self.phones() else {
             self.noise_seen = None;
             return None;
         };
+        // what they say as they connect is the connection's toast's to tell
+        if now.saturating_sub(self.opened_at) < CONNECT_QUIET_MS {
+            self.noise_seen = p.noise;
+            return None;
+        }
         let ours = p.noise_pending.is_some() || self.link.as_ref().is_some_and(Link::noise_queued);
         let before = std::mem::replace(&mut self.noise_seen, p.noise);
         match (before, p.noise) {
@@ -638,18 +658,22 @@ mod tests {
         let mut p = Phones::new(Kind::AirPods);
         p.noise = Some(Noise::Off);
         k.stand_in("AA:BB:CC:DD:EE:FF", p);
-        assert_eq!(k.noise_switched(), None, "the mode they connect with");
+        assert_eq!(
+            k.noise_switched(10 * CONNECT_QUIET_MS),
+            None,
+            "the mode they connect with"
+        );
         k.link()
             .unwrap()
             .change(|p| p.said_noise(Noise::Cancellation));
         assert_eq!(
-            k.noise_switched(),
+            k.noise_switched(10 * CONNECT_QUIET_MS),
             Some((Noise::Cancellation, Kind::AirPods))
         );
-        assert_eq!(k.noise_switched(), None, "told twice");
+        assert_eq!(k.noise_switched(10 * CONNECT_QUIET_MS), None, "told twice");
         k.link().unwrap().set_noise(Noise::Transparency);
         assert_eq!(
-            k.noise_switched(),
+            k.noise_switched(10 * CONNECT_QUIET_MS),
             None,
             "a mode picked in the menu was told"
         );

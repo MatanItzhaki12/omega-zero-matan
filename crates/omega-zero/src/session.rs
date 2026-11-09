@@ -34,6 +34,22 @@ pub struct Session {
     running: Option<(Platform, String)>,
     /// The card notes the core as opening, until it has run a moment.
     starting: bool,
+    /// A core being opened on a thread of its own, for the game by this stem: opening it and
+    /// reading its resume state off the card take long enough, for a PSP game, to stall the
+    /// cart going in.
+    opening: Option<(String, std::sync::mpsc::Receiver<Opening>)>,
+}
+
+/// What a core opened off the main thread brings back: the core, and what was read off the card
+/// for its game.
+struct Opening {
+    opened: crate::core::Opened,
+    resume: Option<Vec<u8>>,
+    sav: Option<Vec<u8>>,
+    disc: Option<(usize, String)>,
+    platform: Platform,
+    rom: PathBuf,
+    player: Option<u8>,
 }
 
 impl Drop for Session {
@@ -74,6 +90,7 @@ impl Session {
             reloading: false,
             driven: false,
             running: None,
+            opening: None,
             starting: false,
         }
     }
@@ -413,21 +430,45 @@ impl Session {
         std::env::var_os("OMEGA_NO_CORE").is_some_and(|v| v != "0")
     }
 
+    /// Runs the game on the core opened for it, once its thread has opened it.
+    fn take_opened_core(&mut self) {
+        let Some((stem, rx)) = &self.opening else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(opening) => {
+                let stem = stem.clone();
+                self.opening = None;
+                self.finish_core(&stem, opening);
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.opening = None,
+        }
+    }
+
     fn sync_core(&mut self) {
         if Self::no_core() {
             return;
         }
+        self.take_opened_core();
         let stem = match self.app.phase() {
             Phase::Shelf => {
                 self.emu = None;
+                self.opening = None;
                 return;
             }
             Phase::Inserting { cart, .. } => cart.clone(),
             _ => return,
         };
+        if self.opening.as_ref().is_some_and(|(s, _)| *s != stem) {
+            self.opening = None;
+        }
         if self.emu.is_none() {
-            let (_, serial) = self.app.link_mode(&stem);
-            self.spawn_core(&stem, serial);
+            if self.opening.is_none() {
+                let (_, serial) = self.app.link_mode(&stem);
+                self.spawn_core(&stem, serial);
+            }
+            return;
         }
         match self.emu.as_ref().map(EmuHandle::state) {
             Some(CoreState::Loading) => {}
@@ -462,9 +503,7 @@ impl Session {
             .set_stick(crate::input::stick_for(&self.root, stem, platform));
         self.app.set_link_loaded(serial);
         // hardcore picks up from no state, as it loads none
-        let resume = (!self.app.starting_clean() && !self.app.hardcore())
-            .then(|| persist::read_resume(&self.root, platform, core, stem))
-            .flatten();
+        let resume_wanted = !self.app.starting_clean() && !self.app.hardcore();
         let player = self.app.link_player();
         let setup = match platform {
             Platform::Snes | Platform::Ps1 | Platform::Psp => Setup::Console,
@@ -474,22 +513,60 @@ impl Session {
                 link: player,
             },
         };
-        let opened = open(&self.root, core, setup);
+        // the core and what its game needs off the card, opened on a thread of its own so the
+        // cart goes on going in meanwhile
+        // noted before the core opens, so a core that takes omega-zero down as it opens is known
+        persist::mark_starting(&self.root, platform, stem);
+        self.starting = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (root, theirs) = (self.root.clone(), stem.to_string());
+        let wants_resume = resume_wanted;
+        let spawned = std::thread::Builder::new()
+            .name("omega-core-open".into())
+            .spawn(move || {
+                let resume = wants_resume
+                    .then(|| persist::read_resume(&root, platform, core, &theirs))
+                    .flatten();
+                let opened = open(&root, core, setup);
+                // a game put away on its second disc comes back on it, for its resume state is
+                // of that disc; a game started afresh starts from the first
+                let disc = resume
+                    .is_some()
+                    .then(|| persist::read_disc(&root, platform, &theirs))
+                    .flatten();
+                let sav = persist::read_sav(&root, platform, &theirs);
+                let _ = tx.send(Opening {
+                    opened,
+                    resume,
+                    sav,
+                    disc,
+                    platform,
+                    rom,
+                    player,
+                });
+            });
+        if spawned.is_ok() {
+            self.opening = Some((stem.to_string(), rx));
+        }
+    }
+
+    /// Runs the game by `stem` on the core opened for it.
+    fn finish_core(&mut self, stem: &str, opening: Opening) {
+        let Opening {
+            opened,
+            resume,
+            sav,
+            disc,
+            platform,
+            rom,
+            player,
+        } = opening;
         self.app.set_named_core(opened.named);
         let mut game = opened.core;
-        // a game put away on its second disc comes back on it, for its resume state is of that
-        // disc; a game started afresh starts from the first
-        if let Some((index, path)) = resume
-            .is_some()
-            .then(|| persist::read_disc(&self.root, platform, stem))
-            .flatten()
-        {
+        if let Some((index, path)) = disc {
             game.set_initial_disc(index, &path);
             self.app.set_disc_in(stem, index);
         }
-        let sav = persist::read_sav(&self.root, platform, stem);
-        persist::mark_starting(&self.root, platform, stem);
-        self.starting = true;
         let ring = self.sink.ring();
         let rules = crate::emu::Rules {
             turbo: platform.turbo_xy() && self.app.turbo_on(),
@@ -516,10 +593,12 @@ impl Session {
     /// Takes the note of the core opening off the card once it has run a moment, or once there
     /// is no core: it opened, or failed to, without taking omega-zero down.
     fn settle_start(&mut self) {
-        let settled = self
-            .emu
-            .as_ref()
-            .is_none_or(|emu| emu.published_count() >= SETTLED_FRAMES);
+        // a core still opening on its own thread has not settled
+        let settled = self.opening.is_none()
+            && self
+                .emu
+                .as_ref()
+                .is_none_or(|emu| emu.published_count() >= SETTLED_FRAMES);
         if self.starting && settled {
             persist::clear_starting(&self.root);
             self.starting = false;
@@ -550,6 +629,9 @@ impl Session {
 
     fn sync_reload(&mut self) {
         if !self.reloading {
+            return;
+        }
+        if self.opening.is_some() {
             return;
         }
         match self.emu.as_ref().map(EmuHandle::state) {

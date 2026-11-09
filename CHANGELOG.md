@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- START held, then POWER, restarts the handheld, as POWER held, then START, did already.
+- A game's sound is 26 ms closer to it: the ring under it is kept 2.4 video frames full rather
+  than 4, as menu sounds, mixed in at its front, already were.
+- A game's core is opened, and its resume state read off the card, on a thread of their own,
+  so the cart goes on going in smoothly meanwhile; a PSP game's took long enough to stall it.
+- Headphones connecting say so in one toast with the mode they connected in, rather than the
+  mode first and the connection after.
+- A UMD's scanned label has UMD across its hub, as a generated one has, and a darker ring
+  where the hub meets the print.
+
 - omega-zero checks for an update by itself, once a boot, as Wi-Fi joins a network (at boot or
   later): one found is told of in a toast, and Settings > Update offers to INSTALL it.
 - An update found stays on Settings > Update until it is installed, closing Settings or not.

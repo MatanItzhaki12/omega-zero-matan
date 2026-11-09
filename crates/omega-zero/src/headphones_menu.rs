@@ -149,7 +149,7 @@ impl App {
 
     /// Says the mode the headphones were switched to on themselves.
     pub(crate) fn tell_headphones_noise(&mut self) {
-        if let Some((mode, kind)) = self.phones.noise_switched() {
+        if let Some((mode, kind)) = self.phones.noise_switched(self.now()) {
             self.hud
                 .toast(omega_ui::Toast::Headphones(mode.told(kind)), self.now());
         }

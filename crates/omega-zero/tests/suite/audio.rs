@@ -28,7 +28,10 @@ fn opening_primes_the_ring_to_the_drc_target() {
     let mut s = StubSink::new();
     s.open(48_000).unwrap();
     let r = s.ring();
-    assert_eq!(r.queued_frames(), r.capacity_frames() / 2);
+    assert_eq!(
+        r.queued_frames(),
+        omega_zero::drc::drc_target(r.capacity_frames())
+    );
     s.device_read(64);
     assert_eq!(
         (r.overruns(), r.underruns()),
@@ -71,6 +74,16 @@ fn push_blocking_waits_instead_of_discarding() {
     }
     h.join().unwrap();
     assert_eq!(r.overruns(), 0, "push_blocking dropped rather than waited");
+}
+
+/// The game's sound runs no further behind it than 45 ms of the ring's own, so a game is heard
+/// about as quickly as the menu's sounds, which are mixed in at the front.
+#[test]
+fn a_game_s_sound_waits_little_in_the_ring() {
+    let cap = ring_capacity(48_000);
+    let ms = omega_zero::drc::drc_target(cap) as f64 / 48_000.0 * 1000.0;
+    assert!(ms <= 45.0, "the game's sound waits {ms:.0} ms in the ring");
+    assert!(ms >= 30.0, "only {ms:.0} ms in hand for a late frame");
 }
 
 #[test]

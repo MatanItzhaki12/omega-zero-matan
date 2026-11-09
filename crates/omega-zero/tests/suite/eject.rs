@@ -311,6 +311,12 @@ fn the_core_stops_before_the_cart_moves() {
     for _ in 0..90 {
         s.update(1.0 / 60.0);
     }
+    // the core opens on a thread of its own
+    let opening = Instant::now() + Duration::from_secs(5);
+    while !s.has_core() && Instant::now() < opening {
+        s.update(1.0 / 60.0);
+        std::thread::sleep(Duration::from_millis(2));
+    }
     assert!(s.has_core(), "no core to stop");
 
     s.app_mut().apply(Action::Eject);

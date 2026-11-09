@@ -2113,8 +2113,13 @@ impl App {
         self.bt_was_on = on;
         let now = self.now();
         if on {
-            self.hud
-                .toast(Toast::Headphones("Headphones connected"), now);
+            // one toast for both: connected, and the mode they connected in where it is known
+            let said = self
+                .phones
+                .phones()
+                .and_then(|p| p.noise.map(|n| n.connected(p.kind)))
+                .unwrap_or("Headphones connected");
+            self.hud.toast(Toast::Headphones(said), now);
         } else {
             self.hud
                 .toast(Toast::Headphones("Headphones disconnected"), now);
