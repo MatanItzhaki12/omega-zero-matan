@@ -11,9 +11,11 @@
   held, in either order, restarts once POWER has been held as long as a power-off takes, and
   both let go of sooner do nothing.
 
-- A PSP game's disc spins smoothly as it loads: the note that a core is starting is written to
-  the card off the screen's thread, where waiting on the card while the game's image was being
-  read off it held up the screen for a third of a second.
+- A PSP game's disc spins smoothly as it loads. Its game was hashed for RetroAchievements
+  while the achievements client was held, and the screen, which looks in on the client every
+  frame, waited out the third of a second hashing a disc takes. The game is hashed first now,
+  and only its hash handed to the client. The note that a core is starting is written to the
+  card off the screen's thread too, and a slow frame says in the log where its time went.
 
 ## omega-zero 2.6.7
 

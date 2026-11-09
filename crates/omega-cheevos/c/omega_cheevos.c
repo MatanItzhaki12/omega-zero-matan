@@ -370,6 +370,14 @@ void oc_load_game(uint32_t console, const char* path) {
   rc_client_begin_identify_and_load_game(client, console, path, NULL, 0, game_done, NULL);
 }
 
+/* The game by the hash made of it beforehand, off the client's lock: hashing a PSP game's
+   disc takes a third of a second, which every other call into the client would wait out. */
+void oc_load_game_hash(const char* hash) {
+  game_state = 1;
+  game_error[0] = ' ';
+  rc_client_begin_load_game(client, hash, game_done, NULL);
+}
+
 int oc_game_state(const char** error) {
   *error = game_error;
   return game_state;

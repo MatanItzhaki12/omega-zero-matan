@@ -74,6 +74,7 @@ extern "C" {
         video_size: usize,
     );
     fn oc_load_game(console: u32, path: *const c_char);
+    fn oc_load_game_hash(hash: *const c_char);
     fn oc_game_state(error: *mut *const c_char) -> c_int;
     fn oc_unload_game();
     fn oc_summary(
@@ -110,6 +111,10 @@ static CLIENT: Mutex<()> = Mutex::new(());
 /// Answers come back from the network, waiting to be handed to the client.
 static ANSWERS: Mutex<Vec<(u32, c_int, Vec<u8>)>> = Mutex::new(Vec::new());
 static EVENTS: Mutex<Vec<Event>> = Mutex::new(Vec::new());
+/// The game hashed last, its console and the hash: held while a game is hashed, outside the
+/// client's lock, so the game's achievements load again without hashing it again.
+#[allow(clippy::type_complexity)]
+static HASHED: Mutex<Option<(u32, std::path::PathBuf, Option<String>)>> = Mutex::new(None);
 /// What every request says it is, as RetroAchievements asks: omega-zero and rcheevos' versions.
 static AGENT: Mutex<String> = Mutex::new(String::new());
 
@@ -272,7 +277,7 @@ pub fn login() -> Login {
 /// Starts the achievements of the game `rom` of `console` the core has just loaded, read from
 /// `memory`. Called on the thread that runs the core, which `frame` must be called on too.
 pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
-    let path = c(&rom.to_string_lossy());
+    let hash = hash_once(console, rom);
     with_client(|| unsafe {
         // SAFETY: the shim keeps the region pointers, the core's, for as long as the game is
         // loaded; `end_game` drops them before the core goes
@@ -287,8 +292,34 @@ pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
             memory.video.0,
             memory.video.1,
         );
-        oc_load_game(console, path.as_ptr());
+        load_game(console, rom, hash.as_deref());
     });
+}
+
+/// The hash of the game `rom` of `console`, made outside the client's lock, as hashing a PSP
+/// game reads much of its disc: once for each game, kept for its achievements to load again.
+fn hash_once(console: u32, rom: &Path) -> Option<String> {
+    let mut hashed = lock(&HASHED);
+    if let Some((c, r, hash)) = hashed.as_ref() {
+        if *c == console && r == rom {
+            return hash.clone();
+        }
+    }
+    let hash = game_hash(console, rom);
+    *hashed = Some((console, rom.to_path_buf(), hash.clone()));
+    hash
+}
+
+/// Starts loading the game's achievements, by its hash where it could be made, or by the
+/// client's own look at `rom`, which says why the game is not known. Called under the lock.
+fn load_game(console: u32, rom: &Path, hash: Option<&str>) {
+    // SAFETY: under the lock; the shim copies the hash and the path
+    unsafe {
+        match hash {
+            Some(hash) => oc_load_game_hash(c(hash).as_ptr()),
+            None => oc_load_game(console, c(&rom.to_string_lossy()).as_ptr()),
+        }
+    }
 }
 
 pub fn game_load() -> GameLoad {
@@ -325,11 +356,11 @@ pub fn game_hash(console: u32, rom: &Path) -> Option<String> {
 /// Loads the achievements of the game `rom` of `console` again, its memory as `begin_game`
 /// set it: after a sign-in or a network that came too late for the game's start.
 pub fn reload_game(console: u32, rom: &Path) {
-    let path = c(&rom.to_string_lossy());
-    with_client(|| unsafe {
-        // SAFETY: under the lock; the shim copies the path
-        if oc_has_memory() != 0 {
-            oc_load_game(console, path.as_ptr());
+    let hash = hash_once(console, rom);
+    with_client(|| {
+        // SAFETY: under the lock
+        if unsafe { oc_has_memory() } != 0 {
+            load_game(console, rom, hash.as_deref());
         }
     });
 }
