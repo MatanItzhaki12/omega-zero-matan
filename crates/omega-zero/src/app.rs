@@ -382,6 +382,8 @@ pub struct App {
     /// Bluetooth headphones connected without their sound, since when, and when they were last
     /// asked to connect it.
     pub(crate) bt_audio_wait: Option<(String, Millis, Option<Millis>)>,
+    /// How many times the headphones connected now were asked to connect their sound.
+    pub(crate) bt_audio_asks: u8,
     /// Headphones connected whose own volume is being set before sound goes to them, and since
     /// when.
     pub(crate) bt_volume_wait: Option<(String, Millis)>,
@@ -624,6 +626,7 @@ impl App {
             bt_volume_sent: None,
             bt_volume_seen: None,
             bt_audio_wait: None,
+            bt_audio_asks: 0,
             bt_volume_wait: None,
             bt_was_on: false,
             update_online_since: None,
@@ -2141,6 +2144,9 @@ impl App {
         const AGAIN_MS: Millis = 15_000;
         let Some(mac) = audio.filter(|_| !crate::audio::on_bluetooth()) else {
             self.bt_audio_wait = None;
+            if audio.is_none() {
+                self.bt_audio_asks = 0;
+            }
             return;
         };
         if self.bt_audio_wait.as_ref().is_none_or(|(m, ..)| m != mac) {
@@ -2153,7 +2159,9 @@ impl App {
             None => now.saturating_sub(*since) >= WAIT_MS,
             Some(at) => now.saturating_sub(*at) >= AGAIN_MS,
         };
-        if due {
+        // twice at most: headphones a phone is taking back are left to it
+        if due && self.bt_audio_asks < 2 {
+            self.bt_audio_asks += 1;
             *asked = Some(now);
             eprintln!("omega-zero: bluetooth: {mac} connected without its sound, asked again");
             self.bluetooth.connect_quietly(mac);

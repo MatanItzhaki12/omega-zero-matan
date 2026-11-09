@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- AirPods are changed by nothing the handheld does but what is asked of it in the
+  HEADPHONES menu: the packet that turns on what they keep for Apple's own devices is sent
+  only once Adaptive is picked, rather than each time they connect, and connecting reads them
+  only, as a phone they also belong to may count on how they were.
+- Headphones connected without their sound are asked to connect it twice at most, then left
+  be, rather than every 15 s, so a phone taking them back is not fought for them.
+
 ## omega-zero 2.6.5
 
 - The game's menu lists Wi-Fi's networks and Bluetooth's devices: Y on Wi-Fi or Bluetooth in

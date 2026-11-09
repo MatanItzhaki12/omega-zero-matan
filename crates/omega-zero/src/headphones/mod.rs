@@ -292,6 +292,8 @@ pub struct Link {
     /// A noise control mode picked in the menu, and when: sent once the row has rested on it,
     /// so stepping past a mode never switches the headphones to it.
     queued: Option<(Noise, std::time::Instant)>,
+    /// AirPods' Apple-only features were turned on, as Adaptive needs them.
+    features: bool,
 }
 
 /// How long the noise control row must rest on a mode before the headphones are switched to it.
@@ -335,6 +337,7 @@ impl Link {
             alive,
             out: Some(out),
             queued: None,
+            features: false,
         })
     }
 
@@ -346,6 +349,7 @@ impl Link {
             alive: Arc::new(AtomicBool::new(true)),
             out: None,
             queued: None,
+            features: false,
         }
     }
 
@@ -405,6 +409,9 @@ impl Link {
             Kind::AirPods => vec![airpods::set_noise(mode).to_vec()],
             Kind::Buds(model) => galaxy::set_noise(model, mode),
         };
+        if kind == Kind::AirPods && mode == Noise::Adaptive {
+            self.turn_on_features();
+        }
         self.send(&packets);
         // what they say back is weighed from now, when they were asked
         self.change(|p| p.noise_pending = Some((mode, std::time::Instant::now())));
@@ -420,8 +427,17 @@ impl Link {
         });
     }
 
+    /// Turns on AirPods' Apple-only features, once, for Adaptive: only when it is asked for.
+    fn turn_on_features(&mut self) {
+        if !self.features {
+            self.features = true;
+            self.send(&[airpods::SET_FEATURES.to_vec()]);
+        }
+    }
+
     pub fn set_adaptive_level(&mut self, level: u8) {
         let level = level.min(100);
+        self.turn_on_features();
         self.send(&[airpods::set_adaptive_level(level).to_vec()]);
         self.change(|p| p.adaptive_level = Some(level));
     }

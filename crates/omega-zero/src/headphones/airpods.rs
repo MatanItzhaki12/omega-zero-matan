@@ -16,7 +16,8 @@ pub const HANDSHAKE: [u8; 16] = [
     0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 /// Turns on what newer AirPods keep for Apple's own devices: Adaptive, and conversational
-/// awareness while sound plays.
+/// awareness while sound plays. Sent only once Adaptive is asked for: every packet the
+/// handheld sends changes the AirPods, and they are someone's phone's AirPods too.
 pub const SET_FEATURES: [u8; 14] = [
     0x04, 0x00, 0x04, 0x00, 0x4d, 0x00, 0xd7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
@@ -172,8 +173,8 @@ pub fn take(p: &mut Phones, said: Said) -> Option<&'static [u8]> {
         p.heard = true;
     }
     match said {
-        Said::HandshakeDone => return Some(&SET_FEATURES),
-        Said::FeaturesDone => return Some(&REQUEST_NOTIFICATIONS),
+        Said::HandshakeDone => return Some(&REQUEST_NOTIFICATIONS),
+        Said::FeaturesDone => {}
         Said::Battery { left, right, case } => {
             p.left = left;
             p.right = right;
@@ -200,11 +201,10 @@ pub fn take(p: &mut Phones, said: Said) -> Option<&'static [u8]> {
     None
 }
 
-/// Opens the conversation on `sock` and reads it until it closes. The packets that open it are
-/// sent again as the AirPods answer each, but also sent straight after the handshake, for
-/// AirPods whose answer to it is not the one LibrePods saw.
+/// Opens the conversation on `sock` and reads it until it closes: the handshake and the ask for
+/// notifications, which only read the AirPods, and nothing that changes them.
 pub fn read(mut sock: std::fs::File, mut answer: std::fs::File, phones: &Mutex<Phones>) {
-    for packet in [&HANDSHAKE[..], &SET_FEATURES, &REQUEST_NOTIFICATIONS] {
+    for packet in [&HANDSHAKE[..], &REQUEST_NOTIFICATIONS] {
         if answer.write_all(packet).is_err() {
             return;
         }
@@ -230,10 +230,8 @@ pub fn read(mut sock: std::fs::File, mut answer: std::fs::File, phones: &Mutex<P
                     super::sock::read_timeout(&sock, None);
                 } else {
                     asked += 1;
-                    for packet in [&SET_FEATURES[..], &REQUEST_NOTIFICATIONS] {
-                        if answer.write_all(packet).is_err() {
-                            return;
-                        }
+                    if answer.write_all(&REQUEST_NOTIFICATIONS).is_err() {
+                        return;
                     }
                 }
                 continue;
@@ -309,16 +307,13 @@ mod tests {
     }
 
     #[test]
-    fn the_handshake_is_answered_with_the_features_then_the_notifications() {
+    fn the_handshake_is_answered_with_the_ask_for_notifications_and_nothing_that_changes_them() {
         let mut p = Phones::new(Kind::AirPods);
         assert_eq!(
             take(&mut p, parse(&hex("01 00 04 00 00 00"))),
-            Some(&SET_FEATURES[..])
-        );
-        assert_eq!(
-            take(&mut p, parse(&hex("04 00 04 00 2b 00 01"))),
             Some(&REQUEST_NOTIFICATIONS[..])
         );
+        assert_eq!(take(&mut p, parse(&hex("04 00 04 00 2b 00 01"))), None);
     }
 
     #[test]
