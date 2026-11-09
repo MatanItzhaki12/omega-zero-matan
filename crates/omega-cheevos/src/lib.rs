@@ -127,8 +127,23 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 /// Runs `f` on the client, once it is made, under its lock.
 fn with_client<R>(f: impl FnOnce() -> R) -> Option<R> {
-    let _held = lock(&CLIENT);
-    STARTED.load(Ordering::Acquire).then(f)
+    let asked = std::time::Instant::now();
+    let held = lock(&CLIENT);
+    let got = std::time::Instant::now();
+    let out = STARTED.load(Ordering::Acquire).then(f);
+    drop(held);
+    // a call that held the client, or waited for it, long enough to hitch a frame: which, and
+    // for how long, as every thread that calls into the client waits out the one in it
+    let (waited, ran) = (got - asked, got.elapsed());
+    if waited.as_millis() >= 50 || ran.as_millis() >= 50 {
+        eprintln!(
+            "omega-cheevos: {} waited {} ms for the client and held it {} ms",
+            std::thread::current().name().unwrap_or("a thread"),
+            waited.as_millis(),
+            ran.as_millis()
+        );
+    }
+    out
 }
 
 fn text(p: *const c_char) -> String {
@@ -334,7 +349,13 @@ fn hash_once(console: u32, rom: &Path) -> Option<String> {
             return hash.clone();
         }
     }
+    let began = std::time::Instant::now();
     let hash = game_hash(console, rom);
+    eprintln!(
+        "omega-cheevos: hashed in {} ms{}",
+        began.elapsed().as_millis(),
+        if hash.is_some() { "" } else { ", no hash" }
+    );
     *hashed = Some((console, rom.to_path_buf(), hash.clone()));
     hash
 }
