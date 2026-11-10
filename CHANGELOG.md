@@ -46,10 +46,9 @@
   then leaves unanswered for five seconds, after which the game was loaded from what was kept
   on the card. An address that stops answering is looked up afresh.
 
-- A PSP game's disc spins smoothly as the game loads: PPSSPP sets itself up on the GPU, making
-  its shaders and textures, once the cart is in rather than while the disc spins, as the
-  screen's frames waited on the GPU behind it. The game's save and resume are taken in then
-  too, and a cart taken out before it went in keeps what it had on the card.
+- Animations step by the time between the frames the panel shows, rather than by when each
+  frame began, which moved with how long recent frames took to make: a PSP game's spinning
+  disc jolted a few degrees each time it moved, though every frame reached the panel on time.
 
 - A slow frame says in `omega-zero.log` where its time went, step by step, and a request to
   RetroAchievements that failed says why. README-FORK.md has what each thread does and what the

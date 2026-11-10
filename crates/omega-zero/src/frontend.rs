@@ -81,6 +81,9 @@ pub struct Frontend {
     session: Session,
     start: Instant,
     last: Instant,
+    /// When the last two frames reached the screen, as the panel shows them: what the next
+    /// frame's animation steps by, where the panel says.
+    shown: (Option<Instant>, Option<Instant>),
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
     faces: FaceBuilder,
@@ -191,6 +194,7 @@ impl Frontend {
             session,
             start: now,
             last: now,
+            shown: (None, None),
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
             faces: FaceBuilder::spawn(),
@@ -675,11 +679,23 @@ impl Frontend {
         sw.step("input");
         self.session.feed(events, now);
         sw.step("presses");
-        let dt = self.last.elapsed().as_secs_f32();
+        // a frame steps by the time between the last two the panel showed, rather than by when
+        // this one happened to start: the start moves with how long frames have lately taken
+        // to make, which jolted a spinning disc a few degrees each time it moved, though each
+        // frame reached the panel on time
+        let dt = match self.shown {
+            (Some(before), Some(last)) => (last - before).as_secs_f32(),
+            _ => self.last.elapsed().as_secs_f32(),
+        };
         self.last = Instant::now();
         self.session.update(dt);
         sw.step("update");
         sw.log_over("advance", std::time::Duration::from_millis(30));
+    }
+
+    /// A frame has reached the panel: its swap has returned, which the panel's refresh paces.
+    pub fn shown(&mut self) {
+        self.shown = (self.shown.1, Some(Instant::now()));
     }
 
     pub fn app(&self) -> &crate::app::App {

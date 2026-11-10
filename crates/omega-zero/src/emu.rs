@@ -739,15 +739,26 @@ impl Worker {
                 .store(CoreState::Failed as u8, Ordering::Release);
             return;
         }
-        // a core that draws on the GPU makes what it draws with there only once the game is
-        // let run, the cart in: PPSSPP's shaders and textures, made as a PSP game's disc spins
-        // in its window, held the screen's frames up on the GPU they share. Its save and resume
-        // wait with it, as a state is only taken in once the GPU is set up
-        let wait_for_gpu = self.gpu.borrow().is_some() && core.gpu_request().is_some();
-        if !wait_for_gpu {
+        let drawing = self
+            .gpu
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(|g| g.start(&mut *core));
+        if !drawing {
             // a core that draws in memory lets the GPU go
             *self.gpu.borrow_mut() = None;
-            self.take_in(&mut *core, sav.as_deref(), resume.as_deref());
+        }
+        if let Some(sav) = sav {
+            if let Err(e) = core.load_save_ram(&sav) {
+                eprintln!("omega-zero: save ram: {e}");
+                self.shared.sav_refused.store(true, Ordering::Release);
+            }
+        }
+        if let Some(resume) = resume {
+            if let Err(e) = core.unserialize(&self.for_core(resume)) {
+                eprintln!("omega-zero: resume: {e}");
+                self.shared.resume_refused.store(true, Ordering::Release);
+            }
         }
         self.shared
             .discs
@@ -764,25 +775,6 @@ impl Worker {
         self.shared
             .state
             .store(CoreState::Ready as u8, Ordering::Release);
-        let mut deferred = Vec::new();
-        if wait_for_gpu {
-            deferred = self.wait_to_run(sav.as_deref(), resume.as_deref());
-            if self.shared.stop.load(Ordering::Relaxed) {
-                // put away before it ran: never set up on the GPU, so not told it goes
-                *self.gpu.borrow_mut() = None;
-                drop(core);
-                return;
-            }
-            let drawing = self
-                .gpu
-                .borrow_mut()
-                .as_mut()
-                .is_some_and(|g| g.start(&mut *core));
-            if !drawing {
-                *self.gpu.borrow_mut() = None;
-            }
-            self.take_in(&mut *core, sav.as_deref(), resume.as_deref());
-        }
         // the game's achievements, read from its memory on this thread, which runs the core
         let cheevos = self.rules.cheevos != 0;
         let _achievements = match (cheevos, core.memory()) {
@@ -831,10 +823,6 @@ impl Worker {
         let mut cable_core = Duration::ZERO;
         let mut cable_wait = Duration::ZERO;
         let mut ff = (0u32, 0u32, Duration::ZERO, Instant::now());
-        // what was asked while the game waited to run, in the order it was asked
-        for cmd in std::mem::take(&mut deferred) {
-            self.apply(cmd, core.as_mut(), &mut transport, &mut cable, &link);
-        }
         while !self.shared.stop.load(Ordering::Relaxed) {
             for cmd in self.cmds.try_iter() {
                 self.apply(cmd, core.as_mut(), &mut transport, &mut cable, &link);
@@ -1234,52 +1222,6 @@ impl Worker {
             eprintln!("omega-zero: audio: {dropped} samples dropped, {starved} starved");
         }
         self.put_away(core);
-    }
-
-    /// The game's save and the state it resumes from, taken into the core.
-    fn take_in(&self, core: &mut dyn RetroCore, sav: Option<&[u8]>, resume: Option<&[u8]>) {
-        if let Some(sav) = sav {
-            if let Err(e) = core.load_save_ram(sav) {
-                eprintln!("omega-zero: save ram: {e}");
-                self.shared.sav_refused.store(true, Ordering::Release);
-            }
-        }
-        if let Some(resume) = resume {
-            if let Err(e) = core.unserialize(&self.for_core(resume.to_vec())) {
-                eprintln!("omega-zero: resume: {e}");
-                self.shared.resume_refused.store(true, Ordering::Release);
-            }
-        }
-    }
-
-    /// Waits for the game to be let run, or stopped. Asked meanwhile for its state or save, as
-    /// a cart taken out before it went in is, it answers with what it was given to start
-    /// from, so nothing on the card is written over by a game that never ran; what else is
-    /// asked is kept for once it runs.
-    fn wait_to_run(&self, sav: Option<&[u8]>, resume: Option<&[u8]>) -> Vec<Cmd> {
-        let mut deferred = Vec::new();
-        loop {
-            for cmd in self.cmds.try_iter() {
-                match cmd {
-                    Cmd::Save(reply) => {
-                        if let Some(resume) = resume {
-                            let _ = reply.send(resume.to_vec());
-                        }
-                    }
-                    Cmd::Sav(reply) => {
-                        let _ = reply.send(sav.map(<[u8]>::to_vec));
-                    }
-                    Cmd::Thumb(reply) => {
-                        let _ = reply.send(None);
-                    }
-                    other => deferred.push(other),
-                }
-            }
-            if self.shared.stop.load(Ordering::Relaxed) || self.speed() != Speed::Paused {
-                return deferred;
-            }
-            std::thread::sleep(Duration::from_millis(4));
-        }
     }
 
     /// The core put away, in the order libretro asks of a core that draws on the GPU: told its

@@ -194,6 +194,7 @@ pub fn run() {
             return;
         }
         let swap_took = swap.elapsed();
+        frontend.shown();
         // a frame a cart going in waited for: where its time went
         let total = began.elapsed();
         if total > Duration::from_millis(30)
