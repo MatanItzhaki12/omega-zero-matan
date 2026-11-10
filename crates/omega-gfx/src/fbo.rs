@@ -167,10 +167,6 @@ impl Compositor {
         self.sprites.update_texture(id, w, h, rgba);
     }
 
-    pub fn set_blue_light(&mut self, step: u8) {
-        self.gain = blue_light_gain(step);
-    }
-
     /// The blue light filter at `blue_light`, and the picture dimmed for brightness
     /// `brightness`'s lowest steps, below where the backlight goes.
     pub fn set_grade(&mut self, blue_light: u8, brightness: u8) {

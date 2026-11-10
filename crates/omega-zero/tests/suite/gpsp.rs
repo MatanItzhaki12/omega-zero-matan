@@ -569,6 +569,8 @@ fn changing_the_ini_mid_session_does_not_move_an_ejected_carts_resume() {
     std::fs::remove_file(d.path().join(SELECTED_CORE_FILE)).unwrap();
 
     s.app_mut().apply(Action::Eject);
+    // the cart's state is written on a thread of its own as it comes out
+    s.app_mut().settle_saves();
 
     assert!(
         StateRing::new(d.path(), Platform::Gba, Core::Gpsp, "Emerald")

@@ -396,17 +396,50 @@ Unlocked and View All show once the game is found.
 
 - `crates/omega-cheevos` builds rcheevos and a small C shim (`c/omega_cheevos.c`) and wraps them
   for Rust. Every call into the client is made under one lock. The emulator thread runs the
-  per-frame check, and the main thread handles signing in and network answers.
+  per-frame check, and the main thread signs in and reads where things stand.
+- Nothing slow is done where the screen or the game waits for it. A game is hashed on a thread
+  of its own (`omega-cheevos-hash`), once for each game, and only its hash is handed to the
+  client. The site's answers are taken in on another (`omega-cheevos-answers`): a game's
+  achievements take the client up to a second to take in. The screen and the emulator only
+  look in on the client when it is free, and skip a frame when it is not. Hardcore's check
+  waits, so it is never missed.
 - omega-retro now keeps the memory map a core declares (`RETRO_ENVIRONMENT_SET_MEMORY_MAPS`).
   rcheevos' `rc_libretro` reads the game's memory through it, which the GBA needs for both of its
   work RAMs.
-- Games are identified by hashing the ROM file. The disc, zip and encrypted-ROM hashers are left
-  out of the build.
+- Games are identified by hashing the ROM file, and a PSP game by the files on its disc. The
+  zip and encrypted-ROM hashers are left out of the build.
 
 ### Not yet
 
 - PlayStation games: their discs are not hashed.
 - Achievement badges: the list is text only.
+
+## Threads, and what the log says
+
+The screen draws on the main thread, and nothing that can take longer than a frame is done
+there:
+
+| Work | Where |
+|---|---|
+| Running the game | The emulator's thread (`omega-emu`) |
+| Opening a core, reading its save and resume | `omega-core-open`, at low priority, so the cart going in is drawn meanwhile |
+| Closing a core | The emulator's thread, as it stops. The next core waits for it, so two of one core are never open at once, and so do powering off and restarting |
+| Making a PSP game's spinning disc | `omega-disc` |
+| The autosave: the core's state and writing it | `omega-autosave` |
+| Writing a cart's state as it comes out | `omega-eject-save`. The core's state is taken first, before it closes. The next core waits for the write before it reads a resume |
+| Wi-Fi, Bluetooth, headphones, SSH, Save Backup, updates | Their own worker threads |
+| RetroAchievements: hashing, the network, taking in answers | `omega-cheevos-hash`, `omega-cheevos-net`, `omega-cheevos-answers` |
+
+`omega-zero.log` on the card says where a slow frame's time went, so a hitch can be found
+without a debugger:
+
+- `slow frame going in: N ms: update …, emulator …, draw …, swap …` for a frame of a cart going
+  in that took over 30 ms;
+- `slow update`, `slow app update` and `slow timers`, each step's share of an update over 30 ms;
+- `omega-cheevos: <thread> waited N ms for the client and held it N ms`, for a call into
+  RetroAchievements' client that held it, or waited for it, 50 ms or more;
+- `cheevos: N ms: …`, the steps of signing in and of a game's achievements loading, timed from
+  omega-zero's start: each request, each answer, and the game as RetroAchievements knows it.
 
 ## Files on the card
 

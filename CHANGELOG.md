@@ -24,6 +24,20 @@
 - Putting a PSP game away no longer holds the shelf up as it comes back: its core closes on
   the emulator's thread, and the next game's core waits for it rather than the screen.
 
+- The autosave no longer hitches a game once a minute: the core's state is taken and written on
+  the autosave's own thread, rather than the screen waiting for the core to give it up.
+
+- A cart coming out writes its state to the card on a thread of its own, once the state is
+  taken, so the cart's slide out is not held up by the card. The next game to start waits for
+  the write before it reads its resume, so a game put back in at once picks up where it was.
+
+- Save Backup looks for a save once it is written, rather than as the write begins, so an
+  autosave's or an eject's save is copied on that pass rather than the next.
+
+- A slow frame says in `omega-zero.log` where its time went, step by step, and RetroAchievements
+  logs each step of a game's achievements loading with its time. README-FORK.md has what each
+  thread does and what the log says.
+
 ## omega-zero 2.6.7
 
 - A PSP game's disc spins in its UMD's window as the game loads: the disc is drawn on its own,

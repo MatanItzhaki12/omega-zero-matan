@@ -155,6 +155,8 @@ fn the_whole_pass_from_boot_to_resume() {
         !matches!(s.app().phase(), Phase::Playing { .. })
     });
     p.event(RawEvent::Up(Btn::Menu));
+    // the cart's state is written on a thread of its own as it comes out
+    p.session.app_mut().settle_saves();
     assert!(p
         .ring("Emerald")
         .read_resume()

@@ -3135,21 +3135,51 @@ impl App {
         };
         let (state, sav) = trusted_write(snapshot.as_ref(), state, "eject");
         let state = state.filter(|_| self.state.eject_save);
-        match persist::eject(
-            root,
-            self.platform,
-            self.core,
-            stem,
-            state.as_deref(),
-            sav.as_deref(),
-        ) {
-            Ok(()) => {
-                self.state.cart = None;
-                self.state.cart_platform = None;
-            }
-            Err(e) => eprintln!("omega-zero: eject: {e}"),
+        let (root, platform, core, stem) =
+            (root.clone(), self.platform, self.core, stem.to_owned());
+        let write = move || {
+            persist::eject(
+                &root,
+                platform,
+                core,
+                &stem,
+                state.as_deref(),
+                sav.as_deref(),
+            )
+        };
+        // a running core's state is written to the card on a thread of its own, as the card
+        // takes a moment to sync, which the cart coming out would otherwise wait out; the next
+        // core to open waits for it before it reads a resume
+        let behind = snapshot.detached().is_some();
+        // the backup looks for the save once it is on the card
+        let pass = self.save_backup.as_ref().map(|b| b.passer());
+        let written = match behind {
+            true => std::thread::Builder::new()
+                .name("omega-eject-save".into())
+                .spawn(move || match write() {
+                    Ok(()) => pass.iter().for_each(|pass| pass()),
+                    Err(e) => eprintln!("omega-zero: eject: {e}"),
+                })
+                .map(|h| self.pending_save = Some(h))
+                .map_err(|e| eprintln!("omega-zero: eject: no writer thread: {e}"))
+                .is_ok(),
+            false => write()
+                .map_err(|e| eprintln!("omega-zero: eject: {e}"))
+                .is_ok(),
+        };
+        if written {
+            self.state.cart = None;
+            self.state.cart_platform = None;
         }
-        self.backup_pass();
+        if !behind {
+            self.backup_pass();
+        }
+    }
+
+    /// The save being written to the card, handed to the thread a core opens on, which waits
+    /// for it before it reads the game's resume.
+    pub(crate) fn take_pending_save(&mut self) -> Option<std::thread::JoinHandle<()>> {
+        self.pending_save.take()
     }
 
     fn doze(&mut self) {
@@ -4068,14 +4098,32 @@ impl App {
         else {
             return;
         };
-        let Some(state) = snapshot.state() else {
-            eprintln!("omega-zero: autosave: the core gave up no state");
-            return;
-        };
-        let (state, sav) = trusted_write(snapshot.as_ref(), state, "autosave");
         let (root, platform, core, cart) =
             (root.clone(), self.platform, self.core, cart.to_owned());
+        // the state is taken on the writer's thread where it can be, as the core giving it up
+        // takes a frame or more, which the screen would otherwise wait out every autosave
+        let taken = match snapshot.detached() {
+            Some(detached) => Taken::Later(detached),
+            None => match snapshot.state() {
+                Some(state) => Taken::Now(trusted_write(snapshot.as_ref(), state, "autosave")),
+                None => {
+                    eprintln!("omega-zero: autosave: the core gave up no state");
+                    return;
+                }
+            },
+        };
+        let pass = self.save_backup.as_ref().map(|b| b.passer());
         let write = move || {
+            let (state, sav) = match taken {
+                Taken::Now(written) => written,
+                Taken::Later(snapshot) => {
+                    let Some(state) = snapshot.state() else {
+                        eprintln!("omega-zero: autosave: the core gave up no state");
+                        return;
+                    };
+                    trusted_write(snapshot.as_ref(), state, "autosave")
+                }
+            };
             if let Err(e) = persist::flush(
                 &root,
                 platform,
@@ -4085,7 +4133,10 @@ impl App {
                 sav.as_deref(),
             ) {
                 eprintln!("omega-zero: autosave: {e}");
+                return;
             }
+            // the backup looks for the save once it is on the card
+            pass.iter().for_each(|pass| pass());
         };
         match std::thread::Builder::new()
             .name("omega-autosave".into())
@@ -4096,7 +4147,6 @@ impl App {
             Ok(h) => self.pending_save = Some(h),
             Err(e) => eprintln!("omega-zero: autosave: no writer thread: {e}"),
         }
-        self.backup_pass();
     }
 
     pub fn flush_resume(&mut self) {
@@ -4277,6 +4327,13 @@ impl App {
             p.set_panel_face(tex, w, h);
         }
     }
+}
+
+/// What an autosave writes: taken already, or to be taken through a snapshot on the writer's
+/// thread.
+enum Taken {
+    Now((Option<Vec<u8>>, Option<Vec<u8>>)),
+    Later(Box<dyn Snapshot + Send>),
 }
 
 fn trusted_write(

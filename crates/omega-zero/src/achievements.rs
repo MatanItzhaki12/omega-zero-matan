@@ -144,11 +144,6 @@ pub struct Cheevos {
 }
 
 impl App {
-    /// Whether games are checked for achievements: switched on, with an account to sign in.
-    pub fn achievements_on(&self) -> bool {
-        self.state.cheevos
-    }
-
     /// Hardcore is on, for a game played with achievements: no state loads and no rewinding.
     pub fn hardcore(&self) -> bool {
         self.state.cheevos && self.state.cheevos_hardcore && self.cheevos.signed_in.is_some()

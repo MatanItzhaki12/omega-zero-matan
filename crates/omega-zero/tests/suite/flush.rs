@@ -357,3 +357,92 @@ fn a_lid_close_right_after_an_autosave_leaves_the_lids_state() {
         "the autosave landed over the lid's save"
     );
 }
+
+/// A running core's snapshot, as the emulator's is, whose state comes only once the test lets
+/// it: one another thread can take it through.
+#[derive(Clone)]
+struct Gated {
+    open: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+}
+
+impl Gated {
+    fn new() -> Gated {
+        Gated {
+            open: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
+        }
+    }
+
+    fn open(&self) {
+        let (open, cv) = &*self.open;
+        *open.lock().unwrap() = true;
+        cv.notify_all();
+    }
+}
+
+impl Snapshot for Gated {
+    fn state(&self) -> Option<Vec<u8>> {
+        let (open, cv) = &*self.open;
+        let held = open.lock().unwrap();
+        // let go after a while, so a test that took the state on its own thread fails rather
+        // than hangs
+        let (held, _) = cv
+            .wait_timeout_while(held, std::time::Duration::from_secs(2), |open| !*open)
+            .unwrap();
+        drop(held);
+        Some(vec![7u8; 64])
+    }
+
+    fn save_ram(&self) -> Option<Vec<u8>> {
+        None
+    }
+
+    fn thumb(&self) -> Option<Vec<u8>> {
+        None
+    }
+
+    fn load(&self, _state: Vec<u8>) {}
+
+    fn detached(&self) -> Option<Box<dyn Snapshot + Send>> {
+        Some(Box::new(self.clone()))
+    }
+}
+
+#[test]
+fn an_autosave_takes_a_running_cores_state_on_its_own_thread() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let gated = Gated::new();
+    let mut a = app_playing_with(d.path(), "Emerald", Box::new(gated.clone()));
+    let began = std::time::Instant::now();
+    a.tick_ms(60_000);
+    assert!(
+        began.elapsed() < std::time::Duration::from_secs(1),
+        "the autosave waited {:?} on the screen's thread for the core's state",
+        began.elapsed()
+    );
+    gated.open();
+    a.settle_saves();
+    assert_eq!(
+        StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald")
+            .read_resume()
+            .unwrap(),
+        Some(vec![7u8; 64])
+    );
+}
+
+#[test]
+fn an_ejected_cart_of_a_running_core_has_its_state_written_behind_it() {
+    // a shelf of one cart keeps it in
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let gated = Gated::new();
+    gated.open();
+    let mut a = app_playing_with(d.path(), "Emerald", Box::new(gated));
+    a.apply(Action::Eject);
+    a.settle_saves();
+    assert_eq!(
+        StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald")
+            .read_resume()
+            .unwrap(),
+        Some(vec![7u8; 64])
+    );
+    assert_eq!(read_app_state(d.path()).cart, None);
+}

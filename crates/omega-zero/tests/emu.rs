@@ -1449,3 +1449,79 @@ fn run_ahead_gives_up_on_a_core_too_slow_for_it() {
         "run-ahead played frames again after it gave up"
     );
 }
+
+/// A core that takes a while to close, as PPSSPP does, and says when it has.
+struct SlowToClose {
+    inner: MockCore,
+    closed: Arc<AtomicBool>,
+}
+
+impl Drop for SlowToClose {
+    fn drop(&mut self) {
+        std::thread::sleep(Duration::from_millis(300));
+        self.closed.store(true, Ordering::Release);
+    }
+}
+
+impl RetroCore for SlowToClose {
+    fn load(&mut self, rom: &Path) -> Result<(), CoreError> {
+        self.inner.load(rom)
+    }
+    fn run_frame(&mut self, input: ButtonMask) {
+        self.inner.run_frame(input);
+    }
+    fn video_xrgb8888(&self) -> &[u8] {
+        self.inner.video_xrgb8888()
+    }
+    fn take_audio(&mut self) -> Vec<i16> {
+        self.inner.take_audio()
+    }
+    fn serialize(&mut self) -> Result<Vec<u8>, CoreError> {
+        self.inner.serialize()
+    }
+    fn unserialize(&mut self, data: &[u8]) -> Result<(), CoreError> {
+        self.inner.unserialize(data)
+    }
+    fn save_ram(&self) -> Option<Vec<u8>> {
+        self.inner.save_ram()
+    }
+    fn load_save_ram(&mut self, data: &[u8]) -> Result<(), CoreError> {
+        self.inner.load_save_ram(data)
+    }
+    fn av_info(&self) -> AvInfo {
+        self.inner.av_info()
+    }
+}
+
+#[test]
+fn a_game_put_away_closes_its_core_behind_the_screen_and_the_next_waits_for_it() {
+    let _turn = turn();
+    let mut sink = StubSink::new();
+    sink.open(32_768).expect("the stub refused to open");
+    drain(sink.clone());
+    let closed = Arc::new(AtomicBool::new(false));
+    let core = Box::new(SlowToClose {
+        inner: MockCore::new(),
+        closed: closed.clone(),
+    });
+    let emu = EmuHandle::spawn(core, PathBuf::from("mock"), sink.ring(), None, None);
+    assert!(
+        wait_for(|| emu.state() == CoreState::Ready),
+        "the core never finished loading"
+    );
+
+    let dropped = Instant::now();
+    drop(emu);
+    assert!(
+        dropped.elapsed() < Duration::from_millis(150),
+        "putting the game away waited {:?} for its core to close",
+        dropped.elapsed()
+    );
+    assert!(!closed.load(Ordering::Acquire), "the core closed at once");
+
+    omega_zero::emu::wait_closed();
+    assert!(
+        closed.load(Ordering::Acquire),
+        "the next core would open beside the last"
+    );
+}

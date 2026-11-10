@@ -245,6 +245,14 @@ impl SaveBackup {
         let _ = self.tx.send(Ask::Pass);
     }
 
+    /// What asks for a pass from another thread: one writing a save, once it is written.
+    pub fn passer(&self) -> impl Fn() + Send + 'static {
+        let tx = self.tx.clone();
+        move || {
+            let _ = tx.send(Ask::Pass);
+        }
+    }
+
     /// Copies to `target` from now on; none stops.
     pub fn set_target(&self, target: Option<Target>) {
         let _ = self.tx.send(Ask::Target(target));

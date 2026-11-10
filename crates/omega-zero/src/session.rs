@@ -526,6 +526,9 @@ impl Session {
         let (tx, rx) = std::sync::mpsc::channel();
         let (root, theirs) = (self.root.clone(), stem.to_string());
         let wants_resume = resume_wanted;
+        // a save still being written, as the game put away last is: waited for there, so the
+        // resume read is the one just written
+        let writing = self.app.take_pending_save();
         let spawned = std::thread::Builder::new()
             .name("omega-core-open".into())
             .spawn(move || {
@@ -536,6 +539,9 @@ impl Session {
                 // card, which a PSP game's image is being read off as it starts, and the wait
                 // stalled the cart going in
                 persist::mark_starting(&root, platform, &theirs);
+                if let Some(writing) = writing {
+                    let _ = writing.join();
+                }
                 let resume = wants_resume
                     .then(|| persist::read_resume(&root, platform, core, &theirs))
                     .flatten();

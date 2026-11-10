@@ -18,6 +18,13 @@ pub trait Snapshot {
     fn save_ram_trusted(&self) -> bool {
         true
     }
+
+    /// The snapshot as one another thread can take the state through, so the screen does not
+    /// wait while the core gives it up: none for one that is only taken on the screen's
+    /// thread, as a test's is.
+    fn detached(&self) -> Option<Box<dyn Snapshot + Send>> {
+        None
+    }
 }
 
 pub fn flush(

@@ -158,6 +158,10 @@ fn try_client<R>(f: impl FnOnce() -> R) -> Option<R> {
 /// it is not yet.
 fn answer(id: u32, status: c_int, body: Vec<u8>) {
     lock(&ANSWERS).push((id, status, body));
+    // offline, as tests are, answers wait for the next pump, so a test steps through them
+    if OFFLINE.load(Ordering::Acquire) {
+        return;
+    }
     static WAKE: std::sync::Condvar = std::sync::Condvar::new();
     static MADE: std::sync::Once = std::sync::Once::new();
     MADE.call_once(|| {
@@ -562,11 +566,16 @@ pub fn frame() {
 }
 
 /// Lets the client do what it waits to do, without reading the game's memory: between games,
-/// or with the game paused. Answers come back are taken in on a thread of their own, and a
-/// pump the client is busy for is skipped.
+/// or with the game paused. Answers come back are taken in on a thread of their own, but for
+/// tests, offline, whose answers a pump takes in; a pump the client is busy for is skipped.
 pub fn pump() {
-    // SAFETY: under the lock
-    try_client(|| unsafe { oc_idle() });
+    try_client(|| {
+        if OFFLINE.load(Ordering::Acquire) {
+            deliver();
+        }
+        // SAFETY: under the lock
+        unsafe { oc_idle() };
+    });
 }
 
 /// The game's memory jumped, as a state loads or the game rewinds: achievements start watching
@@ -849,8 +858,12 @@ mod tests {
         assert_eq!(answer_of(b"\n000").0, RETRYABLE);
     }
 
+    /// The tests that call into the client, one at a time, as it is the one client for all.
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
     #[test]
     fn nothing_happens_before_the_client_is_made() {
+        let _turn = lock(&ONE_AT_A_TIME);
         assert_eq!(login(), Login::Out);
         assert_eq!(game_load(), GameLoad::None);
         assert!(!hardcore_active());
@@ -946,6 +959,7 @@ mod tests {
 
     #[test]
     fn the_client_is_made_and_says_what_it_is() {
+        let _turn = lock(&ONE_AT_A_TIME);
         assert!(start(false, "9.9.9"));
         let agent = lock(&AGENT).clone();
         assert!(
@@ -954,5 +968,43 @@ mod tests {
         );
         assert_eq!(login(), Login::Out);
         assert_eq!(summary(), None);
+    }
+
+    #[test]
+    fn a_look_in_on_a_busy_client_does_not_wait_for_it() {
+        let _turn = lock(&ONE_AT_A_TIME);
+        assert!(start(false, "9.9.9"));
+        let held = lock(&CLIENT);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let began = std::time::Instant::now();
+            let seen = (login(), game_load(), summary(), game_unreachable());
+            frame();
+            pump();
+            let _ = tx.send((began.elapsed(), seen));
+        });
+        let answer = rx.recv_timeout(std::time::Duration::from_secs(2));
+        drop(held);
+        let (took, seen) = answer.expect("a look in on the client waited for it");
+        assert!(took < std::time::Duration::from_millis(500), "{took:?}");
+        assert_eq!(seen, (Login::Pending, GameLoad::Pending, None, false));
+    }
+
+    #[test]
+    fn a_game_is_hashed_once_however_often_its_achievements_load() {
+        let d = tempfile::tempdir().unwrap();
+        let rom = d.path().join("Game.gba");
+        std::fs::write(&rom, [1u8; 4096]).unwrap();
+        let first = hash_once(CONSOLE_GBA, &rom).expect("the ROM hashed");
+        // the ROM changed under it: the hash kept stands, as nothing was hashed again
+        std::fs::write(&rom, [2u8; 4096]).unwrap();
+        assert_eq!(
+            hash_once(CONSOLE_GBA, &rom).as_deref(),
+            Some(first.as_str())
+        );
+        // another game is hashed afresh
+        let other = d.path().join("Other.gba");
+        std::fs::write(&other, [2u8; 4096]).unwrap();
+        assert_ne!(hash_once(CONSOLE_GBA, &other), Some(first));
     }
 }

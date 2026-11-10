@@ -840,10 +840,6 @@ impl App {
         self.link_sprites = Some(sprites);
     }
 
-    pub fn link_sprites_ready(&self) -> bool {
-        self.link_sprites.is_some()
-    }
-
     pub fn set_link_panel(&mut self, panel: Lone) {
         self.link_panel = Some(panel);
     }

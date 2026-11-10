@@ -635,6 +635,10 @@ impl Snapshot for EmuSnapshot {
         request(&self.cmds, &self.shared, Cmd::Reset);
     }
 
+    fn detached(&self) -> Option<Box<dyn Snapshot + Send>> {
+        Some(Box::new(self.clone()))
+    }
+
     fn resume_trusted(&self) -> bool {
         !self.shared.resume_refused.load(Ordering::Acquire)
     }
