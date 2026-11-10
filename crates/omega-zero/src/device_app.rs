@@ -167,15 +167,9 @@ pub fn run() {
     frontend.drive_emulator();
     let mut pacer = Pacer::new();
     let (mut frames, mut missed, mut early, mut unanswered) = (0u32, 0u32, 0u32, 0u32);
-    // a cart going in, frame by frame: how many, the longest gap between two, and how many
-    // missed the panel's latch, told once it is in
-    let mut going_in: Option<GoingIn> = None;
-    let mut last_began = Instant::now();
     loop {
         pacer.wait();
         let began = Instant::now();
-        let gap = began - last_began;
-        last_began = began;
         frontend.advance(&mut input);
         let advanced = began.elapsed();
         if frontend.restarting() {
@@ -220,19 +214,6 @@ pub fn run() {
         }
         omega_zero::latency::swapped(swap_took.as_secs_f64() * 1000.0);
         let dropped = pacer.swapped(work, swap_took > Duration::from_millis(1));
-        let inserting = matches!(
-            frontend.app().phase(),
-            omega_zero::app::Phase::Inserting { .. }
-        );
-        match (&mut going_in, inserting) {
-            (Some(g), true) => g.frame(gap, dropped, work),
-            (None, true) => going_in = Some(GoingIn::default()),
-            (Some(g), false) => {
-                g.tell();
-                going_in = None;
-            }
-            (None, false) => {}
-        }
         if omega_zero::latency::tracing() {
             frames += 1;
             missed += u32::from(dropped);
@@ -254,36 +235,5 @@ pub fn run() {
         if let Some(left) = MIN_FRAME.checked_sub(began.elapsed()) {
             std::thread::sleep(left);
         }
-    }
-}
-
-/// A cart going in, as the screen drew it.
-#[derive(Default)]
-struct GoingIn {
-    frames: u32,
-    missed: u32,
-    longest: Duration,
-    work: Duration,
-    over: u32,
-}
-
-impl GoingIn {
-    fn frame(&mut self, gap: Duration, missed: bool, work: Duration) {
-        self.frames += 1;
-        self.missed += u32::from(missed);
-        self.longest = self.longest.max(gap);
-        self.work = self.work.max(work);
-        self.over += u32::from(gap > Duration::from_millis(20));
-    }
-
-    fn tell(&self) {
-        eprintln!(
-            "omega-zero: going in: {} frames, {} missed a latch, {} gaps over 20 ms, longest {:.1} ms, most work {:.1} ms",
-            self.frames,
-            self.missed,
-            self.over,
-            self.longest.as_secs_f64() * 1e3,
-            self.work.as_secs_f64() * 1e3
-        );
     }
 }
