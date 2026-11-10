@@ -63,7 +63,7 @@ pub const EJECT_S: f32 = SEATED_AT;
 const LOADING_HOLD: f32 = 0.2;
 
 /// How fast a UMD's disc spins in its window as its game loads, in turns a second.
-const DISC_SPIN: f32 = 0.6;
+const DISC_SPIN: f32 = 1.5;
 
 const EJECT_HOLD_S: f32 = 0.2;
 
