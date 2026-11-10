@@ -669,12 +669,17 @@ impl Frontend {
     }
 
     pub fn advance(&mut self, input: &mut dyn InputSource) {
+        let mut sw = crate::stopwatch::Stopwatch::new();
         let now = self.now();
         let events = input.poll(now);
+        sw.step("input");
         self.session.feed(events, now);
+        sw.step("presses");
         let dt = self.last.elapsed().as_secs_f32();
         self.last = Instant::now();
         self.session.update(dt);
+        sw.step("update");
+        sw.log_over("advance", std::time::Duration::from_millis(30));
     }
 
     pub fn app(&self) -> &crate::app::App {

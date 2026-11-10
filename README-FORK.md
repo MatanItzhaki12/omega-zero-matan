@@ -427,6 +427,7 @@ there:
 | Making a PSP game's spinning disc | `omega-disc` |
 | The autosave: the core's state and writing it | `omega-autosave` |
 | Writing a cart's state as it comes out | `omega-eject-save`. The core's state is taken first, before it closes. The next core waits for the write before it reads a resume |
+| omega-zero's state, Recents, Favorites, the note of a game starting | `omega-card`, in order, the newest of each file only; powering off and restarting wait for it. Tests write at once |
 | Wi-Fi, Bluetooth, headphones, SSH, Save Backup, updates | Their own worker threads |
 | RetroAchievements: hashing, the network, taking in answers | `omega-cheevos-hash`, `omega-cheevos-net`, `omega-cheevos-answers` |
 
@@ -435,7 +436,8 @@ without a debugger:
 
 - `slow frame going in: N ms: update …, emulator …, draw …, swap …` for a frame of a cart going
   in that took over 30 ms;
-- `slow update`, `slow app update` and `slow timers`, each step's share of an update over 30 ms;
+- `slow advance` (input, presses, update), `slow update`, `slow app update` and `slow timers`,
+  each step's share of a frame's work over 30 ms;
 - `omega-cheevos: <thread> waited N ms for the client and held it N ms`, for a call into
   RetroAchievements' client that held it, or waited for it, 50 ms or more;
 - `cheevos: N ms: …`, the steps of signing in and of a game's achievements loading, timed from

@@ -31,6 +31,12 @@
   taken, so the cart's slide out is not held up by the card. The next game to start waits for
   the write before it reads its resume, so a game put back in at once picks up where it was.
 
+- Starting a game no longer stalls as the one put away before it is still being written to the
+  card. The small files omega-zero keeps there, its state, Recents, Favorites and the note of
+  a game starting, are written on a thread of the card's own, in order, the newest of each
+  file only; each waits on the card behind the game's state, which the screen waited out with
+  it. Powering off and restarting wait for them.
+
 - Save Backup looks for a save once it is written, rather than as the write begins, so an
   autosave's or an eject's save is copied on that pass rather than the next.
 

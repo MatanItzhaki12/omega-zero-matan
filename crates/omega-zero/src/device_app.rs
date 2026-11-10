@@ -161,6 +161,9 @@ pub fn run() {
         .name("omega-bootlogo".into())
         .spawn(move || omega_zero::bootlogo::refresh(&card));
     let mut drawn = false;
+    // from here the small files on the card are written on its own thread, as the screen is
+    // drawn; powering off and restarting wait for them
+    omega_zero::card_writer::defer(true);
     frontend.drive_emulator();
     let mut pacer = Pacer::new();
     let (mut frames, mut missed, mut early, mut unanswered) = (0u32, 0u32, 0u32, 0u32);

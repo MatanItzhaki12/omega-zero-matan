@@ -6,8 +6,8 @@ use omega_input::{Action, Btn, Keys, MUTE_CHORD_MS};
 use omega_power::{Battery, Charge, LedState, LidPolicy, Power};
 use omega_retro::LinkChannel;
 use omega_store::{
-    format_stamp, read_app_state, scan, write_app_state, AppState, BackdropStyle, Cart, Core,
-    Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, VOLUME_MAX,
+    format_stamp, read_app_state, scan, AppState, BackdropStyle, Cart, Core, Platform, StateEntry,
+    StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, VOLUME_MAX,
 };
 use omega_ui::kit::action::Font;
 use omega_ui::kit::fade::stepped;
@@ -2519,7 +2519,9 @@ impl App {
         let Some(root) = &self.root else {
             return;
         };
-        if let Err(e) = write_app_state(root, &self.state) {
+        let text = omega_store::app_state_text(&self.state);
+        if let Err(e) = crate::card_writer::write(&omega_store::state_path(root), text.into_bytes())
+        {
             eprintln!("omega-zero: omega-zero.state: {e}");
         }
     }
@@ -3135,22 +3137,32 @@ impl App {
         };
         let (state, sav) = trusted_write(snapshot.as_ref(), state, "eject");
         let state = state.filter(|_| self.state.eject_save);
+        // a running core's state is written to the card on a thread of its own, as the card
+        // takes a moment to sync, which the cart coming out would otherwise wait out; the next
+        // core to open waits for it before it reads a resume. The empty slot is kept with the
+        // rest of omega-zero's state, which the card's writer takes in order, rather than by
+        // rewriting the state file from that thread over a newer one
+        let behind = snapshot.detached().is_some();
         let (root, platform, core, stem) =
             (root.clone(), self.platform, self.core, stem.to_owned());
-        let write = move || {
-            persist::eject(
+        let write = move || match behind {
+            true => persist::flush(
                 &root,
                 platform,
                 core,
                 &stem,
                 state.as_deref(),
                 sav.as_deref(),
-            )
+            ),
+            false => persist::eject(
+                &root,
+                platform,
+                core,
+                &stem,
+                state.as_deref(),
+                sav.as_deref(),
+            ),
         };
-        // a running core's state is written to the card on a thread of its own, as the card
-        // takes a moment to sync, which the cart coming out would otherwise wait out; the next
-        // core to open waits for it before it reads a resume
-        let behind = snapshot.detached().is_some();
         // the backup looks for the save once it is on the card
         let pass = self.save_backup.as_ref().map(|b| b.passer());
         let written = match behind {
@@ -3170,6 +3182,9 @@ impl App {
         if written {
             self.state.cart = None;
             self.state.cart_platform = None;
+            if behind {
+                self.persist();
+            }
         }
         if !behind {
             self.backup_pass();
@@ -4089,6 +4104,7 @@ impl App {
         if let Some(h) = self.pending_save.take() {
             let _ = h.join();
         }
+        crate::card_writer::settle();
     }
 
     fn autosave(&mut self) {

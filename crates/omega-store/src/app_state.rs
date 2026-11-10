@@ -177,7 +177,8 @@ impl Default for AppState {
     }
 }
 
-fn state_path(root: &Path) -> PathBuf {
+/// Where omega-zero's state is kept on the card at `root`.
+pub fn state_path(root: &Path) -> PathBuf {
     root.join("Config").join("omega-zero.state")
 }
 
@@ -190,6 +191,11 @@ pub fn read_app_state(root: &Path) -> AppState {
 }
 
 pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
+    atomic_write(&state_path(root), app_state_text(s).as_bytes())
+}
+
+/// `s` as the state file has it.
+pub fn app_state_text(s: &AppState) -> String {
     let text = format!(
         "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nscreen_filter={}\nwifi={}\nssh={}\nbluetooth={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\nfont={}\nauto_load={}\neject_save={}\nrewind={}\nturbo={}\nblending={}\ngb_palette={}\nshow_recents={}\nshow_titles={}\nclock_24h={}\nlid_off_min={}\ncheevos={}\ncheevos_hardcore={}\nboot_animation={}\nholo={}\nrun_ahead={}\nonline_name={}\nrelay={}\nonline_password={}\nonline_address={}\n",
         s.cart.as_deref().unwrap_or(""),
@@ -249,7 +255,7 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
             s.picked_platform.map_or(String::new(), platform_key),
             kept_text(&s.psp_screen),
         );
-    atomic_write(&state_path(root), text.as_bytes())
+    text
 }
 
 fn parse(text: &str) -> Option<AppState> {

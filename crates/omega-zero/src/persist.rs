@@ -57,13 +57,16 @@ fn starting_key(platform: Platform, stem: &str) -> String {
 /// Notes that `stem`'s core is opening, on the card before it opens.
 pub fn mark_starting(root: &Path, platform: Platform, stem: &str) {
     let key = starting_key(platform, stem);
-    if let Err(e) = atomic_write(&root.join(STARTING), key.as_bytes()) {
+    // through the card's writer, after a note of the game before being taken off, and on the
+    // card before the core opens
+    if let Err(e) = crate::card_writer::write(&root.join(STARTING), key.clone().into_bytes()) {
         eprintln!("omega-zero: could not note {key} starting: {e}");
     }
+    crate::card_writer::settle();
 }
 
 pub fn clear_starting(root: &Path) {
-    let _ = std::fs::remove_file(root.join(STARTING));
+    crate::card_writer::remove(&root.join(STARTING));
 }
 
 /// The game noted as starting when omega-zero last stopped, the note taken off the card.

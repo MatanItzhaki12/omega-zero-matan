@@ -16,7 +16,7 @@
 use std::path::{Path, PathBuf};
 
 use omega_input::Millis;
-use omega_store::{atomic_write, sort_key, Cart, Platform, CONFIG_DIR};
+use omega_store::{sort_key, Cart, Platform, CONFIG_DIR};
 use omega_ui::Toast;
 
 use crate::app::App;
@@ -89,7 +89,7 @@ pub fn write_recents(root: &Path, recents: &[(Platform, String)]) -> std::io::Re
         .iter()
         .map(|(p, stem)| line_of(*p, stem) + "\n")
         .collect();
-    atomic_write(&recents_path(root), text.as_bytes())
+    crate::card_writer::write(&recents_path(root), text.into_bytes())
 }
 
 /// `cart` as the latest game put in, ahead of `recents`, which keep it once and ten at most.
@@ -139,7 +139,7 @@ pub fn write_favorites(root: &Path, favorites: &[(Platform, String)]) -> std::io
         .iter()
         .map(|(p, stem)| line_of(*p, stem) + "\n")
         .collect();
-    atomic_write(&favorites_path(root), text.as_bytes())
+    crate::card_writer::write(&favorites_path(root), text.into_bytes())
 }
 
 /// The starred carts among `carts`, in the order the shelf shows them: by name, as every shelf
