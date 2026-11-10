@@ -384,6 +384,22 @@ pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
     }
 }
 
+/// The calling thread at the lowest priority: hashing reads the game's file while the core,
+/// starting, reads it too, and the cart going in is drawn meanwhile, which come first.
+fn stand_back() {
+    #[cfg(target_os = "linux")]
+    {
+        extern "C" {
+            fn setpriority(which: c_int, who: c_uint, prio: c_int) -> c_int;
+        }
+        // SAFETY: setpriority only sets the calling thread's nice value; a refusal leaves the
+        // thread as it was
+        unsafe {
+            setpriority(0, 0, 19);
+        }
+    }
+}
+
 /// Hashes the game `rom` of `console` on a thread of its own, and then starts loading its
 /// achievements, unless the game has been put away meanwhile. Hashing reads all of a
 /// cartridge's ROM, or much of a PSP game's disc, off the card, which takes up to a second:
@@ -394,6 +410,7 @@ fn load_in_turn(game: u64, console: u32, rom: &Path) {
     let spawned = std::thread::Builder::new()
         .name("omega-cheevos-hash".into())
         .spawn(move || {
+            stand_back();
             let hash = hash_once(console, &rom);
             with_client(|| {
                 // SAFETY: under the lock
