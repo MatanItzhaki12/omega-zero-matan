@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.6.8
+
 - A UMD's hub is a real one's: white, UMD across it in blue and UNIVERSAL MEDIA DISC under it
   in small grey letters. It is an element of its own, laid over the disc's print rather than
   part of its label art, and it stands still over the disc as the disc spins while the game
