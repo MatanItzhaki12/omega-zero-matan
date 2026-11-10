@@ -118,6 +118,8 @@ static EVENTS: Mutex<Vec<Event>> = Mutex::new(Vec::new());
 static GAME: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 #[allow(clippy::type_complexity)]
 static HASHED: Mutex<Option<(u32, std::path::PathBuf, Option<String>)>> = Mutex::new(None);
+/// The site's name and the address it was last reached at.
+static RESOLVED: Mutex<Option<(String, String)>> = Mutex::new(None);
 /// What every request says it is, as RetroAchievements asks: omega-zero and rcheevos' versions.
 static AGENT: Mutex<String> = Mutex::new(String::new());
 
@@ -794,9 +796,21 @@ pub unsafe extern "C" fn omega_cheevos_cso_close(cso: *mut c_void) {
 fn fetch(url: &str, post: Option<&str>, content_type: &str, agent: &str) -> (c_int, Vec<u8>) {
     let mut cmd = Command::new("curl");
     cmd.args(["-sS", "--max-time", REQUEST_SECS, "-A", agent])
-        .args(["-w", "\n%{http_code}"])
+        .args(["-w", "\n%{remote_ip} %{http_code}"])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
+    // the address the site was last reached at, so a request does not wait on a name lookup,
+    // which on the handheld's Wi-Fi now and then goes unanswered for the resolver's five seconds
+    let host = host_of(url);
+    let known = host.as_ref().and_then(|(name, port)| {
+        lock(&RESOLVED)
+            .as_ref()
+            .filter(|(n, _)| n == name)
+            .map(|(_, ip)| format!("{name}:{port}:{ip}"))
+    });
+    if let Some(resolve) = &known {
+        cmd.args(["--resolve", resolve]);
+    }
     if post.is_some() {
         cmd.args(["--data-binary", "@-"]);
         if !content_type.is_empty() {
@@ -814,10 +828,47 @@ fn fetch(url: &str, post: Option<&str>, content_type: &str, agent: &str) -> (c_i
         use std::io::Write;
         let _ = stdin.write_all(post.as_bytes());
     }
-    match child.wait_with_output() {
-        Ok(out) => answer_of(&out.stdout),
-        Err(_) => (RETRYABLE, Vec::new()),
+    let Ok(out) = child.wait_with_output() else {
+        return (RETRYABLE, Vec::new());
+    };
+    let (status, body) = answer_of(&out.stdout);
+    match (status > 0, host) {
+        (true, Some((name, _))) => {
+            if let Some(ip) = remote_ip_of(&out.stdout) {
+                *lock(&RESOLVED) = Some((name, ip));
+            }
+        }
+        (false, _) => {
+            // an address gone stale is looked up afresh next time
+            *lock(&RESOLVED) = None;
+            trace(&format!(
+                "curl: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
+        _ => {}
     }
+    (status, body)
+}
+
+/// The site's name and port in `url`.
+fn host_of(url: &str) -> Option<(String, u16)> {
+    let (scheme, rest) = url.split_once("://")?;
+    let host = rest.split(['/', '?']).next()?;
+    let (name, port) = match host.rsplit_once(':') {
+        Some((name, port)) => (name, port.parse().ok()?),
+        None => (host, if scheme == "http" { 80 } else { 443 }),
+    };
+    (!name.is_empty()).then(|| (name.to_string(), port))
+}
+
+/// The address curl reached, from the last line it printed: `<ip> <status>`.
+fn remote_ip_of(out: &[u8]) -> Option<String> {
+    let last = out.rsplit(|b| *b == b'\n').next()?;
+    let text = std::str::from_utf8(last).ok()?;
+    let mut words = text.split_whitespace();
+    let (ip, _status) = (words.next()?, words.next()?);
+    ip.parse::<std::net::IpAddr>().ok().map(|ip| ip.to_string())
 }
 
 /// curl's output split into the body and the status on its last line; a status curl could not
@@ -828,9 +879,10 @@ pub fn answer_of(out: &[u8]) -> (c_int, Vec<u8>) {
         Some(i) => (&out[..i], &out[i + 1..]),
         None => (&out[..0], out),
     };
+    // the last line is the status, after the address it came from where curl gave one
     let status = std::str::from_utf8(code)
         .ok()
-        .and_then(|s| s.trim().parse::<c_int>().ok())
+        .and_then(|s| s.split_whitespace().last()?.parse::<c_int>().ok())
         .filter(|s| *s > 0)
         .unwrap_or(RETRYABLE);
     (status, body.to_vec())
@@ -849,6 +901,22 @@ mod tests {
         assert_eq!(
             answer_of(b"line one\nline two\n404"),
             (404, b"line one\nline two".to_vec())
+        );
+    }
+
+    #[test]
+    fn the_address_comes_before_the_status_and_the_site_is_named_by_its_url() {
+        let out = b"{\"Success\":true}\n104.21.1.1 200";
+        assert_eq!(answer_of(out), (200, b"{\"Success\":true}".to_vec()));
+        assert_eq!(remote_ip_of(out).as_deref(), Some("104.21.1.1"));
+        assert_eq!(remote_ip_of(b"body\n 000"), None);
+        assert_eq!(
+            host_of("https://retroachievements.org/dorequest.php"),
+            Some(("retroachievements.org".into(), 443))
+        );
+        assert_eq!(
+            host_of("http://127.0.0.1:8080/x?y"),
+            Some(("127.0.0.1".into(), 8080))
         );
     }
 

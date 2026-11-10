@@ -40,6 +40,11 @@
 - Save Backup looks for a save once it is written, rather than as the write begins, so an
   autosave's or an eject's save is copied on that pass rather than the next.
 
+- A game is known to RetroAchievements sooner: requests go to the address the site was last
+  reached at rather than looking its name up each time, a lookup the handheld's Wi-Fi now and
+  then leaves unanswered for five seconds, after which the game was loaded from what was kept
+  on the card. An address that stops answering is looked up afresh.
+
 - A slow frame says in `omega-zero.log` where its time went, step by step, and RetroAchievements
   logs each step of a game's achievements loading with its time. README-FORK.md has what each
   thread does and what the log says.
