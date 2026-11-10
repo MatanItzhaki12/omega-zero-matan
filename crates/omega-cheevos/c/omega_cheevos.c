@@ -243,7 +243,7 @@ int oc_start(int hardcore) {
     client = rc_client_create(read_memory, server_call);
     if (!client)
       return 0;
-    rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_INFO, log_message);
+    rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_WARN, log_message);
     rc_client_set_event_handler(client, event_handler);
     /* memory is read only in oc_frame, on the thread that runs the core */
     rc_client_set_allow_background_memory_reads(client, 0);

@@ -436,12 +436,12 @@ without a debugger:
 
 - `slow frame going in: N ms: update …, emulator …, draw …, swap …` for a frame of a cart going
   in that took over 30 ms;
-- `slow advance` (input, presses, update), `slow update`, `slow app update` and `slow timers`,
-  each step's share of a frame's work over 30 ms;
+- `slow advance` (input, presses, update) and `slow update` (the app, core options, the core,
+  its settling, the rest), each step's share of a frame's work over 30 ms;
 - `omega-cheevos: <thread> waited N ms for the client and held it N ms`, for a call into
   RetroAchievements' client that held it, or waited for it, 50 ms or more;
-- `cheevos: N ms: …`, the steps of signing in and of a game's achievements loading, timed from
-  omega-zero's start: each request, each answer, and the game as RetroAchievements knows it.
+- `cheevos: N ms: …`, what rcheevos warns of, and why a request to the site failed, as curl
+  says, timed from omega-zero's start.
 
 ## Files on the card
 

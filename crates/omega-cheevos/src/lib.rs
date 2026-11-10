@@ -127,8 +127,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Writes `what` to the log, with the time since omega-zero started, so the steps of a game's
-/// achievements loading can be timed against one another.
+/// Writes `what` to the log, with the time since omega-zero started.
 pub fn trace(what: &str) {
     static BEGAN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
     let ms = BEGAN
@@ -361,7 +360,6 @@ pub fn login() -> Login {
 /// Starts the achievements of the game `rom` of `console` the core has just loaded, read from
 /// `memory`. Called on the thread that runs the core, which `frame` must be called on too.
 pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
-    trace("the game begins");
     let game = GAME.fetch_add(1, Ordering::AcqRel) + 1;
     let begun = with_client(|| unsafe {
         // SAFETY: the shim keeps the region pointers, the core's, for as long as the game is
@@ -416,13 +414,7 @@ fn hash_once(console: u32, rom: &Path) -> Option<String> {
             return hash.clone();
         }
     }
-    let began = std::time::Instant::now();
     let hash = game_hash(console, rom);
-    trace(&format!(
-        "hashed in {} ms{}",
-        began.elapsed().as_millis(),
-        if hash.is_some() { "" } else { ", no hash" }
-    ));
     *hashed = Some((console, rom.to_path_buf(), hash.clone()));
     hash
 }
@@ -430,11 +422,6 @@ fn hash_once(console: u32, rom: &Path) -> Option<String> {
 /// Starts loading the game's achievements, by its hash where it could be made, or by the
 /// client's own look at `rom`, which says why the game is not known. Called under the lock.
 fn load_game(console: u32, rom: &Path, hash: Option<&str>) {
-    trace(if hash.is_some() {
-        "loading by hash"
-    } else {
-        "loading by identifying"
-    });
     // SAFETY: under the lock; the shim copies the hash and the path
     unsafe {
         match hash {
@@ -483,7 +470,6 @@ pub fn game_hash(console: u32, rom: &Path) -> Option<String> {
 /// Loads the achievements of the game `rom` of `console` again, its memory as `begin_game`
 /// set it: after a sign-in or a network that came too late for the game's start.
 pub fn reload_game(console: u32, rom: &Path) {
-    trace("loading again");
     let game = GAME.load(Ordering::Acquire);
     let has_memory = with_client(|| {
         // SAFETY: under the lock
@@ -604,13 +590,8 @@ fn deliver() {
     for (id, status, mut body) in answers {
         let length = body.len();
         body.push(0);
-        let began = std::time::Instant::now();
         // SAFETY: under the lock; the body is NUL-terminated and lives through the call
         unsafe { oc_answer(id, status, body.as_ptr() as *const c_char, length) };
-        trace(&format!(
-            "answer {id} ({status}, {length} bytes) taken in, {} ms",
-            began.elapsed().as_millis()
-        ));
     }
 }
 
@@ -625,13 +606,6 @@ pub extern "C" fn omega_cheevos_server_call(
 ) {
     let url = text(url);
     let post = (!post_data.is_null()).then(|| text(post_data));
-    // which request: its r=, never its account fields
-    let kind = post
-        .as_deref()
-        .and_then(|p| p.split('&').find_map(|f| f.strip_prefix("r=")))
-        .unwrap_or("?")
-        .to_string();
-    trace(&format!("request {id}: {kind}"));
     let content_type = text(content_type);
     let agent = lock(&AGENT).clone();
     if let Some(post) = &post {
@@ -649,7 +623,6 @@ pub extern "C" fn omega_cheevos_server_call(
         .name("omega-cheevos-net".into())
         .spawn(move || {
             let (status, body) = fetch(&url, post.as_deref(), &content_type, &agent);
-            trace(&format!("answer {id} came back ({status})"));
             let answer = match (status > 0, post.as_deref()) {
                 (true, post) => {
                     if let Some(post) = post {

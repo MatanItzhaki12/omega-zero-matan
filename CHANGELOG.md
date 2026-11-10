@@ -46,9 +46,12 @@
   then leaves unanswered for five seconds, after which the game was loaded from what was kept
   on the card. An address that stops answering is looked up afresh.
 
-- A slow frame says in `omega-zero.log` where its time went, step by step, and RetroAchievements
-  logs each step of a game's achievements loading with its time. README-FORK.md has what each
-  thread does and what the log says.
+- A PSP game's disc spins at 0.6 turns a second as the game loads, rather than 1.5: at that
+  speed its print jumped a twentieth of the disc each frame, which read as a stutter.
+
+- A slow frame says in `omega-zero.log` where its time went, step by step, and a request to
+  RetroAchievements that failed says why. README-FORK.md has what each thread does and what the
+  log says.
 
 ## omega-zero 2.6.7
 
