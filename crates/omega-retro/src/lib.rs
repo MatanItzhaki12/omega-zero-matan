@@ -1,5 +1,7 @@
 mod core;
+mod elf;
 mod ffi;
+pub mod gpsp;
 mod libretro;
 mod link;
 mod mock;

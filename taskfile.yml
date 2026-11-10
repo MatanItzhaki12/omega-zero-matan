@@ -398,7 +398,9 @@ tasks:
       - task: core:gpsp
 
   core:gpsp:test:
-    desc: Prove gpSP's Advance Wars session-flip patch still fixes what it was written for
+    desc: >-
+      Prove stock gpSP still overflows its Advance Wars queue on a session flip, and that the
+      reset omega-zero makes as a session starts (omega-retro's gpsp.rs) stops it
     deps: [core:gpsp]
     cmds:
       - sh cores/gpsp/test/run.sh vendor/gpsp-src.tar.gz
@@ -606,6 +608,7 @@ tasks:
         cp vendor/gpsp-src.tar.gz "{{.OUT}}/System/licenses/gpsp-${sha}.tar.gz"
         cp vendor/gpsp-src.meta "{{.OUT}}/System/licenses/gpsp-${sha}.meta"
         for p in cores/gpsp/*.patch; do
+          [ -f "$p" ] || continue
           cp "$p" "{{.OUT}}/System/licenses/gpsp-$(basename "$p")"
         done
       - |
@@ -661,6 +664,7 @@ tasks:
         adb push vendor/gpsp-src.tar.gz "{{.SD}}/System/licenses/gpsp-${sha}.tar.gz"
         adb push vendor/gpsp-src.meta "{{.SD}}/System/licenses/gpsp-${sha}.meta"
         for p in cores/gpsp/*.patch; do
+          [ -f "$p" ] || continue
           adb push "$p" "{{.SD}}/System/licenses/gpsp-$(basename "$p")"
         done
       - |

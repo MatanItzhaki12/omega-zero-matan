@@ -16,6 +16,11 @@ int main(void) {
 
   netplay_num_clients = 0;
   netplay_client_id = 1;
+#ifdef FRONTEND_RESET
+  /* what omega-zero does as the session starts, through gpSP's symbol table: serstate's
+   * bytes cleared, as gpSP's own serialproto_reset clears them */
+  memset(&serstate, 0, sizeof serstate);
+#endif
 
   for (int step = 0; step < 900; step++) {
     write_ioreg(REG_SIOMLT_SEND, 0x7FFF);

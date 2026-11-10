@@ -119,6 +119,8 @@ pub fn run() {
     let root = std::env::var_os("OMEGA_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(CARD));
+    // first of all, while the process is nearly empty: gpSP's code cache needs room beside it
+    omega_zero::core::keep_gpsp_room(&root);
     let mut surface = match FbdevSurface::new() {
         Ok(s) => s,
         Err(e) => {

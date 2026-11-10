@@ -472,11 +472,12 @@ unsafe extern "C" fn netpacket_poll_receive() {
     }
 }
 
-unsafe fn begin_link(client_id: u16) {
+unsafe fn begin_link(client_id: u16, started: impl FnOnce()) {
     let Some(start) = with_host(|h| h.netpacket.as_ref().and_then(|cb| cb.start)).flatten() else {
         return;
     };
     start(client_id, netpacket_send, netpacket_poll_receive);
+    started();
 
     let peer = 1u16.wrapping_sub(client_id);
     let connected = with_host(|h| {
@@ -630,6 +631,8 @@ pub struct LibretroCore {
     /// The disc to start from, and the file it is read from, handed to the core before it loads.
     initial_disc: Option<(c_uint, CString)>,
     loaded: bool,
+    /// gpSP's library, and its link state where its symbol table names it: none for another core.
+    gpsp: Option<(std::path::PathBuf, Option<crate::gpsp::SerialState>)>,
     _lib: Library,
 }
 
@@ -835,8 +838,25 @@ impl LibretroCore {
             (api.set_audio_sample_batch)(audio_batch);
             (api.set_input_poll)(input_poll);
             (api.set_input_state)(input_state);
+            // gpSP's code cache takes the room kept beside it as it is made
+            let gpsp = crate::gpsp::is_gpsp(dylib);
+            if gpsp {
+                crate::gpsp::make_room(dylib);
+            }
             (api.init)();
         }
+        let gpsp = crate::gpsp::is_gpsp(dylib).then(|| {
+            let serial = crate::gpsp::SerialState::find(dylib, api.init as usize);
+            if let Some(serial) = &serial {
+                // a gpSP kept loaded starts each game from a clean link, as one loaded afresh
+                // SAFETY: gpSP is loaded, and on this thread, which runs it
+                unsafe {
+                    serial.reset();
+                    serial.alone();
+                }
+            }
+            (dylib.to_path_buf(), serial)
+        });
         Ok(LibretroCore {
             api,
             host,
@@ -844,6 +864,7 @@ impl LibretroCore {
             rom_path: None,
             initial_disc: None,
             loaded: false,
+            gpsp,
             _lib: lib,
         })
     }
@@ -864,6 +885,10 @@ impl Drop for LibretroCore {
         unsafe {
             let _a = Active::bind(&mut self.host);
             (self.api.deinit)();
+        }
+        // gpSP's cache has gone with its deinit: its room is kept again
+        if let Some((path, _)) = &self.gpsp {
+            crate::gpsp::keep_room_again(path);
         }
         LIVE.store(false, Ordering::SeqCst);
     }
@@ -1124,8 +1149,17 @@ impl RetroCore for LibretroCore {
     }
 
     fn start_link(&mut self, client_id: u16) {
+        let serial = self.gpsp.as_ref().and_then(|(_, s)| s.as_ref());
         let _a = Active::bind(&mut self.host);
-        unsafe { begin_link(client_id) };
+        // gpSP starts the session from a clean link, whatever the game did with it alone
+        // SAFETY: gpSP is loaded, and on this thread, which runs it
+        unsafe {
+            begin_link(client_id, || {
+                if let Some(serial) = serial {
+                    serial.reset();
+                }
+            })
+        };
     }
 
     fn pump_link(&mut self) {
@@ -1136,6 +1170,14 @@ impl RetroCore for LibretroCore {
     fn stop_link(&mut self) {
         let _a = Active::bind(&mut self.host);
         unsafe { halt_link() };
+        // and leaves it alone again, with no peer's buffers left behind
+        if let Some(serial) = self.gpsp.as_ref().and_then(|(_, s)| s.as_ref()) {
+            // SAFETY: gpSP is loaded, and on this thread, which runs it
+            unsafe {
+                serial.alone();
+                serial.reset();
+            }
+        }
     }
 }
 
@@ -1813,7 +1855,7 @@ mod tests {
         host.netpacket = Some(test_netpacket_callback());
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(0) };
+            unsafe { begin_link(0, || {}) };
         }
         reset_test_netpacket_recorders();
         host.net.push_inbound(b"from the peer".to_vec());
@@ -1964,7 +2006,7 @@ mod tests {
         host.netpacket = Some(test_netpacket_callback());
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(0) };
+            unsafe { begin_link(0, || {}) };
         }
         reset_test_netpacket_recorders();
         host.net.push_inbound(b"from the peer".to_vec());
@@ -2035,7 +2077,7 @@ mod tests {
         });
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(0) };
+            unsafe { begin_link(0, || {}) };
         }
 
         TEST_START_CLIENT.with(|c| assert_eq!(c.get(), Some(0)));
@@ -2053,7 +2095,7 @@ mod tests {
         );
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(1) };
+            unsafe { begin_link(1, || {}) };
         }
 
         TEST_START_CLIENT.with(|c| assert_eq!(c.get(), Some(1), "client id was not forwarded"));
@@ -2069,7 +2111,7 @@ mod tests {
         let mut host = host_with(HashMap::new(), false);
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(0) };
+            unsafe { begin_link(0, || {}) };
         }
 
         TEST_START_CLIENT.with(|c| assert_eq!(c.get(), None, "nothing to start, nothing called"));
@@ -2086,7 +2128,7 @@ mod tests {
         });
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(0) };
+            unsafe { begin_link(0, || {}) };
         }
 
         TEST_CONNECTED_CLIENT.with(|c| {
@@ -2106,7 +2148,7 @@ mod tests {
 
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(0) };
+            unsafe { begin_link(0, || {}) };
         }
 
         assert!(
@@ -2155,7 +2197,7 @@ mod tests {
         });
         {
             let _active = Active::bind(&mut host);
-            unsafe { begin_link(1) };
+            unsafe { begin_link(1, || {}) };
         }
         {
             let _active = Active::bind(&mut host);

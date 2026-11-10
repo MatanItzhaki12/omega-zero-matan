@@ -1,9 +1,12 @@
 #!/bin/sh
+# Stock gpSP's Advance Wars serial protocol, flipped from lone master to joiner mid-game as a
+# session started while the game is on its link screen does: alone it overflows its peer
+# queue; with serstate cleared as the session starts, as omega-zero clears it through gpSP's
+# symbol table (crates/omega-retro/src/gpsp.rs), it does not.
 set -eu
 
 here="$(cd "$(dirname "$0")" && pwd)"
-tarball="${1:?usage: run.sh TARBALL [PATCHDIR]}"
-patches="${2:-$here/..}"
+tarball="${1:?usage: run.sh TARBALL}"
 cc="${CC:-cc}"
 
 work="$(mktemp -d)"
@@ -23,24 +26,21 @@ fi
 build() {
 	mkdir -p "$1"
 	cp "$src/serial_proto.c" "$src/serial.h" "$1/"
-	"$cc" -I"$1" -I"$here" $asan -g -O1 -o "$1/awtest" "$here/awtest.c"
+	"$cc" -I"$1" -I"$here" $asan $2 -g -O1 -o "$1/awtest" "$here/awtest.c"
 }
 
-build "$work/unpatched"
-for p in "$patches"/*.patch; do
-	git -C "$src" apply -p1 "$p"
-done
-build "$work/patched"
+build "$work/stock" ""
+build "$work/reset" "-DFRONTEND_RESET"
 
-if "$work/unpatched/awtest" >"$work/unpatched.log" 2>&1; then
-	echo "FAIL: unpatched gpSP passed, so this test no longer proves anything" >&2
+if "$work/stock/awtest" >"$work/stock.log" 2>&1; then
+	echo "FAIL: stock gpSP passed, so this test no longer proves anything" >&2
 	exit 1
 fi
-echo "ok: unpatched gpSP fails, as it must"
-grep -m1 -E 'ERROR|SUMMARY|Assertion|assert' "$work/unpatched.log" || true
+echo "ok: stock gpSP overflows on the flip, as it must"
+grep -m1 -E 'ERROR|SUMMARY|Assertion|assert' "$work/stock.log" || true
 
-if ! "$work/patched/awtest"; then
-	echo "FAIL: patched gpSP still overflows the peer queue" >&2
+if ! "$work/reset/awtest"; then
+	echo "FAIL: stock gpSP still overflows with serstate cleared as the session starts" >&2
 	exit 1
 fi
-echo "ok: patched gpSP holds the queue-length invariant across the session flip"
+echo "ok: with serstate cleared as the session starts, the queue holds across the flip"

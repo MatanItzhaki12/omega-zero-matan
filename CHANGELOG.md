@@ -46,6 +46,12 @@
   frame began, which moved with how long recent frames took to make: a PSP game's spinning
   disc jolted a few degrees each time it moved, though every frame reached the panel on time.
 
+- gpSP is libretro's own, built from its source with no patch: what the two patches did,
+  omega-zero does from its side, so a newer gpSP can be taken as it is. Its code cache has room
+  kept for it beside gpSP's code from the moment omega-zero starts, so it never starts with
+  none and crashes; and its link buffers are cleared as a session starts and ends, as the patch
+  for Advance Wars' session flip did. README-FORK.md says how.
+
 - A slow frame says in `omega-zero.log` where its time went, step by step, and a request to
   RetroAchievements that failed says why. README-FORK.md has what each thread does and what the
   log says.

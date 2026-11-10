@@ -224,6 +224,24 @@ playing when the handheld went off is picked up again, as before.
   picked cart is drawn in front. A narrow cart beside a wide one, such as a Game Boy pak beside
   a GBA cart on Favorites, no longer covers it.
 
+## gpSP, as libretro ships it
+
+gpSP is built from its pinned source with no patch of its own (`cores/gpsp/build.sh`). What it
+needs to run safely on the handheld, omega-zero does from its side
+(`crates/omega-retro/src/gpsp.rs`):
+
+- **Its code cache.** gpSP's recompiler maps its 10.5 MB cache within the 128 MB an arm64
+  branch reaches of its own code, and in a busy process may find no room there, then crash on
+  its first translated block. omega-zero loads gpSP as it starts, before anything else, keeps it
+  loaded so its code stays put, and keeps room at the first address gpSP tries. The room is let
+  go just before gpSP's `retro_init`, and kept again after its `retro_deinit`.
+- **Its link play.** gpSP never clears its cable protocols' buffers, `serstate`, when a session
+  starts on a game already on its link screen: Advance Wars' joiner then overflows them. omega-
+  zero finds `serstate` and the client ids by gpSP's symbol table and clears them as a session
+  starts and ends, and as each game starts. `task core:gpsp:test` proves, against gpSP's own
+  source, that stock gpSP overflows on that flip and that this clearing stops it. A gpSP built
+  without its symbol table is run as it is.
+
 ## Run-Ahead
 
 Settings › Gameplay › **Run-Ahead**, off to begin with, and in a gpSP game's menu under GAMEPLAY.

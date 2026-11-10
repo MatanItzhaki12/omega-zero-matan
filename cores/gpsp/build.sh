@@ -20,7 +20,9 @@ stamp() {
 	echo "source=https://github.com/libretro/gpsp/archive/$1.tar.gz"
 	echo "recipe=make platform=arm64"
 	echo "device_cflags=$device_cflags"
+	# gpSP is built as libretro ships it: no patch is kept, and one added later is stamped
 	for p in "$here"/*.patch; do
+		[ -f "$p" ] || continue
 		echo "patch=$(basename "$p") sha256:$(sha256 "$p")"
 	done
 }
@@ -41,6 +43,7 @@ build() {
 	# a worktree's checkout names its repository by a path the build container does not have.
 	ceiling="$(cd "$work" && pwd)"
 	for p in "$here"/*.patch; do
+		[ -f "$p" ] || continue
 		GIT_CEILING_DIRECTORIES="$ceiling" git -C "$src" apply -p1 "$p"
 	done
 

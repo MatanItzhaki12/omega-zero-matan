@@ -64,6 +64,17 @@ impl<'a> Setup<'a> {
     }
 }
 
+/// Loads gpSP for good, with room kept beside it for its code cache (see omega_retro::gpsp):
+/// the first of the places a game's gpSP is opened from that has it.
+pub fn keep_gpsp_room(root: &Path) {
+    if let Some(path) = candidates(root, Core::Gpsp)
+        .into_iter()
+        .find(|p| p.is_file())
+    {
+        omega_retro::gpsp::keep_room(&path);
+    }
+}
+
 /// Opens `core` for a game, from the content root's System folder or beside omega-zero, with the
 /// options omega-zero sets on it; the mock test pattern when it is nowhere.
 pub fn open(root: &Path, core: Core, setup: Setup) -> Opened {
