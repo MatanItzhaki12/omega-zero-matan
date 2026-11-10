@@ -431,6 +431,10 @@ there:
 | Wi-Fi, Bluetooth, headphones, SSH, Save Backup, updates | Their own worker threads |
 | RetroAchievements: hashing, the network, taking in answers | `omega-cheevos-hash`, `omega-cheevos-net`, `omega-cheevos-answers` |
 
+Each frame's animations step by the time between the last two frames the panel showed, as
+their swaps returned, rather than by when the frame began, which moves with how long recent
+frames took to make.
+
 `omega-zero.log` on the card says where a slow frame's time went, so a hitch can be found
 without a debugger:
 

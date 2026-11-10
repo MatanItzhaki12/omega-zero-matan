@@ -34,6 +34,7 @@ mod face_builder;
 mod fastforward;
 mod flush;
 mod frame_size;
+mod frame_time;
 mod frames;
 mod gpsp;
 mod headphones;

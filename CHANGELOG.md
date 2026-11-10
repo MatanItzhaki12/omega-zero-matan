@@ -11,15 +11,11 @@
   held, in either order, restarts once POWER has been held as long as a power-off takes, and
   both let go of sooner do nothing.
 
-- A PSP game's disc spins smoothly as it loads. Its game was hashed for RetroAchievements
-  while the achievements client was held, and the screen, which looks in on the client every
-  frame, waited out the third of a second hashing a disc takes. A game is hashed on a thread of
-  its own now, a cartridge's ROM as much as a disc, and only its hash handed to the client. The
-  site's answers, a game's achievements among them, which take the client up to a second to
-  take in, are taken in on a thread of their own too, and the screen and the game look in on
-  the client only when it is free, so no game hitches as its achievements load. The note that a core is
-  starting is written to the card off the screen's thread too, and a slow frame says in the
-  log where its time went.
+- A game no longer stalls as it starts while RetroAchievements loads it: a PSP game's disc
+  stopped for a third of a second, and a GBA game for a second. The game is hashed on a thread
+  of its own, and only its hash handed to the achievements client; the site's answers, which
+  take the client up to a second to take in, are taken in on another; and the screen and the
+  game look in on the client only when it is free. Hardcore's check still waits for it.
 
 - Putting a PSP game away no longer holds the shelf up as it comes back: its core closes on
   the emulator's thread, and the next game's core waits for it rather than the screen.
@@ -29,8 +25,8 @@
 
 - A cart coming out has its state taken and written to the card on a thread of its own, so
   its slide out waits neither for the core to give the state up, a tenth of a second for a
-  PSP game, nor for the card. The next game to start waits for
-  the write before it reads its resume, so a game put back in at once picks up where it was.
+  PSP game, nor for the card. The next game to start waits for the write before it reads its
+  resume, so a game put back in at once picks up where it was.
 
 - Starting a game no longer stalls as the one put away before it is still being written to the
   card. The small files omega-zero keeps there, its state, Recents, Favorites and the note of
