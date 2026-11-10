@@ -430,13 +430,19 @@ fn an_autosave_takes_a_running_cores_state_on_its_own_thread() {
 }
 
 #[test]
-fn an_ejected_cart_of_a_running_core_has_its_state_written_behind_it() {
+fn an_ejected_cart_of_a_running_core_has_its_state_taken_and_written_behind_it() {
     // a shelf of one cart keeps it in
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let gated = Gated::new();
-    gated.open();
-    let mut a = app_playing_with(d.path(), "Emerald", Box::new(gated));
+    let mut a = app_playing_with(d.path(), "Emerald", Box::new(gated.clone()));
+    let began = std::time::Instant::now();
     a.apply(Action::Eject);
+    assert!(
+        began.elapsed() < std::time::Duration::from_secs(1),
+        "the cart coming out waited {:?} on the screen's thread for the core's state",
+        began.elapsed()
+    );
+    gated.open();
     a.settle_saves();
     assert_eq!(
         StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald")

@@ -27,8 +27,9 @@
 - The autosave no longer hitches a game once a minute: the core's state is taken and written on
   the autosave's own thread, rather than the screen waiting for the core to give it up.
 
-- A cart coming out writes its state to the card on a thread of its own, once the state is
-  taken, so the cart's slide out is not held up by the card. The next game to start waits for
+- A cart coming out has its state taken and written to the card on a thread of its own, so
+  its slide out waits neither for the core to give the state up, a tenth of a second for a
+  PSP game, nor for the card. The next game to start waits for
   the write before it reads its resume, so a game put back in at once picks up where it was.
 
 - Starting a game no longer stalls as the one put away before it is still being written to the

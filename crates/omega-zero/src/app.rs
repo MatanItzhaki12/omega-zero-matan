@@ -3131,37 +3131,56 @@ impl App {
         let (Some(root), Some(snapshot)) = (&self.root, &self.snapshot) else {
             return;
         };
-        let Some(state) = snapshot.state() else {
-            eprintln!("omega-zero: eject: the core gave up no state");
-            return;
+        // a running core's state is taken and written on a thread of its own: the core giving
+        // a PSP game's state up takes a tenth of a second, and the card a moment to sync it,
+        // which the cart coming out would otherwise wait out. The emulator answers the ask
+        // before it stops, and the next core to open waits for the write before it reads a
+        // resume. The empty slot is kept with the rest of omega-zero's state, which the card's
+        // writer takes in order, rather than by rewriting the state file from that thread over
+        // a newer one
+        let taken = match snapshot.detached() {
+            Some(detached) => Taken::Later(detached),
+            None => match snapshot.state() {
+                Some(state) => Taken::Now(trusted_write(snapshot.as_ref(), state, "eject")),
+                None => {
+                    eprintln!("omega-zero: eject: the core gave up no state");
+                    return;
+                }
+            },
         };
-        let (state, sav) = trusted_write(snapshot.as_ref(), state, "eject");
-        let state = state.filter(|_| self.state.eject_save);
-        // a running core's state is written to the card on a thread of its own, as the card
-        // takes a moment to sync, which the cart coming out would otherwise wait out; the next
-        // core to open waits for it before it reads a resume. The empty slot is kept with the
-        // rest of omega-zero's state, which the card's writer takes in order, rather than by
-        // rewriting the state file from that thread over a newer one
-        let behind = snapshot.detached().is_some();
+        let behind = matches!(taken, Taken::Later(_));
+        let eject_save = self.state.eject_save;
         let (root, platform, core, stem) =
             (root.clone(), self.platform, self.core, stem.to_owned());
-        let write = move || match behind {
-            true => persist::flush(
-                &root,
-                platform,
-                core,
-                &stem,
-                state.as_deref(),
-                sav.as_deref(),
-            ),
-            false => persist::eject(
-                &root,
-                platform,
-                core,
-                &stem,
-                state.as_deref(),
-                sav.as_deref(),
-            ),
+        let write = move || {
+            let (state, sav) = match taken {
+                Taken::Now(written) => written,
+                Taken::Later(snapshot) => {
+                    let Some(state) = snapshot.state() else {
+                        return Err(std::io::Error::other("the core gave up no state"));
+                    };
+                    trusted_write(snapshot.as_ref(), state, "eject")
+                }
+            };
+            let state = state.filter(|_| eject_save);
+            match behind {
+                true => persist::flush(
+                    &root,
+                    platform,
+                    core,
+                    &stem,
+                    state.as_deref(),
+                    sav.as_deref(),
+                ),
+                false => persist::eject(
+                    &root,
+                    platform,
+                    core,
+                    &stem,
+                    state.as_deref(),
+                    sav.as_deref(),
+                ),
+            }
         };
         // the backup looks for the save once it is on the card
         let pass = self.save_backup.as_ref().map(|b| b.passer());
