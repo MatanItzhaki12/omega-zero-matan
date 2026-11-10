@@ -231,10 +231,14 @@ needs to run safely on the handheld, omega-zero does from its side
 (`crates/omega-retro/src/gpsp.rs`):
 
 - **Its code cache.** gpSP's recompiler maps its 10.5 MB cache within the 128 MB an arm64
-  branch reaches of its own code, and in a busy process may find no room there, then crash on
-  its first translated block. omega-zero loads gpSP as it starts, before anything else, keeps it
-  loaded so its code stays put, and keeps room at the first address gpSP tries. The room is let
-  go just before gpSP's `retro_init`, and kept again after its `retro_deinit`.
+  branch reaches of its own code, by hints the kernel may not take: in a busy process it may
+  find no room and crash on its first translated block, and the kernel's own pick may lie at
+  the very edge, out of reach of the end of gpSP's code, which crashed it too. omega-zero loads
+  gpSP as it starts, before anything else, keeps it loaded so its code stays put, and keeps
+  room for the cache within 96 MB of it. Just before gpSP's `retro_init` it fills every other
+  free gap within 140 MB for the moment and lets the room go, so the cache can only be made in
+  the room; the gaps go once `retro_init` returns, and the room is kept again after
+  `retro_deinit`.
 - **Its link play.** gpSP never clears its cable protocols' buffers, `serstate`, when a session
   starts on a game already on its link screen: Advance Wars' joiner then overflows them. omega-
   zero finds `serstate` and the client ids by gpSP's symbol table and clears them as a session

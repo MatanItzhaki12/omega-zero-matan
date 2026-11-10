@@ -48,9 +48,10 @@
 
 - gpSP is libretro's own, built from its source with no patch: what the two patches did,
   omega-zero does from its side, so a newer gpSP can be taken as it is. Its code cache has room
-  kept for it beside gpSP's code from the moment omega-zero starts, so it never starts with
-  none and crashes; and its link buffers are cleared as a session starts and ends, as the patch
-  for Advance Wars' session flip did. README-FORK.md says how.
+  kept for it beside gpSP's code from the moment omega-zero starts, and, as gpSP makes it, the
+  only room near its code: it never starts with no cache, nor with one at the edge of its
+  reach, which crashed a game as it started. Its link buffers are cleared as a session starts
+  and ends, as the patch for Advance Wars' session flip did. README-FORK.md says how.
 
 - A slow frame says in `omega-zero.log` where its time went, step by step, and a request to
   RetroAchievements that failed says why. README-FORK.md has what each thread does and what the

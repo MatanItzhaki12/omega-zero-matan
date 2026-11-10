@@ -844,6 +844,9 @@ impl LibretroCore {
                 crate::gpsp::make_room(dylib);
             }
             (api.init)();
+            if gpsp {
+                crate::gpsp::made_room(dylib);
+            }
         }
         let gpsp = crate::gpsp::is_gpsp(dylib).then(|| {
             let serial = crate::gpsp::SerialState::find(dylib, api.init as usize);
