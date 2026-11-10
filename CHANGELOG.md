@@ -25,8 +25,8 @@
 
 - A cart coming out has its state taken and written to the card on a thread of its own, so
   its slide out waits neither for the core to give the state up, a tenth of a second for a
-  PSP game, nor for the card. The next game to start waits for the write before it reads its
-  resume, so a game put back in at once picks up where it was.
+  PSP game, nor for the card. The same game put back in at once waits for the write before it
+  reads its resume, so it picks up where it was; another game starts without waiting for it.
 
 - Starting a game no longer stalls as the one put away before it is still being written to the
   card. The small files omega-zero keeps there, its state, Recents, Favorites and the note of

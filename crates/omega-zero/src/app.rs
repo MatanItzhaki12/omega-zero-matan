@@ -443,6 +443,8 @@ pub struct App {
     pub(crate) woke_on_press: bool,
     pub(crate) autosave_at: Millis,
     pub(crate) pending_save: Option<std::thread::JoinHandle<()>>,
+    /// The game whose save that is.
+    pending_for: Option<(Platform, String)>,
     pub(crate) battery_at: Millis,
     pub(crate) charge_at: Millis,
     pub(crate) headphones: bool,
@@ -674,6 +676,7 @@ impl App {
             woke_on_press: false,
             autosave_at: AUTOSAVE_MS,
             pending_save: None,
+            pending_for: None,
             battery_at: BATTERY_POLL_MS,
             charge_at: CHARGE_POLL_MS,
             headphones: false,
@@ -1439,6 +1442,7 @@ impl App {
 
     pub fn restart(&mut self) {
         self.settle_saves();
+        crate::card_writer::settle();
         if let Some(power) = &mut self.power {
             power.restart();
         }
@@ -1529,6 +1533,7 @@ impl App {
     pub fn poweroff(&mut self) {
         self.remember_pick();
         self.settle_saves();
+        crate::card_writer::settle();
         if let Some(power) = &mut self.power {
             power.poweroff();
         }
@@ -3129,6 +3134,7 @@ impl App {
         let eject_save = self.state.eject_save;
         let (root, platform, core, stem) =
             (root.clone(), self.platform, self.core, stem.to_owned());
+        let stem_of_write = stem.clone();
         let write = move || {
             let (state, sav) = match taken {
                 Taken::Now(written) => written,
@@ -3168,7 +3174,10 @@ impl App {
                     Ok(()) => pass.iter().for_each(|pass| pass()),
                     Err(e) => eprintln!("omega-zero: eject: {e}"),
                 })
-                .map(|h| self.pending_save = Some(h))
+                .map(|h| {
+                    self.pending_save = Some(h);
+                    self.pending_for = Some((platform, stem_of_write));
+                })
                 .map_err(|e| eprintln!("omega-zero: eject: no writer thread: {e}"))
                 .is_ok(),
             false => write()
@@ -3187,10 +3196,19 @@ impl App {
         }
     }
 
-    /// The save being written to the card, handed to the thread a core opens on, which waits
-    /// for it before it reads the game's resume.
-    pub(crate) fn take_pending_save(&mut self) -> Option<std::thread::JoinHandle<()>> {
-        self.pending_save.take()
+    /// The save being written to the card of the game by `stem` on `platform`, handed to the
+    /// thread its core opens on, which waits for it before it reads the game's resume. Another
+    /// game's is left to finish on its own: the game starting reads nothing it writes.
+    pub(crate) fn take_pending_save(
+        &mut self,
+        platform: Platform,
+        stem: &str,
+    ) -> Option<std::thread::JoinHandle<()>> {
+        let ours = self
+            .pending_for
+            .as_ref()
+            .is_none_or(|(p, s)| *p == platform && s == stem);
+        ours.then(|| self.pending_save.take()).flatten()
     }
 
     fn doze(&mut self) {
@@ -4100,7 +4118,6 @@ impl App {
         if let Some(h) = self.pending_save.take() {
             let _ = h.join();
         }
-        crate::card_writer::settle();
     }
 
     fn autosave(&mut self) {
@@ -4112,6 +4129,7 @@ impl App {
         };
         let (root, platform, core, cart) =
             (root.clone(), self.platform, self.core, cart.to_owned());
+        let autosaved = cart.clone();
         // the state is taken on the writer's thread where it can be, as the core giving it up
         // takes a frame or more, which the screen would otherwise wait out every autosave
         let taken = match snapshot.detached() {
@@ -4156,7 +4174,10 @@ impl App {
                 crate::spawn::stand_back();
                 write()
             }) {
-            Ok(h) => self.pending_save = Some(h),
+            Ok(h) => {
+                self.pending_save = Some(h);
+                self.pending_for = Some((self.platform, autosaved));
+            }
             Err(e) => eprintln!("omega-zero: autosave: no writer thread: {e}"),
         }
     }

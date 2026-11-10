@@ -528,7 +528,7 @@ impl Session {
         let wants_resume = resume_wanted;
         // a save still being written, as the game put away last is: waited for there, so the
         // resume read is the one just written
-        let writing = self.app.take_pending_save();
+        let writing = self.app.take_pending_save(platform, stem);
         let spawned = std::thread::Builder::new()
             .name("omega-core-open".into())
             .spawn(move || {
