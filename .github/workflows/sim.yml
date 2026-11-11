@@ -2,8 +2,14 @@ name: sim
 
 # The frontend run off screen on an Arm runner, near the H700 the handheld has: four cores,
 # each held to a share of its time, as scripts/sim.sh runs it. Its frames and its log are kept
-# as the run's artifact. Run by hand, from the Actions page or the API.
+# as the run's artifact. Run by hand from the Actions page or the API, and on a push that changes
+# the run itself.
 on:
+  push:
+    paths:
+      - scripts/sim.sh
+      - scripts/sim/**
+      - .github/workflows/sim.yml
   workflow_dispatch:
     inputs:
       script:
