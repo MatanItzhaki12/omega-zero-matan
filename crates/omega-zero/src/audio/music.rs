@@ -32,7 +32,7 @@ const CHORDS: [[u8; 4]; 8] = [
 const ARP: [usize; 8] = [0, 1, 2, 3, 2, 1, 3, 2];
 
 /// The whole tune's level as a share of full scale, before the volume: under the menus' sounds.
-const LEVEL: f32 = 0.11;
+const LEVEL: f32 = 0.2;
 /// How fast it fades, in gain a second: in over a second, out over half of one.
 const FADE_IN: f32 = 1.0;
 const FADE_OUT: f32 = 2.0;
