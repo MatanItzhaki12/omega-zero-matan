@@ -33,8 +33,13 @@ if ls "$debs"/*.deb >/dev/null 2>&1; then
 fi
 
 case "$(dpkg --print-architecture)" in
-amd64) mirrors="http://archive.ubuntu.com/ubuntu http://us.archive.ubuntu.com/ubuntu http://mirrors.edge.kernel.org/ubuntu" ;;
-*) mirrors="http://ports.ubuntu.com/ubuntu-ports" ;;
+# Canonical's own first, then mirrors run by others, on other networks
+amd64) mirrors="http://archive.ubuntu.com/ubuntu http://us.archive.ubuntu.com/ubuntu
+	http://mirrors.edge.kernel.org/ubuntu http://mirrors.mit.edu/ubuntu
+	http://mirror.arizona.edu/ubuntu https://mirror.us.leaseweb.net/ubuntu
+	http://ftp.halifax.rwth-aachen.de/ubuntu" ;;
+*) mirrors="http://ports.ubuntu.com/ubuntu-ports http://mirrors.ocf.berkeley.edu/ubuntu-ports
+	http://ftp.tu-chemnitz.de/pub/linux/ubuntu-ports https://mirrors.ustc.edu.cn/ubuntu-ports" ;;
 esac
 
 apt="sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o APT::Sandbox::User=root -o Dir::Cache::Archives=$debs"

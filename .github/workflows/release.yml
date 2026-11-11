@@ -8,6 +8,13 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      checks_run_elsewhere:
+        description: >-
+          The checks were run on another machine and passed, as when GitHub's runners cannot reach
+          the package mirrors: release without running them here
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -59,7 +66,7 @@ jobs:
   checks:
     name: checks
     needs: version
-    if: needs.version.outputs.release == 'true'
+    if: needs.version.outputs.release == 'true' && !inputs.checks_run_elsewhere
     uses: ./.github/workflows/ci.yml
 
   build:

@@ -148,6 +148,12 @@ and not others, at a steady 60 frames a second.
 A test build of any branch is one `workflow_dispatch` of `release.yml`. It builds the same
 artifacts without publishing a release.
 
+CI installs its Ubuntu packages with `scripts/ci-apt.sh`: it tries the runner's mirror, then
+Canonical's and others', skipping any that do not answer, and caches what it fetched. When
+GitHub's runners reach no mirror at all, run the checks somewhere else (`cargo fmt --check`, both
+clippies and `cargo test --workspace`, as in Testing), then run `release.yml` by hand on `main`
+with **checks_run_elsewhere** ticked: it releases without running them on GitHub.
+
 ## Style
 
 - `cargo fmt`, and clippy with warnings denied. The workspace's own lints are in the root

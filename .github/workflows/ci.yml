@@ -58,7 +58,9 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: /var/tmp/apt-debs
-          key: apt-${{ runner.os }}-${{ runner.arch }}-lint-${{ hashFiles('scripts/ci-apt.sh') }}
+          key: apt-${{ runner.os }}-${{ runner.arch }}-lint-v1
+          # a job with none of its own takes another's: the tests' hold every package
+          restore-keys: apt-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install the host build's system libraries
         run: sh scripts/ci-apt.sh libasound2-dev libudev-dev pkg-config
@@ -92,7 +94,9 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: /var/tmp/apt-debs
-          key: apt-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('scripts/ci-apt.sh') }}
+          key: apt-${{ runner.os }}-${{ runner.arch }}-test-v1
+          # a job with none of its own takes another's: the tests' hold every package
+          restore-keys: apt-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install the host build's system libraries and Mesa
         run: |
