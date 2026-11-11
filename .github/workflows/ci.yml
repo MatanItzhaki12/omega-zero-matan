@@ -54,13 +54,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # the packages fetched, kept so a run whose mirrors cannot be reached installs from here
+      - uses: actions/cache@v6
+        with:
+          path: /var/tmp/apt-debs
+          key: apt-${{ runner.os }}-${{ runner.arch }}-lint-${{ hashFiles('scripts/ci-apt.sh') }}
+
       - name: Install the host build's system libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev pkg-config
+        run: sh scripts/ci-apt.sh libasound2-dev libudev-dev pkg-config
 
       - name: Install the pinned toolchain
-        run: rustup toolchain install
+        run: for i in 1 2 3 4; do rustup toolchain install && exit 0; sleep $((i * 15)); done; exit 1
 
       # pinned to the commit v2 named when it was pinned: a tag can be moved, a commit cannot
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -84,14 +88,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # the packages fetched, kept so a run whose mirrors cannot be reached installs from here
+      - uses: actions/cache@v6
+        with:
+          path: /var/tmp/apt-debs
+          key: apt-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('scripts/ci-apt.sh') }}
+
       - name: Install the host build's system libraries and Mesa
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev pkg-config \
+          sh scripts/ci-apt.sh libasound2-dev libudev-dev pkg-config \
             libegl1 libegl-mesa0 libgl1-mesa-dri
 
       - name: Install the pinned toolchain
-        run: rustup toolchain install
+        run: for i in 1 2 3 4; do rustup toolchain install && exit 0; sleep $((i * 15)); done; exit 1
 
       # pinned to the commit v2 named when it was pinned: a tag can be moved, a commit cannot
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
