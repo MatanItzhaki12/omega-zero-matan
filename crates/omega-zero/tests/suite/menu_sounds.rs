@@ -99,7 +99,7 @@ fn the_menu_sounds_are_short_quiet_and_end_softly() {
         let peak = v.iter().map(|x| x.unsigned_abs()).max().unwrap();
         assert!(peak > 500, "{s:?} is silent");
         assert!(
-            peak < 6_000,
+            peak < 10_000,
             "{s:?} peaks at {peak}, louder than a menu's sound should"
         );
         assert!(
@@ -230,4 +230,42 @@ fn the_tune_plays_on_the_shelf_and_stops_for_a_game() {
     let mut out = vec![0i16; ring.queued_frames() * 2];
     ring.fill(&mut out);
     assert!(out.iter().any(|v| v.abs() > 20), "the shelf is silent");
+}
+
+#[test]
+fn a_umd_spins_up_like_a_drive_before_its_core_opens() {
+    let d = tmp_root_with_carts(&[]);
+    let iso = d.path().join("Games/PSP/Patapon.iso");
+    std::fs::create_dir_all(iso.parent().unwrap()).unwrap();
+    std::fs::write(&iso, vec![0u8; 64 * 1024]).unwrap();
+    // a second game, so the card is not one that starts its only game at boot
+    std::fs::write(iso.with_file_name("Patapon 2.iso"), vec![0u8; 64 * 1024]).unwrap();
+    let mut a = boot(d.path());
+    assert_eq!(a.selected_stem(), Some("Patapon"));
+    assert!(a.core_may_open(), "the shelf holds a core back");
+    a.apply(Action::Insert);
+    assert!(!a.core_may_open(), "the core opened before the disc spun");
+    let mut speeds = Vec::new();
+    for _ in 0..70 {
+        a.update(1.0 / 60.0);
+        speeds.push(a.disc_turns());
+    }
+    assert!(
+        a.core_may_open(),
+        "the core still waits after a second's spin"
+    );
+    assert!(
+        speeds[5] < 1.0,
+        "the disc started at {} turns a second",
+        speeds[5]
+    );
+    assert!(
+        speeds.windows(2).all(|w| w[1] >= w[0]),
+        "the disc slowed as it spun up"
+    );
+    assert!(
+        speeds[69] > 18.0,
+        "the disc reached only {} turns a second",
+        speeds[69]
+    );
 }

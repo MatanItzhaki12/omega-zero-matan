@@ -97,10 +97,26 @@ pub struct CartDive<'a> {
     /// How far the game's screen has come on.
     pub screen: f32,
     pub game: bool,
-    /// A UMD's disc, turned this far, drawn spinning in its window while the game loads, and
-    /// its hub, drawn still over it.
-    pub disc: Option<(TexId, f32, TexId)>,
+    /// A UMD's disc, drawn spinning in its window while the game loads, and its hub, drawn
+    /// still over it.
+    pub disc: Option<SpinningDisc>,
 }
+
+/// A UMD's disc as it spins in its window.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct SpinningDisc {
+    pub tex: TexId,
+    /// How far it has turned, in radians.
+    pub turn: f32,
+    /// How far it turned over the frame shown, in radians: the arc it is smeared along, as
+    /// the eye smears a spinning disc. Past a turn and a half it is drawn as a blur all round.
+    pub smear: f32,
+    pub hub: TexId,
+}
+
+/// The most copies of the disc a frame's smear is drawn from, and how far apart they may be.
+const SMEAR_COPIES: usize = 12;
+const SMEAR_STEP: f32 = std::f32::consts::PI / 30.0;
 
 impl CartDive<'_> {
     pub fn draw(&self, out: &mut Vec<Draw>) {
@@ -170,18 +186,31 @@ impl CartDive<'_> {
         }
 
         // a UMD's disc turning in its window, the cart held square to the screen
-        if let (Some((tex, turn, hub)), true) = (self.disc, pose.yaw == 0.0) {
+        if let (Some(disc), true) = (self.disc, pose.yaw == 0.0) {
             let (wx, wy, ww, wh) = crate::cart::umd_window();
             let (dx, dy, dw, dh) = (x + wx * cw, y + wy * ch, ww * cw, wh * ch);
-            out.push(Draw::Turned {
-                x: dx,
-                y: dy,
-                w: dw,
-                h: dh,
-                tex,
-                alpha: 1.0,
-                turn,
-            });
+            // copies spread back along the arc it turned this frame, each laid over the ones
+            // before at a share that leaves every copy an equal part of the whole: a slow disc
+            // is drawn once, a fast one as the blur of its turn
+            let smear = disc.smear.abs().min(std::f32::consts::TAU * 1.5);
+            let copies = ((smear / SMEAR_STEP).ceil() as usize).clamp(1, SMEAR_COPIES);
+            for k in 0..copies {
+                let back = if copies > 1 {
+                    smear * k as f32 / copies as f32
+                } else {
+                    0.0
+                };
+                out.push(Draw::Turned {
+                    x: dx,
+                    y: dy,
+                    w: dw,
+                    h: dh,
+                    tex: disc.tex,
+                    alpha: 1.0 / (k + 1) as f32,
+                    turn: (disc.turn - back).rem_euclid(std::f32::consts::TAU),
+                });
+            }
+            let hub = disc.hub;
             let k = crate::cart::umd_hub_share();
             out.push(Draw::Tex {
                 x: dx + dw * (1.0 - k) / 2.0,

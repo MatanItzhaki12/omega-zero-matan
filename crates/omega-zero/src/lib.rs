@@ -26,7 +26,6 @@ pub mod face_builder;
 pub mod favorites;
 pub mod frames;
 pub mod frontend;
-pub mod gpu_clock;
 pub mod gpu_core;
 pub mod headphones;
 pub mod headphones_menu;

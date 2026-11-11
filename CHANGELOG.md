@@ -22,10 +22,11 @@
   time in your time zone, as Date & Time has it, rather than UTC, so berries, tides and the sun
   follow your day.
 
-- A PSP game runs with the GPU at its top clock, 648 MHz, from the moment it goes in until it
-  comes out. BaseOS leaves the GPU at 420 MHz, stepping up only after it has been kept busy
-  for a tenth of a second, so the disc's spin and the game's busier scenes waited on it a
-  few frames at a time. Back on the shelf, and in every other game, it is left to clock down.
+- A PSP game's disc spins up the way a drive spins one up: slowly off the mark, then faster and
+  faster to a real disc's speed within a second, its label smearing into rings as it goes, as a
+  spinning disc does to the eye. Each frame draws the disc along the arc it turned, so it no
+  longer flickers from one place to the next. The game's core is opened once the disc is up to
+  speed rather than under it, so the spin is clean; the game starts about a second later.
 
 - Sounds no longer cut each other off. One that starts while another is playing is laid over it,
   and a sound over a game's or the tune's sound no longer pushes it later.

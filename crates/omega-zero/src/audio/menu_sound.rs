@@ -22,11 +22,12 @@ const BACK_HZ: [f32; 2] = [1174.7, 784.0];
 /// The glide from C5 to G5.
 const SHELF_HZ: (f32, f32) = (523.3, 784.0);
 
-/// How loud each peaks, as a share of full scale: well under the cart sounds.
-const MOVE_LEVEL: f32 = 0.07;
-const CONFIRM_LEVEL: f32 = 0.09;
-const BACK_LEVEL: f32 = 0.08;
-const SHELF_LEVEL: f32 = 0.06;
+/// How loud each peaks, as a share of full scale: clear over the tune and a game, still under
+/// the cart sounds.
+const MOVE_LEVEL: f32 = 0.12;
+const CONFIRM_LEVEL: f32 = 0.15;
+const BACK_LEVEL: f32 = 0.14;
+const SHELF_LEVEL: f32 = 0.11;
 
 /// `sfx`, one of the menus', as samples at `rate` scaled to i16's range.
 pub(super) fn render(sfx: Sfx, rate: u32) -> Vec<f32> {

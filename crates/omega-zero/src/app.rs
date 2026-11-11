@@ -65,8 +65,11 @@ pub const EJECT_S: f32 = SEATED_AT;
 /// How far into its way in a cart waits for a game still loading: at the top of its rise.
 const LOADING_HOLD: f32 = 0.2;
 
-/// How fast a UMD's disc spins in its window as its game loads, in turns a second.
-const DISC_SPIN: f32 = 1.5;
+/// How a UMD's disc spins in its window as its game loads: up from still the way a drive spins
+/// one up, slowly off the mark, then faster and faster, to `DISC_SPIN` turns a second, near
+/// enough by `DISC_SPIN_UP` seconds. A disc that fast is a blur to the eye, and is drawn as one.
+const DISC_SPIN: f32 = 20.0;
+const DISC_SPIN_UP: f32 = 1.0;
 
 const EJECT_HOLD_S: f32 = 0.2;
 
@@ -308,6 +311,9 @@ pub struct App {
     /// The disc of the UMD going in, by its game's stem, uploaded to spin in its window while
     /// the game loads.
     spin_disc: Option<(String, TexId, TexId)>,
+    /// How long the UMD going in has spun, how far it has turned, and how far over the last
+    /// frame, in seconds and radians.
+    pub(crate) spin: (f32, f32, f32),
     /// What holding POWER has put over the screen: its menu, or the screen after its choice.
     pub(crate) power_screen: Option<PowerScreen>,
     /// The slide to or from a power screen under way.
@@ -585,6 +591,7 @@ impl App {
             refused_from: None,
             alert_face: None,
             spin_disc: None,
+            spin: (0.0, 0.0, 0.0),
             power_screen: None,
             power_slide: None,
             power_menu_panel: None,
@@ -2334,6 +2341,7 @@ impl App {
         if self.power_slide.is_some_and(|s| s.over(now)) {
             self.power_slide = None;
         }
+        self.step_spin(dt);
         let mut touched = false;
         // a UMD whose disc is spinning in its window waits up for its game
         let spinning = match &self.phase {
@@ -2844,14 +2852,62 @@ impl App {
         self.spin_disc = Some((stem, tex, hub));
     }
 
-    /// The disc of the UMD going in, and how far it has turned: while it goes in.
-    fn spinning_disc(&self, stem: &str) -> Option<(TexId, f32, TexId)> {
+    /// The disc of the UMD going in, how far it has turned, and how far over the last frame:
+    /// while it goes in.
+    fn spinning_disc(&self, stem: &str) -> Option<omega_ui::SpinningDisc> {
         if !matches!(self.phase, Phase::Inserting { .. }) {
             return None;
         }
         let (s, tex, hub) = self.spin_disc.as_ref()?;
-        let turned = self.now() as f32 / 1000.0 * DISC_SPIN * std::f32::consts::TAU;
-        (s == stem).then_some((*tex, turned % std::f32::consts::TAU, *hub))
+        let (_, turn, smear) = self.spin;
+        (s == stem).then_some(omega_ui::SpinningDisc {
+            tex: *tex,
+            turn,
+            smear,
+            hub: *hub,
+        })
+    }
+
+    /// Whether a UMD is going in: its disc spins, and its game waits for the spin.
+    fn umd_going_in(&self) -> bool {
+        match &self.phase {
+            Phase::Inserting { cart, .. } => self
+                .shelf()
+                .find(cart)
+                .is_some_and(|(c, _)| omega_ui::model_of(c) == omega_ui::CartModel::Umd),
+            _ => false,
+        }
+    }
+
+    /// Spins the UMD going in on by `dt`: its speed `DISC_SPIN` times 1 - e^-(t/τ)², slow off
+    /// the mark and then fast to full, τ being half of `DISC_SPIN_UP`.
+    fn step_spin(&mut self, dt: f32) {
+        if !self.umd_going_in() {
+            self.spin = (0.0, 0.0, 0.0);
+            return;
+        }
+        let (age, turn, _) = self.spin;
+        let age = age + dt;
+        let speed = disc_speed(age);
+        let smear = speed * std::f32::consts::TAU * dt;
+        self.spin = (age, (turn + smear) % std::f32::consts::TAU, smear);
+    }
+
+    /// How fast the UMD going in spins, in turns a second; 0 for any other.
+    pub fn disc_turns(&self) -> f32 {
+        if self.umd_going_in() {
+            disc_speed(self.spin.0)
+        } else {
+            0.0
+        }
+    }
+
+    /// Whether the core may be opened for the game going in. A UMD's waits for its disc to
+    /// spin up, so the core's opening, the heaviest work the handheld does, never lands on
+    /// the spin while it is still finding its speed: the game starts a moment later, and the
+    /// spin is clean.
+    pub fn core_may_open(&self) -> bool {
+        !self.umd_going_in() || self.spin.0 >= DISC_SPIN_UP
     }
 
     pub fn alert_visible(&self) -> bool {
@@ -3427,6 +3483,12 @@ fn trusted_write(
         None
     };
     (state, sav)
+}
+
+/// How fast a UMD's disc spins `age` seconds after it starts, in turns a second.
+fn disc_speed(age: f32) -> f32 {
+    let tau = DISC_SPIN_UP / 2.0;
+    DISC_SPIN * (1.0 - (-(age / tau).powi(2)).exp())
 }
 
 fn up(level: u8, step: u8, max: u8) -> u8 {
