@@ -84,6 +84,8 @@ pub struct Frontend {
     /// When the last two frames reached the screen, as the panel shows them: what the next
     /// frame's animation steps by, where the panel says.
     shown: (Option<Instant>, Option<Instant>),
+    /// While a cart goes in: each frame's time on screen, in ms, for the log once it is in.
+    going_in: Vec<f32>,
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
     faces: FaceBuilder,
@@ -195,6 +197,7 @@ impl Frontend {
             start: now,
             last: now,
             shown: (None, None),
+            going_in: Vec::new(),
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
             faces: FaceBuilder::spawn(),
@@ -696,6 +699,32 @@ impl Frontend {
     /// A frame has reached the panel: its swap has returned, which the panel's refresh paces.
     pub fn shown(&mut self) {
         self.shown = (self.shown.1, Some(Instant::now()));
+        let inserting = matches!(
+            self.session.app().phase(),
+            crate::app::Phase::Inserting { .. }
+        );
+        if inserting {
+            if let (Some(a), Some(b)) = self.shown {
+                self.going_in.push((b - a).as_secs_f32() * 1000.0);
+            }
+        } else if !self.going_in.is_empty() {
+            let f = std::mem::take(&mut self.going_in);
+            let over = |ms: f32| f.iter().filter(|&&d| d > ms).count();
+            let worst = f.iter().cloned().fold(0.0, f32::max);
+            let late: Vec<String> = f
+                .iter()
+                .enumerate()
+                .filter(|(_, &d)| d > 20.0)
+                .map(|(i, d)| format!("{i}:{d:.0}"))
+                .collect();
+            crate::log!(
+                "going in: {} frames, {} over 20 ms, {} over 34 ms, worst {worst:.1} ms; late {}",
+                f.len(),
+                over(20.0),
+                over(34.0),
+                late.join(" ")
+            );
+        }
     }
 
     pub fn app(&self) -> &crate::app::App {

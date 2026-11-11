@@ -99,7 +99,7 @@ fn the_menu_sounds_are_short_quiet_and_end_softly() {
         let peak = v.iter().map(|x| x.unsigned_abs()).max().unwrap();
         assert!(peak > 500, "{s:?} is silent");
         assert!(
-            peak < 10_000,
+            peak < 14_000,
             "{s:?} peaks at {peak}, louder than a menu's sound should"
         );
         assert!(

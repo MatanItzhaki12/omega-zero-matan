@@ -24,10 +24,10 @@ const SHELF_HZ: (f32, f32) = (523.3, 784.0);
 
 /// How loud each peaks, as a share of full scale: clear over the tune and a game, still under
 /// the cart sounds.
-const MOVE_LEVEL: f32 = 0.12;
-const CONFIRM_LEVEL: f32 = 0.15;
-const BACK_LEVEL: f32 = 0.14;
-const SHELF_LEVEL: f32 = 0.11;
+const MOVE_LEVEL: f32 = 0.22;
+const CONFIRM_LEVEL: f32 = 0.27;
+const BACK_LEVEL: f32 = 0.25;
+const SHELF_LEVEL: f32 = 0.2;
 
 /// `sfx`, one of the menus', as samples at `rate` scaled to i16's range.
 pub(super) fn render(sfx: Sfx, rate: u32) -> Vec<f32> {
