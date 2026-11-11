@@ -40,6 +40,8 @@ pub struct Session {
     opening: Option<(String, std::sync::mpsc::Receiver<Opening>)>,
     /// The shelf's tune, played while no game is.
     music: Music,
+    /// The GPU's clock, held at its top while a PSP game goes in and plays.
+    gpu: crate::gpu_clock::GpuClock,
 }
 
 /// What a core opened off the main thread brings back: the core, and what was read off the card
@@ -95,6 +97,7 @@ impl Session {
             opening: None,
             starting: false,
             music: Music::new(),
+            gpu: crate::gpu_clock::GpuClock::default(),
         }
     }
 
@@ -360,6 +363,12 @@ impl Session {
             self.play_sfx(sfx);
         }
         self.play_music();
+        let psp = (self.emu.is_some() || self.opening.is_some())
+            && self
+                .app
+                .seated_cart()
+                .is_some_and(|c| c.platform == Platform::Psp);
+        self.gpu.hold(psp);
         sw.step("options");
         self.sync_core();
         sw.step("core");

@@ -479,6 +479,7 @@ there:
 | Opening a core, reading its save and resume | `omega-core-open`, at low priority, so the cart going in is drawn meanwhile |
 | Closing a core | The emulator's thread, as it stops. The next core waits for it, so two of one core are never open at once, and so do powering off and restarting |
 | Making a PSP game's spinning disc | `omega-disc` |
+| The GPU's clock | Held at its top step, 648 MHz, while a PSP game goes in and plays; left to BaseOS's own governor otherwise |
 | The autosave: the core's state and writing it | `omega-autosave` |
 | Taking and writing a cart's state as it comes out | `omega-eject-save`. The emulator answers its ask before it closes the core. The same game put back in waits for the write before it reads its resume; another game does not |
 | omega-zero's state, Recents, Favorites, the note of a game starting | `omega-card`, in order, the newest of each file only; powering off and restarting wait for it, and nothing else does. Tests write at once |
