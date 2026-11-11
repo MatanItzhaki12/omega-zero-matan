@@ -37,16 +37,32 @@ amd64) mirrors="http://archive.ubuntu.com/ubuntu http://us.archive.ubuntu.com/ub
 *) mirrors="http://ports.ubuntu.com/ubuntu-ports" ;;
 esac
 
-apt="sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o APT::Sandbox::User=root -o Dir::Cache::Archives=$debs"
+apt="sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o APT::Sandbox::User=root -o Dir::Cache::Archives=$debs"
 fetch() {
 	$apt update -q && $apt install -y -q --no-install-recommends "$@"
 }
 
-if fetch "$@"; then
-	exit 0
+# A mirror is tried only once it answers in a few seconds: one whose name does not resolve
+# would otherwise hold each of apt's retries for its whole timeout.
+suite=$(. /etc/os-release && echo "$VERSION_CODENAME")
+answers() {
+	curl -fsS -m 10 -o /dev/null "$1/dists/$suite/Release"
+}
+own=$(grep -m1 -E '^https?://' /etc/apt/apt-mirrors.txt 2>/dev/null | cut -f1 | cut -d' ' -f1 || true)
+own=${own%/}
+if [ -z "$own" ] || answers "$own"; then
+	if fetch "$@"; then
+		exit 0
+	fi
+else
+	echo "ci-apt: the runner's mirror $own does not answer"
 fi
 for m in $mirrors; do
-	echo "ci-apt: the mirror failed, trying $m"
+	if ! answers "$m"; then
+		echo "ci-apt: $m does not answer either"
+		continue
+	fi
+	echo "ci-apt: going to $m"
 	# the runner's Ubuntu sources name its mirror list; each is pointed at this mirror instead,
 	# and other sources, as Microsoft's, are left as they are
 	for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do
