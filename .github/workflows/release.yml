@@ -8,6 +8,13 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      checks_run_elsewhere:
+        description: >-
+          The checks were run on another machine and passed, as when GitHub's runners cannot reach
+          the package mirrors: release without running them here
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -59,7 +66,7 @@ jobs:
   checks:
     name: checks
     needs: version
-    if: needs.version.outputs.release == 'true'
+    if: needs.version.outputs.release == 'true' && !inputs.checks_run_elsewhere
     uses: ./.github/workflows/ci.yml
 
   build:
@@ -114,9 +121,9 @@ jobs:
         run: |
           set -eu
           sed -i '/bullseye-security/d' /etc/apt/sources.list
-          apt-get -o Acquire::Check-Valid-Until=false update
+          apt-get -o Acquire::Retries=5 -o Acquire::Check-Valid-Until=false update
           # PPSSPP's build wants OpenGL ES's headers, though it links no GL of its own
-          apt-get install -y --no-install-recommends zip unzip cmake libgles2-mesa-dev xz-utils
+          apt-get -o Acquire::Retries=5 install -y --no-install-recommends zip unzip cmake libgles2-mesa-dev xz-utils
           # Task at a version named here, checked against the sum its release gives, rather
           # than whatever an install script fetches on the day
           curl -fsSL -o /tmp/task.tar.gz \
