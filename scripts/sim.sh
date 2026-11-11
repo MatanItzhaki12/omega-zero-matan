@@ -42,5 +42,5 @@ if [ -n "${SIM_QUOTA:-}" ]; then
 fi
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe OMEGA_SILENT=1 \
 	$run "$card" "$script" "$out" 2> "$out/omega-zero.log"
-grep -E "record:|going in|slow" "$out/omega-zero.log" || true
+grep "record:" "$out/omega-zero.log" || true
 ls "$out"

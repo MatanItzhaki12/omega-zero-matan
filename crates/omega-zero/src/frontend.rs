@@ -87,10 +87,6 @@ pub struct Frontend {
     /// When the last two frames reached the screen, as the panel shows them: what the next
     /// frame's animation steps by, where the panel says.
     shown: (Option<Instant>, Option<Instant>),
-    /// While a cart goes in: each frame's time on screen, in ms, for the log once it is in.
-    going_in: Vec<f32>,
-    /// For the first ten seconds of a game: each present's time and the core's frame count.
-    first_play: Option<(Instant, Vec<(f32, u64)>)>,
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
     faces: FaceBuilder,
@@ -201,8 +197,6 @@ impl Frontend {
             start: now,
             last: now,
             shown: (None, None),
-            going_in: Vec::new(),
-            first_play: None,
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
             faces: FaceBuilder::spawn(),
@@ -715,68 +709,6 @@ impl Frontend {
     /// A frame has reached the panel: its swap has returned, which the panel's refresh paces.
     pub fn shown(&mut self) {
         self.shown = (self.shown.1, Some(Instant::now()));
-        self.note_first_play();
-        let inserting = matches!(
-            self.session.app().phase(),
-            crate::app::Phase::Inserting { .. }
-        );
-        if inserting {
-            if let (Some(a), Some(b)) = self.shown {
-                self.going_in.push((b - a).as_secs_f32() * 1000.0);
-            }
-        } else if !self.going_in.is_empty() {
-            self.first_play = Some((Instant::now(), Vec::new()));
-            let f = std::mem::take(&mut self.going_in);
-            let over = |ms: f32| f.iter().filter(|&&d| d > ms).count();
-            let worst = f.iter().cloned().fold(0.0, f32::max);
-            let late: Vec<String> = f
-                .iter()
-                .enumerate()
-                .filter(|(_, &d)| d > 20.0)
-                .map(|(i, d)| format!("{i}:{d:.0}"))
-                .collect();
-            crate::log!(
-                "going in: {} frames, {} over 20 ms, {} over 34 ms, worst {worst:.1} ms; late {}",
-                f.len(),
-                over(20.0),
-                over(34.0),
-                late.join(" ")
-            );
-        }
-    }
-
-    /// The first ten seconds of a game, logged once over: how many presents showed a frame of
-    /// the core's new to them, and the longest run that showed none.
-    fn note_first_play(&mut self) {
-        let Some((began, seen)) = &mut self.first_play else {
-            return;
-        };
-        let Some(count) = self.session.emu().map(|e| e.published_count()) else {
-            self.first_play = None;
-            return;
-        };
-        if let (Some(a), Some(b)) = self.shown {
-            seen.push(((b - a).as_secs_f32() * 1000.0, count));
-        }
-        if began.elapsed().as_secs_f32() < 10.0 {
-            return;
-        }
-        let seen = std::mem::take(seen);
-        self.first_play = None;
-        let new = seen.windows(2).filter(|w| w[1].1 > w[0].1).count();
-        let (mut run, mut longest, mut at) = (0usize, 0usize, 0usize);
-        for (i, w) in seen.windows(2).enumerate() {
-            run = if w[1].1 > w[0].1 { 0 } else { run + 1 };
-            if run > longest {
-                (longest, at) = (run, i);
-            }
-        }
-        let frames = seen.last().map_or(0, |l| l.1) - seen.first().map_or(0, |f| f.1);
-        let late = seen.iter().filter(|s| s.0 > 20.0).count();
-        crate::log!(
-            "first 10 s: {} presents, {new} with a new frame, {frames} frames from the core,              {late} presents over 20 ms, longest run with none new {longest} at {at}",
-            seen.len()
-        );
     }
 
     pub fn app(&self) -> &crate::app::App {

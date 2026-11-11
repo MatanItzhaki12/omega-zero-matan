@@ -1,6 +1,6 @@
 [package]
 name = "omega-gfx"
-version = "2.6.8"
+version = "2.7.0"
 description = "omega-zero's renderer: OpenGL ES 2 on the H700, in a window, or headless for tests"
 edition.workspace = true
 rust-version.workspace = true

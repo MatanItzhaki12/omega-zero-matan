@@ -1,6 +1,6 @@
 [package]
 name = "omega-ui"
-version = "2.6.8"
+version = "2.7.0"
 description = "omega-zero's interface: the shelf, the menus and the UI kit they are drawn in"
 edition.workspace = true
 rust-version.workspace = true

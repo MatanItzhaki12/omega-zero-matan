@@ -1576,12 +1576,7 @@ impl App {
     /// Acts on a press, and makes the menus' sound for what it changed.
     pub fn apply(&mut self, action: Action) {
         let before = self.sound_mark();
-        let began = std::time::Instant::now();
         self.press(action);
-        let took = began.elapsed().as_millis();
-        if took >= 50 {
-            crate::log!("slow press: {action:?} took {took} ms");
-        }
         self.sound_for_press(&before, action);
     }
 

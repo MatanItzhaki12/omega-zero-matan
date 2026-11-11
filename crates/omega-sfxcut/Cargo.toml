@@ -1,6 +1,6 @@
 [package]
 name = "omega-sfxcut"
-version = "2.6.8"
+version = "2.7.0"
 description = "Cuts the insert and eject sounds omega-zero ships from a recording"
 edition.workspace = true
 rust-version.workspace = true

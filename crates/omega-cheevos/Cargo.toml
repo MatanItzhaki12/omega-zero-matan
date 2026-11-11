@@ -1,6 +1,6 @@
 [package]
 name = "omega-cheevos"
-version = "2.6.8"
+version = "2.7.0"
 description = "omega-zero's RetroAchievements client, through rcheevos"
 edition.workspace = true
 rust-version.workspace = true

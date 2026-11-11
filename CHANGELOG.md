@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## omega-zero 2.7.0
+
 - The menus have sounds: a soft tick as a cursor moves, a chime up as a menu opens and down as
   it closes, and a glide as the shelf changes. Settings › Shelf › Sound turns them off or sets
   their volume.
