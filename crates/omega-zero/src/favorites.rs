@@ -273,7 +273,7 @@ impl App {
         self.recents = with_recent(&self.recents, cart);
         if let Some(root) = &self.root {
             if let Err(e) = write_recents(root, &self.recents) {
-                eprintln!("omega-zero: {RECENTS_FILE}: {e}");
+                crate::log!("{RECENTS_FILE}: {e}");
             }
         }
         // on RECENTS, the cart going in is its first now, and stays the one picked
@@ -312,7 +312,7 @@ impl App {
         self.refresh_marks();
         if let Some(root) = &self.root {
             if let Err(e) = write_favorites(root, &self.favorites) {
-                eprintln!("omega-zero: {FAVORITES_FILE}: {e}");
+                crate::log!("{FAVORITES_FILE}: {e}");
             }
         }
         self.hud.toast(
@@ -326,6 +326,36 @@ impl App {
         if self.on_favorites() && self.shelf().carts.is_empty() {
             self.leave_empty_shelf();
         }
+    }
+
+    /// Whether the shelf on screen is RECENTS.
+    pub fn on_recents(&self) -> bool {
+        self.shelves
+            .get(self.shelf_at)
+            .is_some_and(|(k, _)| *k == ShelfKind::Recents)
+    }
+
+    /// X on RECENTS, as on Slot: takes the game picked off it, and says so. The game stays on
+    /// its own shelf; only its place in the list of the last ones played goes.
+    pub(crate) fn remove_recent(&mut self, now: Millis) {
+        let Some(cart) = self.shelf().carts.get(self.shelf().index).cloned() else {
+            return;
+        };
+        self.recents
+            .retain(|(p, s)| !(*p == cart.platform && *s == cart.stem));
+        if let Some(root) = &self.root {
+            if let Err(e) = write_recents(root, &self.recents) {
+                crate::log!("{RECENTS_FILE}: {e}");
+            }
+        }
+        let index = self.shelf().index;
+        self.refresh_recents();
+        // the pick stays where it was, on the game that moved up into the gap
+        if self.on_recents() {
+            let last = self.shelf().carts.len().saturating_sub(1);
+            self.shelf_mut().select(index.min(last));
+        }
+        self.hud.toast(Toast::RecentRemoved, now);
     }
 }
 

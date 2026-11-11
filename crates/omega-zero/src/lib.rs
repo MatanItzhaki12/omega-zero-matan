@@ -1,3 +1,10 @@
+//! omega-zero itself: the app, its screens and its session. [`app::App`] holds what is on the
+//! screen and answers each press; [`session::Session`] ties it to the core, the sound and the
+//! card; `frontend` draws it each frame. `main.rs` runs it on the handheld or in a window.
+//!
+//! The map of the code, and how to add a setting, a screen, a toast or a sound, is in
+//! `DEVELOPING.md`.
+
 pub mod achievements;
 pub mod app;
 pub mod audio;
@@ -35,6 +42,8 @@ pub mod link_screen;
 pub mod link_start;
 pub mod link_state;
 pub mod list_view;
+pub mod log;
+mod menu_sounds;
 pub mod nas;
 pub mod nav;
 pub mod netplay;
@@ -49,12 +58,14 @@ pub mod rewind;
 pub mod root;
 pub mod save_backup;
 pub mod screens;
+mod screenshot;
 pub mod session;
 pub mod spawn;
 pub mod ssh;
 pub mod start_notice;
 pub mod stopwatch;
 pub mod thumb;
+pub mod time_zone;
 pub mod update;
 pub mod video_mode;
 pub mod wallpaper;

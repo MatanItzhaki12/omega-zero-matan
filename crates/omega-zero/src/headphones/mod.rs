@@ -310,11 +310,11 @@ impl Link {
         let sock = match sock {
             Ok(sock) => sock,
             Err(e) => {
-                eprintln!("omega-zero: headphones: {} at {mac}: {e}", kind.word());
+                crate::log!("headphones: {} at {mac}: {e}", kind.word());
                 return None;
             }
         };
-        eprintln!("omega-zero: headphones: {} at {mac} open", kind.word());
+        crate::log!("headphones: {} at {mac} open", kind.word());
         let phones = Arc::new(Mutex::new(Phones::new(kind)));
         let alive = Arc::new(AtomicBool::new(true));
         let out = sock.try_clone().ok()?;
@@ -327,7 +327,7 @@ impl Link {
                     Kind::AirPods => airpods::read(sock, answer, &theirs),
                     Kind::Buds(_) => galaxy::read(sock, &theirs),
                 }
-                eprintln!("omega-zero: headphones: channel closed");
+                crate::log!("headphones: channel closed");
                 still.store(false, Ordering::Release);
             })
             .ok()?;

@@ -1,3 +1,7 @@
+//! The tool that cut the cart sounds, the insert and the eject, from a recording: it finds
+//! each in the take, measures where its contacts land, and writes the PCM omega-zero ships.
+//! Only needed to cut them again.
+
 mod wav;
 
 pub use wav::{read_wav, WavError};

@@ -300,7 +300,7 @@ pub fn open(mac: &str) -> std::io::Result<std::fs::File> {
         if let Ok(n) = sock.read(&mut chunk) {
             buf.extend_from_slice(&chunk[..n]);
             if !unframe(&mut buf).is_empty() {
-                eprintln!("omega-zero: headphones: Galaxy Buds talk on channel {ch}");
+                crate::log!("headphones: Galaxy Buds talk on channel {ch}");
                 return Ok(sock);
             }
         }

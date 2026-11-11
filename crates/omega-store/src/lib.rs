@@ -1,3 +1,8 @@
+//! What omega-zero keeps on the card: the games found in `Games/`, read from their headers,
+//! the settings in `Config/omega-zero.state`, save states and their ring, each system's core
+//! and the per-game choices, and the files written whole or not at all. Nothing here draws or
+//! plays; every type is plain data, tested on its own.
+
 mod app_state;
 mod atomic;
 mod backdrop;

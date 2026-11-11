@@ -243,7 +243,7 @@ pub fn ensure_password(conf: &Path, server: &mut dyn SshServer) -> Password {
         Ok(text) => text,
         Err(e) if e.kind() == io::ErrorKind::NotFound => Vec::new(),
         Err(e) => {
-            eprintln!("omega-zero: {}: {e}", conf.display());
+            crate::log!("{}: {e}", conf.display());
             return Password::Failed(Trouble::NotSaved);
         }
     };
@@ -254,16 +254,16 @@ pub fn ensure_password(conf: &Path, server: &mut dyn SshServer) -> Password {
     let password = match made {
         Ok(password) => password,
         Err(e) => {
-            eprintln!("omega-zero: ssh password: /dev/urandom: {e}");
+            crate::log!("ssh password: /dev/urandom: {e}");
             return Password::Failed(Trouble::NotSaved);
         }
     };
     if let Err(e) = atomic_write(conf, &with_password(&text, &password)) {
-        eprintln!("omega-zero: {}: {e}", conf.display());
+        crate::log!("{}: {e}", conf.display());
         return Password::Failed(Trouble::NotSaved);
     }
     if let Err(e) = server.set_root_password(&password) {
-        eprintln!("omega-zero: ssh password: {e}");
+        crate::log!("ssh password: {e}");
         return Password::Failed(Trouble::NotApplied);
     }
     Password::Made(password)
@@ -629,8 +629,8 @@ fn start_dropbear() {
         .status();
     match started {
         Ok(status) if status.success() => {}
-        Ok(status) => eprintln!("omega-zero: ssh: dropbear {status}"),
-        Err(e) => eprintln!("omega-zero: ssh: {DROPBEAR}: {e}"),
+        Ok(status) => crate::log!("ssh: dropbear {status}"),
+        Err(e) => crate::log!("ssh: {DROPBEAR}: {e}"),
     }
 }
 
@@ -643,8 +643,8 @@ fn stop_dropbear() {
         };
         // SAFETY: kill takes plain integers and touches no memory of ours.
         if unsafe { kill(pid, SIGTERM) } != 0 {
-            eprintln!(
-                "omega-zero: ssh: stopping dropbear {pid}: {}",
+            crate::log!(
+                "ssh: stopping dropbear {pid}: {}",
                 io::Error::last_os_error()
             );
         }

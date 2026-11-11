@@ -141,7 +141,7 @@ impl Alsa {
             unsafe { (self.close)(pcm) };
             return Err(AudioError::Config(format!("{name}: {}", self.message(err))));
         }
-        eprintln!("omega-zero: audio {name} at {rate} Hz");
+        crate::log!("audio {name} at {rate} Hz");
         Ok(pcm)
     }
 
@@ -173,7 +173,7 @@ impl Alsa {
                 last = AudioError::Config(format!("{name}: {}", self.message(err)));
                 continue;
             }
-            eprintln!("omega-zero: audio {name} at {rate} Hz");
+            crate::log!("audio {name} at {rate} Hz");
             return Ok(pcm);
         }
         Err(last)
@@ -321,7 +321,7 @@ impl Playback {
                     return;
                 }
                 Err(e) => {
-                    eprintln!("omega-zero: audio: {e}");
+                    crate::log!("audio: {e}");
                     self.refused = Some((mac.clone(), Instant::now()));
                 }
             }
@@ -330,7 +330,7 @@ impl Playback {
         self.bluetooth = None;
         match self.alsa.open_pcm(self.rate) {
             Ok(pcm) => self.pcm = pcm,
-            Err(e) => eprintln!("omega-zero: audio: {e}"),
+            Err(e) => crate::log!("audio: {e}"),
         }
     }
 
@@ -359,7 +359,7 @@ impl Playback {
                 if frames < 0 {
                     let err = unsafe { (self.alsa.recover)(self.pcm, frames as c_int, 1) };
                     if err < 0 {
-                        eprintln!("omega-zero: audio: {}", self.alsa.message(err));
+                        crate::log!("audio: {}", self.alsa.message(err));
                         // headphones gone: back to the speaker, and they are tried again
                         // in a moment
                         if let Some(mac) = self.bluetooth.take() {

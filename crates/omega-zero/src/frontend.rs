@@ -554,8 +554,8 @@ impl Frontend {
                 let clear = overlay_clear(&face.rgba, face.w, face.h, picture);
                 if !clear {
                     let path = root.map(|r| overlay_path(&r, platform));
-                    eprintln!(
-                        "omega-zero: overlay: {} covers the game at {picture:?}, so it is not drawn",
+                    crate::log!(
+                        "overlay: {} covers the game at {picture:?}, so it is not drawn",
                         path.map_or_else(String::new, |p| p.display().to_string())
                     );
                 }

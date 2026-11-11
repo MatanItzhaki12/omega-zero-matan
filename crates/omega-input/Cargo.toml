@@ -1,8 +1,12 @@
 [package]
 name = "omega-input"
 version = "2.6.8"
+description = "omega-zero's input: raw button events turned into taps, holds and chords"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+
+[lints]
+workspace = true

@@ -53,6 +53,7 @@ mod link_session;
 mod link_start;
 mod link_ui;
 mod lone;
+mod menu_sounds;
 mod mgba_gb_link;
 mod mgba_link;
 mod nav;

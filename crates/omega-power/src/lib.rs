@@ -1,3 +1,8 @@
+//! The handheld's power: the battery and its charge, the backlight, the lid, the LED, the
+//! rumble motor, the clock, and powering off and restarting with the radios put away first. On
+//! the handheld it speaks to BaseOS's files in `/sys`; elsewhere a simulation stands in, for the
+//! tests and the computer build.
+
 mod baseos;
 mod device;
 mod motor;

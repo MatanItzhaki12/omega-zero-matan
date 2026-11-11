@@ -924,12 +924,12 @@ impl App {
                     return;
                 };
                 if let Err(e) = ring.remove(&stamp) {
-                    eprintln!("omega-zero: undo save: {e}");
+                    crate::log!("undo save: {e}");
                     return self.refuse();
                 }
                 if let Some((old, state, thumb)) = evicted {
                     if let Err(e) = ring.push(&state, &thumb, &old) {
-                        eprintln!("omega-zero: undo save: could not put {old} back: {e}");
+                        crate::log!("undo save: could not put {old} back: {e}");
                     }
                 }
                 self.hud.toast(Toast::SaveUndone, self.now());

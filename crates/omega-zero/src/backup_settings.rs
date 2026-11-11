@@ -230,7 +230,7 @@ impl App {
             return;
         }
         self.backup_woke_at = Some(now);
-        eprintln!("omega-zero: save backup: no network: asking Wi-Fi to join");
+        crate::log!("save backup: no network: asking Wi-Fi to join");
         self.wifi.wake(now);
     }
 
@@ -622,7 +622,7 @@ impl App {
                     .toast(Toast::Backup("Save copied from the NAS"), self.now());
             }
             Err(e) => {
-                eprintln!("omega-zero: sync from backup: {}: {e}", from.rel);
+                crate::log!("sync from backup: {}: {e}", from.rel);
                 self.refuse();
             }
         }

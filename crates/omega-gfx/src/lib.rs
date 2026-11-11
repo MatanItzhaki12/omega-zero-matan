@@ -1,3 +1,8 @@
+//! The screen: an OpenGL ES 2 renderer the frontend draws its frames through, on the H700's
+//! GPU by way of the framebuffer or EGL, in a window on a computer, or headless for the render
+//! tests. It holds the textures and meshes, the low-poly pipeline the shelf is drawn in, the
+//! game's picture with its LCD and grid filters, and the colour grading the theme takes.
+
 mod canvas;
 mod draw;
 mod fbdev;

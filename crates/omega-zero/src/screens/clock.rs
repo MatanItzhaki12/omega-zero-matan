@@ -82,6 +82,7 @@ impl App {
         }
         self.state.utc_offset_min = offset as i16;
         self.state.clock_set = true;
+        crate::time_zone::follow(self.state.utc_offset_min);
         self.persist();
         if from_menu {
             self.go(

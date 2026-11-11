@@ -133,38 +133,39 @@ pub fn refresh(card: &Path) {
         return;
     }
     let Some(device) = partition(PARTITION) else {
-        eprintln!("omega-zero: bootlogo: no {PARTITION} partition");
+        crate::log!("bootlogo: no {PARTITION} partition");
         return;
     };
     if fs::create_dir_all(MOUNT).is_err()
         || !run("mount", &["-t", "vfat", "-o", "rw,noatime", &device, MOUNT])
     {
-        eprintln!("omega-zero: bootlogo: could not mount {device}");
+        crate::log!("bootlogo: could not mount {device}");
         return;
     }
     let mount = Path::new(MOUNT);
     match panel_size(mount) {
         None => {
-            eprintln!("omega-zero: bootlogo: no logo on {device} to size ours by, leaving it alone")
+            crate::log!("bootlogo: no logo on {device} to size ours by, leaving it alone")
         }
         Some(size) => match choose(&system, size).map(|p| (fs::read(&p), p)) {
-            None => eprintln!(
-                "omega-zero: bootlogo: no {}x{} logo in System/, leaving the boot logo alone",
-                size.0, size.1
+            None => crate::log!(
+                "bootlogo: no {}x{} logo in System/, leaving the boot logo alone",
+                size.0,
+                size.1
             ),
-            Some((Err(e), p)) => eprintln!("omega-zero: bootlogo: {}: {e}", p.display()),
+            Some((Err(e), p)) => crate::log!("bootlogo: {}: {e}", p.display()),
             Some((Ok(logo), p)) => match install(&logo, mount) {
                 Ok(Outcome::Installed) => {
-                    eprintln!("omega-zero: bootlogo: installed {}", p.display())
+                    crate::log!("bootlogo: installed {}", p.display())
                 }
                 Ok(Outcome::Same) => {}
-                Ok(other) => eprintln!("omega-zero: bootlogo: {}: {other:?}", p.display()),
-                Err(e) => eprintln!("omega-zero: bootlogo: {e}"),
+                Ok(other) => crate::log!("bootlogo: {}: {other:?}", p.display()),
+                Err(e) => crate::log!("bootlogo: {e}"),
             },
         },
     }
     if !run("umount", &[MOUNT]) {
-        eprintln!("omega-zero: bootlogo: could not unmount {MOUNT}");
+        crate::log!("bootlogo: could not unmount {MOUNT}");
     }
 }
 

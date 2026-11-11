@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- The menus have sounds: a soft tick as a cursor moves, a chime up as a menu opens and down as
+  it closes, and a glide as the shelf changes. Settings › Shelf › Menu Sounds turns them off.
+  A press that changes nothing makes no sound, and a game's buttons make none until a menu is
+  opened over it.
+
+- A gentle tune plays on the shelf and in its menus, a slow pad, bass and music box made as it
+  plays. It fades out as a cart goes in and back in on the shelf. Settings › Shelf › Menu Music
+  turns it off.
+
+- SELECT + X in a game takes a screenshot, a PNG at the game's own size in
+  `Screenshots/<system>/`, named after the game and the time.
+
+- X on the Recents shelf takes the game picked off it, as on Slot. It stays on its own shelf.
+
+- L2 on the shelf goes back to its first cart, and R2 picks one at random.
+
+- Games with a clock on the cart, such as Pokémon Ruby, Sapphire and Emerald and Boktai, read the
+  time in your time zone, as Date & Time has it, rather than UTC, so berries, tides and the sun
+  follow your day.
+
+- Sounds no longer cut each other off. One that starts while another is playing is laid over it,
+  and a sound over a game's or the tune's sound no longer pushes it later.
+
+- Every line of `omega-zero.log` starts with the seconds since omega-zero started, so the gaps
+  in a slow start or a stall can be read off it.
+
+- The README is rewritten for this fork: what it is, where it comes from (Omega Zero and Slot,
+  now at slot-cfw/slot), and what it can do. `DEVELOPING.md` maps the code and shows how to
+  add a setting, a screen, a toast or a sound.
+
+- For developers: settings are kept by one table in `omega-store`, so a new one is a field, its
+  default and one line, and a test pins the file so older versions still read it. Link play
+  and saves have their own files under `app/`. Every crate has its summary and shares one set
+  of lints, and `.editorconfig` keeps editors to the project's style.
+
 ## omega-zero 2.6.8
 
 - A UMD's hub is a real one's: white, UMD across it in blue and UNIVERSAL MEDIA DISC under it

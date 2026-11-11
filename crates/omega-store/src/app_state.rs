@@ -115,6 +115,10 @@ pub struct AppState {
     pub picked_platform: Option<Platform>,
     /// How a PSP game is shown when it was not set for itself: `fit`, `actual` or `stretch`.
     pub psp_screen: String,
+    /// The menus click, chime and swish as they are used.
+    pub menu_sounds: bool,
+    /// A soft tune plays on the shelf and in its menus, and stops for a game.
+    pub menu_music: bool,
 }
 
 impl Default for AppState {
@@ -173,6 +177,8 @@ impl Default for AppState {
             picked: String::new(),
             picked_platform: None,
             psp_screen: "fit".to_string(),
+            menu_sounds: true,
+            menu_music: true,
         }
     }
 }
@@ -194,228 +200,323 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
     atomic_write(&state_path(root), app_state_text(s).as_bytes())
 }
 
-/// `s` as the state file has it.
+/// `s` as the state file has it: a `key=value` line for each of [`FIELDS`], in their order.
 pub fn app_state_text(s: &AppState) -> String {
-    let text = format!(
-        "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nscreen_filter={}\nwifi={}\nssh={}\nbluetooth={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\nfont={}\nauto_load={}\neject_save={}\nrewind={}\nturbo={}\nblending={}\ngb_palette={}\nshow_recents={}\nshow_titles={}\nclock_24h={}\nlid_off_min={}\ncheevos={}\ncheevos_hardcore={}\nboot_animation={}\nholo={}\nrun_ahead={}\nonline_name={}\nrelay={}\nonline_password={}\nonline_address={}\n",
-        s.cart.as_deref().unwrap_or(""),
-        s.cart_platform.map_or(String::new(), platform_key),
-        s.brightness,
-        s.blue_light,
-        s.volume,
-        s.volume_hp,
-        s.muted as u8,
-        s.muted_hp as u8,
-        s.clock_set as u8,
-        s.utc_offset_min,
-        s.rumble as u8,
-        s.ff_speed,
-        s.ff_sound as u8,
-        s.colour_correction as u8,
-        s.screen_filter.key(),
-        s.wifi as u8,
-        if s.ssh { "on" } else { "off" },
-        if s.bluetooth { "on" } else { "off" },
-        s.backdrop.map_or("", BackdropStyle::key),
-        s.backdrop_moving as u8,
-        BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)],
-        s.font.key(),
-        s.auto_load as u8,
-        s.eject_save as u8,
-        s.rewind as u8,
-        s.turbo as u8,
-        s.blending.key(),
-        s.gb_colors.key(),
-        s.show_recents as u8,
-        s.show_titles as u8,
-        s.clock_24h as u8,
-        s.lid_off_min,
-        s.cheevos as u8,
-        s.cheevos_hardcore as u8,
-        s.boot_animation as u8,
-        s.holo as u8,
-        s.run_ahead as u8,
-        online_name(&s.online_name),
-        s.relay,
-        online_password(&s.online_password),
-        online_password(&s.online_address),
-    );
-    let text = text
-        + &format!(
-            "backup={}\nbackup_host={}\nbackup_name={}\nbackup_user={}\nbackup_password={}\nbackup_share={}\nbackup_dir={}\nshelf={}\npicked={}\npicked_platform={}\npsp_screen={}\n",
-            s.backup as u8,
-            kept_text(&s.backup_host),
-            kept_text(&s.backup_name),
-            kept_text(&s.backup_user),
-            kept_text(&s.backup_password),
-            kept_text(&s.backup_share),
-            kept_text(&s.backup_dir),
-            kept_text(&s.shelf),
-            kept_text(&s.picked),
-            s.picked_platform.map_or(String::new(), platform_key),
-            kept_text(&s.psp_screen),
-        );
-    text
+    FIELDS.iter().fold(String::new(), |mut text, f| {
+        text.push_str(f.key);
+        text.push('=');
+        text.push_str(&(f.write)(s));
+        text.push('\n');
+        text
+    })
 }
 
+/// One setting the state file keeps: its key, how its value is written, and how a value read
+/// back is taken in.
+///
+/// `read` sets the field from the value. A value it cannot take leaves the field as it was, at
+/// its default, except for a [`Need::Must`] setting, where it is None: the whole file is then
+/// unreadable and read as the default, so a half-written file never boots half set.
+struct Field {
+    key: &'static str,
+    need: Need,
+    write: fn(&AppState) -> String,
+    read: fn(&mut AppState, &str) -> Option<()>,
+}
+
+/// Whether a file without the setting can still be read.
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum Need {
+    /// The file is unreadable without it: the settings the first versions wrote.
+    Must,
+    /// Without it the setting keeps its default: every setting added since.
+    May,
+}
+
+/// A field that keeps its default where the value cannot be read.
+macro_rules! may {
+    ($key:literal, |$s:ident| $write:expr, |$t:ident, $v:ident| $read:expr) => {
+        Field {
+            key: $key,
+            need: Need::May,
+            write: |$s: &AppState| $write,
+            read: |$t: &mut AppState, $v: &str| {
+                $read;
+                Some(())
+            },
+        }
+    };
+}
+
+/// An on/off field written as 1 or 0.
+macro_rules! flag {
+    ($key:literal, $field:ident) => {
+        may!(
+            $key,
+            |s| (s.$field as u8).to_string(),
+            |t, v| if let Some(b) = flag(v) {
+                t.$field = b
+            }
+        )
+    };
+}
+
+/// A free-text field, a line to itself.
+macro_rules! text {
+    ($key:literal, $field:ident) => {
+        may!($key, |s| kept_text(&s.$field), |t, v| t.$field =
+            kept_text(v))
+    };
+}
+
+/// Every setting, in the order the file has them. A new setting is a field of [`AppState`],
+/// its default, and a line at the end of this list.
+const FIELDS: &[Field] = &[
+    Field {
+        key: "cart",
+        need: Need::Must,
+        write: |s| s.cart.clone().unwrap_or_default(),
+        read: |t, v| {
+            t.cart = (!v.is_empty()).then(|| v.to_string());
+            Some(())
+        },
+    },
+    may!(
+        "cart_platform",
+        |s| s.cart_platform.map_or(String::new(), platform_key),
+        |t, v| t.cart_platform = platform_value(v)
+    ),
+    Field {
+        key: "brightness",
+        need: Need::Must,
+        write: |s| s.brightness.to_string(),
+        read: |t, v| {
+            t.brightness = level(v, BRIGHTNESS_MAX)?;
+            Some(())
+        },
+    },
+    Field {
+        key: "blue_light",
+        need: Need::Must,
+        write: |s| s.blue_light.to_string(),
+        read: |t, v| {
+            t.blue_light = level(v, BLUE_LIGHT_MAX)?;
+            Some(())
+        },
+    },
+    Field {
+        key: "volume",
+        need: Need::Must,
+        write: |s| s.volume.to_string(),
+        read: |t, v| {
+            t.volume = level(v, VOLUME_MAX)?;
+            Some(())
+        },
+    },
+    // without its own line the headphones' volume and mute are the speaker's
+    Field {
+        key: "volume_hp",
+        need: Need::May,
+        write: |s| s.volume_hp.to_string(),
+        read: |t, v| {
+            t.volume_hp = level(v, VOLUME_MAX)?;
+            Some(())
+        },
+    },
+    Field {
+        key: "muted",
+        need: Need::Must,
+        write: |s| (s.muted as u8).to_string(),
+        read: |t, v| {
+            t.muted = level(v, 1)? == 1;
+            Some(())
+        },
+    },
+    Field {
+        key: "muted_hp",
+        need: Need::May,
+        write: |s| (s.muted_hp as u8).to_string(),
+        read: |t, v| {
+            t.muted_hp = level(v, 1)? == 1;
+            Some(())
+        },
+    },
+    Field {
+        key: "clock_set",
+        need: Need::Must,
+        write: |s| (s.clock_set as u8).to_string(),
+        read: |t, v| {
+            t.clock_set = level(v, 1)? == 1;
+            Some(())
+        },
+    },
+    Field {
+        key: "utc_offset_min",
+        need: Need::Must,
+        write: |s| s.utc_offset_min.to_string(),
+        read: |t, v| {
+            t.utc_offset_min = offset(v)?;
+            Some(())
+        },
+    },
+    flag!("rumble", rumble),
+    may!(
+        "ff_speed",
+        |s| s.ff_speed.to_string(),
+        |t, v| if let Some(n) = ff_speed_value(v) {
+            t.ff_speed = n
+        }
+    ),
+    flag!("ff_sound", ff_sound),
+    flag!("colour_correction", colour_correction),
+    may!(
+        "screen_filter",
+        |s| s.screen_filter.key().to_string(),
+        |t, v| if let Some(f) = ScreenFilter::from_key(v) {
+            t.screen_filter = f
+        }
+    ),
+    flag!("wifi", wifi),
+    may!(
+        "ssh",
+        |s| on_off_text(s.ssh),
+        |t, v| if let Some(b) = on_off(v) {
+            t.ssh = b
+        }
+    ),
+    may!(
+        "bluetooth",
+        |s| on_off_text(s.bluetooth),
+        |t, v| if let Some(b) = on_off(v) {
+            t.bluetooth = b
+        }
+    ),
+    may!(
+        "backdrop",
+        |s| s.backdrop.map_or("", BackdropStyle::key).to_string(),
+        |t, v| t.backdrop = BackdropStyle::from_key(v)
+    ),
+    flag!("backdrop_moving", backdrop_moving),
+    may!(
+        "backdrop_colour",
+        |s| BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)]
+            .to_string(),
+        |t, v| if let Some(c) = colour_index(v) {
+            t.backdrop_colour = c
+        }
+    ),
+    may!(
+        "font",
+        |s| s.font.key().to_string(),
+        |t, v| if let Some(f) = Font::from_key(v) {
+            t.font = f
+        }
+    ),
+    flag!("auto_load", auto_load),
+    flag!("eject_save", eject_save),
+    flag!("rewind", rewind),
+    flag!("turbo", turbo),
+    may!(
+        "blending",
+        |s| s.blending.key().to_string(),
+        |t, v| if let Some(b) = Blending::from_key(v) {
+            t.blending = b
+        }
+    ),
+    may!(
+        "gb_palette",
+        |s| s.gb_colors.key().to_string(),
+        |t, v| if let Some(c) = GbColors::from_key(v) {
+            t.gb_colors = c
+        }
+    ),
+    flag!("show_recents", show_recents),
+    flag!("show_titles", show_titles),
+    flag!("clock_24h", clock_24h),
+    may!(
+        "lid_off_min",
+        |s| s.lid_off_min.to_string(),
+        |t, v| if let Some(m) = v.parse().ok().filter(|m| LID_OFF_MINUTES.contains(m)) {
+            t.lid_off_min = m
+        }
+    ),
+    flag!("cheevos", cheevos),
+    flag!("cheevos_hardcore", cheevos_hardcore),
+    flag!("boot_animation", boot_animation),
+    flag!("holo", holo),
+    flag!("run_ahead", run_ahead),
+    may!("online_name", |s| online_name(&s.online_name), |t, v| t
+        .online_name =
+        online_name(v)),
+    may!(
+        "relay",
+        |s| s.relay.to_string(),
+        |t, v| if let Ok(r) = v.trim().parse() {
+            t.relay = r
+        }
+    ),
+    may!(
+        "online_password",
+        |s| online_password(&s.online_password),
+        |t, v| t.online_password = online_password(v)
+    ),
+    may!(
+        "online_address",
+        |s| online_password(&s.online_address),
+        |t, v| t.online_address = online_password(v)
+    ),
+    flag!("backup", backup),
+    text!("backup_host", backup_host),
+    text!("backup_name", backup_name),
+    text!("backup_user", backup_user),
+    text!("backup_password", backup_password),
+    text!("backup_share", backup_share),
+    text!("backup_dir", backup_dir),
+    text!("shelf", shelf),
+    text!("picked", picked),
+    may!(
+        "picked_platform",
+        |s| s.picked_platform.map_or(String::new(), platform_key),
+        |t, v| if let Some(p) = platform_value(v) {
+            t.picked_platform = Some(p)
+        }
+    ),
+    text!("psp_screen", psp_screen),
+    flag!("menu_sounds", menu_sounds),
+    flag!("menu_music", menu_music),
+];
+
 fn parse(text: &str) -> Option<AppState> {
-    let mut cart = None;
-    let mut cart_platform = None;
-    let mut brightness = None;
-    let mut blue_light = None;
-    let mut volume = None;
-    let mut volume_hp = None;
-    let mut muted = None;
-    let mut muted_hp = None;
-    let mut clock_set = None;
-    let mut utc_offset_min = None;
-    let mut rumble = None;
-    let mut ff_speed = None;
-    let mut ff_sound = None;
-    let mut colour_correction = None;
-    let mut screen_filter = None;
-    let mut wifi = None;
-    let mut ssh = None;
-    let mut bluetooth = None;
-    let mut backdrop = None;
-    let mut backdrop_moving = None;
-    let mut backdrop_colour = None;
-    let mut font = None;
-    let mut auto_load = None;
-    let mut eject_save = None;
-    let mut rewind = None;
-    let mut turbo = None;
-    let mut blending = None;
-    let mut gb_colors = None;
-    let mut show_recents = None;
-    let mut show_titles = None;
-    let mut clock_24h = None;
-    let mut lid_off_min = None;
-    let mut cheevos = None;
-    let mut cheevos_hardcore = None;
-    let mut boot_animation = None;
-    let mut holo = None;
-    let mut run_ahead = None;
-    let mut online_name_read = None;
-    let mut relay = None;
-    let mut online_password_read = None;
-    let mut online_address_read = None;
-    let mut backup = None;
-    let mut backup_text: [Option<String>; 9] = Default::default();
-    let mut picked_platform = None;
+    let mut s = AppState::default();
+    let mut seen = vec![false; FIELDS.len()];
     for line in text.lines().filter(|l| !l.is_empty()) {
         let Some((key, value)) = line.split_once('=') else {
             continue;
         };
-        match key {
-            "cart" => cart = Some(value.to_string()),
-            "cart_platform" => cart_platform = platform_value(value),
-            "brightness" => brightness = Some(level(value, BRIGHTNESS_MAX)?),
-            "blue_light" => blue_light = Some(level(value, BLUE_LIGHT_MAX)?),
-            "volume" => volume = Some(level(value, VOLUME_MAX)?),
-            "volume_hp" => volume_hp = Some(level(value, VOLUME_MAX)?),
-            "muted" => muted = Some(level(value, 1)? == 1),
-            "muted_hp" => muted_hp = Some(level(value, 1)? == 1),
-            "clock_set" => clock_set = Some(level(value, 1)? == 1),
-            "utc_offset_min" => utc_offset_min = Some(offset(value)?),
-            "rumble" => rumble = flag(value),
-            "ff_speed" => ff_speed = ff_speed_value(value),
-            "ff_sound" => ff_sound = flag(value),
-            "colour_correction" => colour_correction = flag(value),
-            "screen_filter" => screen_filter = ScreenFilter::from_key(value),
-            "wifi" => wifi = flag(value),
-            "ssh" => ssh = on_off(value),
-            "bluetooth" => bluetooth = on_off(value),
-            "backdrop" => backdrop = BackdropStyle::from_key(value),
-            "backdrop_moving" => backdrop_moving = flag(value),
-            "backdrop_colour" => backdrop_colour = colour_index(value),
-            "font" => font = Font::from_key(value),
-            "auto_load" => auto_load = flag(value),
-            "eject_save" => eject_save = flag(value),
-            "rewind" => rewind = flag(value),
-            "turbo" => turbo = flag(value),
-            "blending" => blending = Blending::from_key(value),
-            "gb_palette" => gb_colors = GbColors::from_key(value),
-            "show_recents" => show_recents = flag(value),
-            "show_titles" => show_titles = flag(value),
-            "clock_24h" => clock_24h = flag(value),
-            "cheevos" => cheevos = flag(value),
-            "cheevos_hardcore" => cheevos_hardcore = flag(value),
-            "boot_animation" => boot_animation = flag(value),
-            "holo" => holo = flag(value),
-            "run_ahead" => run_ahead = flag(value),
-            "online_name" => online_name_read = Some(online_name(value)),
-            "relay" => relay = value.trim().parse().ok(),
-            "online_password" => online_password_read = Some(online_password(value)),
-            "online_address" => online_address_read = Some(online_password(value)),
-            "backup" => backup = flag(value),
-            "picked_platform" => picked_platform = platform_value(value),
-            "lid_off_min" => {
-                lid_off_min = value.parse().ok().filter(|m| LID_OFF_MINUTES.contains(m))
-            }
-            key => {
-                if let Some(at) = TEXT_KEYS.iter().position(|k| *k == key) {
-                    backup_text[at] = Some(kept_text(value));
-                }
-            }
+        if let Some(at) = FIELDS.iter().position(|f| f.key == key) {
+            (FIELDS[at].read)(&mut s, value)?;
+            seen[at] = true;
         }
     }
-    let cart = cart?;
-    let fallback = AppState::default();
-    Some(AppState {
-        cart: (!cart.is_empty()).then_some(cart),
-        cart_platform,
-        brightness: brightness?,
-        blue_light: blue_light?,
-        volume: volume?,
-        volume_hp: volume_hp.or(volume)?,
-        muted: muted?,
-        muted_hp: muted_hp.or(muted)?,
-        clock_set: clock_set?,
-        utc_offset_min: utc_offset_min?,
-        rumble: rumble.unwrap_or(fallback.rumble),
-        ff_speed: ff_speed.unwrap_or(fallback.ff_speed),
-        ff_sound: ff_sound.unwrap_or(fallback.ff_sound),
-        colour_correction: colour_correction.unwrap_or(fallback.colour_correction),
-        screen_filter: screen_filter.unwrap_or(fallback.screen_filter),
-        wifi: wifi.unwrap_or(fallback.wifi),
-        ssh: ssh.unwrap_or(fallback.ssh),
-        bluetooth: bluetooth.unwrap_or(fallback.bluetooth),
-        backdrop,
-        backdrop_moving: backdrop_moving.unwrap_or(fallback.backdrop_moving),
-        backdrop_colour: backdrop_colour.unwrap_or(fallback.backdrop_colour),
-        font: font.unwrap_or(fallback.font),
-        auto_load: auto_load.unwrap_or(fallback.auto_load),
-        eject_save: eject_save.unwrap_or(fallback.eject_save),
-        rewind: rewind.unwrap_or(fallback.rewind),
-        turbo: turbo.unwrap_or(fallback.turbo),
-        blending: blending.unwrap_or(fallback.blending),
-        gb_colors: gb_colors.unwrap_or(fallback.gb_colors),
-        show_recents: show_recents.unwrap_or(fallback.show_recents),
-        show_titles: show_titles.unwrap_or(fallback.show_titles),
-        clock_24h: clock_24h.unwrap_or(fallback.clock_24h),
-        lid_off_min: lid_off_min.unwrap_or(fallback.lid_off_min),
-        cheevos: cheevos.unwrap_or(fallback.cheevos),
-        cheevos_hardcore: cheevos_hardcore.unwrap_or(fallback.cheevos_hardcore),
-        boot_animation: boot_animation.unwrap_or(fallback.boot_animation),
-        holo: holo.unwrap_or(fallback.holo),
-        run_ahead: run_ahead.unwrap_or(fallback.run_ahead),
-        online_name: online_name_read.unwrap_or(fallback.online_name),
-        relay: relay.unwrap_or(fallback.relay),
-        online_password: online_password_read.unwrap_or(fallback.online_password),
-        online_address: online_address_read.unwrap_or(fallback.online_address),
-        backup: backup.unwrap_or(fallback.backup),
-        backup_host: text_or(&mut backup_text[0], fallback.backup_host),
-        backup_name: text_or(&mut backup_text[1], fallback.backup_name),
-        backup_user: text_or(&mut backup_text[2], fallback.backup_user),
-        backup_password: text_or(&mut backup_text[3], fallback.backup_password),
-        backup_share: text_or(&mut backup_text[4], fallback.backup_share),
-        backup_dir: text_or(&mut backup_text[5], fallback.backup_dir),
-        shelf: text_or(&mut backup_text[6], fallback.shelf),
-        picked: text_or(&mut backup_text[7], fallback.picked),
-        psp_screen: text_or(&mut backup_text[8], fallback.psp_screen),
-        picked_platform: picked_platform.or(fallback.picked_platform),
-    })
+    let read = |key: &str| FIELDS.iter().zip(&seen).any(|(f, &s)| f.key == key && s);
+    let whole = FIELDS
+        .iter()
+        .zip(&seen)
+        .all(|(f, &seen)| seen || f.need == Need::May);
+    if !whole {
+        return None;
+    }
+    if !read("volume_hp") {
+        s.volume_hp = s.volume;
+    }
+    if !read("muted_hp") {
+        s.muted_hp = s.muted;
+    }
+    Some(s)
+}
+
+fn on_off_text(on: bool) -> String {
+    if on { "on" } else { "off" }.to_string()
 }
 
 fn platform_key(platform: Platform) -> String {
@@ -482,23 +583,6 @@ pub fn online_password(password: &str) -> String {
         kept.pop();
     }
     kept
-}
-
-/// The keys of the state's free text, read into one place by their order here.
-const TEXT_KEYS: [&str; 9] = [
-    "backup_host",
-    "backup_name",
-    "backup_user",
-    "backup_password",
-    "backup_share",
-    "backup_dir",
-    "shelf",
-    "picked",
-    "psp_screen",
-];
-
-fn text_or(read: &mut Option<String>, fallback: String) -> String {
-    read.take().unwrap_or(fallback)
 }
 
 /// Free text as the state can keep it, a line to itself: control characters left out, and no

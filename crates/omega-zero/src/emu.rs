@@ -733,7 +733,7 @@ impl Worker {
     ) {
         *self.gpu.borrow_mut() = crate::gpu_core::GpuCore::offer(&mut *core);
         if let Err(e) = core.load(&rom) {
-            eprintln!("omega-zero: {e}");
+            crate::log!("{e}");
             self.shared
                 .state
                 .store(CoreState::Failed as u8, Ordering::Release);
@@ -750,13 +750,13 @@ impl Worker {
         }
         if let Some(sav) = sav {
             if let Err(e) = core.load_save_ram(&sav) {
-                eprintln!("omega-zero: save ram: {e}");
+                crate::log!("save ram: {e}");
                 self.shared.sav_refused.store(true, Ordering::Release);
             }
         }
         if let Some(resume) = resume {
             if let Err(e) = core.unserialize(&self.for_core(resume)) {
-                eprintln!("omega-zero: resume: {e}");
+                crate::log!("resume: {e}");
                 self.shared.resume_refused.store(true, Ordering::Release);
             }
         }
@@ -839,20 +839,20 @@ impl Worker {
                         if let Some(state) = c.take_state() {
                             let own = core.serialize().unwrap_or_default();
                             if !link_state::same_bios(&state, &own) {
-                                eprintln!("omega-zero: cable: the host runs another GBA BIOS");
+                                crate::log!("cable: the host runs another GBA BIOS");
                                 self.shared.bios_mismatch.store(true, Ordering::Relaxed);
                             } else {
                                 match core.unserialize(&state) {
                                     Ok(()) => {
-                                        eprintln!(
-                                        "omega-zero: cable: restored {} bytes, running the host's game",
-                                        state.len()
-                                    );
+                                        crate::log!(
+                                            "cable: restored {} bytes, running the host's game",
+                                            state.len()
+                                        );
                                         c.prime();
                                         t.send(NETPACKET_RELIABLE, &cable::ready_packet());
                                     }
                                     Err(e) => {
-                                        eprintln!("omega-zero: cable: the state was refused: {e}")
+                                        crate::log!("cable: the state was refused: {e}")
                                     }
                                 }
                             }
@@ -909,7 +909,7 @@ impl Worker {
             if let (true, Some(rewind)) = (rewinding, rewind.as_ref()) {
                 if let Some(state) = rewind.pop() {
                     if let Err(e) = core.unserialize(&state) {
-                        eprintln!("omega-zero: rewind: {e}");
+                        crate::log!("rewind: {e}");
                     }
                     omega_cheevos::reset();
                     core.set_frame_skip(false);
@@ -1009,9 +1009,7 @@ impl Worker {
                                         replayed = true;
                                     }
                                     Err(e) => {
-                                        eprintln!(
-                                            "omega-zero: run-ahead: {e}, so it is off for this game"
-                                        );
+                                        crate::log!("run-ahead: {e}, so it is off for this game");
                                         ahead_refused = true;
                                     }
                                 }
@@ -1020,9 +1018,7 @@ impl Worker {
                             ahead_held = match core.serialize_into(&mut ahead_state) {
                                 Ok(()) => Some(held),
                                 Err(e) => {
-                                    eprintln!(
-                                        "omega-zero: run-ahead: {e}, so it is off for this game"
-                                    );
+                                    crate::log!("run-ahead: {e}, so it is off for this game");
                                     ahead_refused = true;
                                     None
                                 }
@@ -1044,8 +1040,8 @@ impl Worker {
                         ahead_seen = (ahead_seen + 1).min(u16::BITS);
                         let over = ahead_over.count_ones();
                         if ahead_seen >= AHEAD_TRIAL && over * 2 >= ahead_seen {
-                            eprintln!(
-                                "omega-zero: run-ahead: {over} of the last {ahead_seen} frames played again ran over {} ms, the last {:.1} ms: off for this game",
+                            crate::log!(
+                                "run-ahead: {over} of the last {ahead_seen} frames played again ran over {} ms, the last {:.1} ms: off for this game",
                                 AHEAD_BUDGET.as_millis(),
                                 took.as_secs_f64() * 1e3
                             );
@@ -1069,8 +1065,8 @@ impl Worker {
                     cable_core += core_time;
                     if cable_said.elapsed() >= Duration::from_secs(5) {
                         let secs = cable_said.elapsed().as_secs_f32();
-                        eprintln!(
-                            "omega-zero: cable: {} presents, {} stalled, {:.1} fps, {:.1} ms core ({:.1} ms waiting) of {:.1} ms present",
+                        crate::log!(
+                            "cable: {} presents, {} stalled, {:.1} fps, {:.1} ms core ({:.1} ms waiting) of {:.1} ms present",
                             cable_presents,
                             cable_stalls,
                             (cable_presents - cable_stalls) as f32 / secs,
@@ -1092,8 +1088,8 @@ impl Worker {
                     ff = (ff.0 + 1, ff.1 + ran, ff.2 + core_time, ff.3);
                     if ff.0 == 300 {
                         let secs = ff.3.elapsed().as_secs_f32();
-                        eprintln!(
-                            "omega-zero: ff: {:.1} frames a present, {:.0} fps, {:.1} ms core of {:.1} ms present, {:.1} ms after",
+                        crate::log!(
+                            "ff: {:.1} frames a present, {:.0} fps, {:.1} ms core of {:.1} ms present, {:.1} ms after",
                             ff.1 as f32 / 300.0,
                             ff.1 as f32 / secs,
                             ff.2.as_secs_f32() * 1000.0 / 300.0,
@@ -1151,8 +1147,8 @@ impl Worker {
                     paced += 1;
                     if crate::session::trace() && paced.is_multiple_of(TRACE_EVERY) {
                         let (dropped, starved) = (ring.overruns(), ring.underruns());
-                        eprintln!(
-                            "omega-zero: audio: {queued}/{target} queued, {dropped} dropped, {starved} starved, locked {lock} at {scale:.5}"
+                        crate::log!(
+                            "audio: {queued}/{target} queued, {dropped} dropped, {starved} starved, locked {lock} at {scale:.5}"
                         );
                     }
                 }
@@ -1161,9 +1157,10 @@ impl Worker {
                 // sound follow it from the next present
                 let latest = core.av_info();
                 if latest != av {
-                    eprintln!(
-                        "omega-zero: emu: the core now runs at {:.3} fps, {:.0} Hz",
-                        latest.fps, latest.sample_rate
+                    crate::log!(
+                        "emu: the core now runs at {:.3} fps, {:.0} Hz",
+                        latest.fps,
+                        latest.sample_rate
                     );
                     av = latest;
                     pace = Pace::new(av.fps);
@@ -1219,7 +1216,7 @@ impl Worker {
         ring.set_idle(false);
         let (dropped, starved) = (ring.overruns(), ring.underruns());
         if dropped > 0 || starved > 0 || crate::session::trace() {
-            eprintln!("omega-zero: audio: {dropped} samples dropped, {starved} starved");
+            crate::log!("audio: {dropped} samples dropped, {starved} starved");
         }
         self.put_away(core);
     }
@@ -1251,11 +1248,11 @@ impl Worker {
                 Ok(state) => {
                     let _ = reply.send(self.for_card(state));
                 }
-                Err(e) => eprintln!("omega-zero: {e}"),
+                Err(e) => crate::log!("{e}"),
             },
             Cmd::Load(state) => {
                 if let Err(e) = core.unserialize(&self.for_core(state)) {
-                    eprintln!("omega-zero: {e}");
+                    crate::log!("{e}");
                 }
                 // no achievement is earned by the jump a load makes
                 omega_cheevos::reset();
@@ -1292,12 +1289,12 @@ impl Worker {
                 if player == 0 {
                     match core.serialize() {
                         Ok(state) => {
-                            eprintln!("omega-zero: cable: sending {} bytes of state", state.len());
+                            crate::log!("cable: sending {} bytes of state", state.len());
                             for p in cable::state_packets(&state) {
                                 wire.send(NETPACKET_RELIABLE, &p);
                             }
                         }
-                        Err(e) => eprintln!("omega-zero: cable: the core would not serialize: {e}"),
+                        Err(e) => crate::log!("cable: the core would not serialize: {e}"),
                     }
                     c.prime();
                 }
@@ -1309,7 +1306,7 @@ impl Worker {
             }
             Cmd::SetDisc(index) => {
                 if !core.set_disc(index) {
-                    eprintln!("omega-zero: emu: no disc {index} to swap in");
+                    crate::log!("emu: no disc {index} to swap in");
                     return;
                 }
                 self.shared.disc.store(core.disc_index(), Ordering::Release);

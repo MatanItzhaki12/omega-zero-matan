@@ -7,7 +7,7 @@ use omega_store::Platform;
 use omega_ui::FfState;
 
 use crate::app::{App, Phase};
-use crate::audio::{open_sink, AudioSink, Ring, Sfx, GBA_HZ};
+use crate::audio::{open_sink, AudioSink, Music, Ring, Sfx, GBA_HZ};
 use crate::core::{open, Setup};
 use crate::emu::{CoreState, EmuHandle, Speed};
 use crate::frames::FrameRef;
@@ -38,6 +38,8 @@ pub struct Session {
     /// reading its resume state off the card take long enough, for a PSP game, to stall the
     /// cart going in.
     opening: Option<(String, std::sync::mpsc::Receiver<Opening>)>,
+    /// The shelf's tune, played while no game is.
+    music: Music,
 }
 
 /// What a core opened off the main thread brings back: the core, and what was read off the card
@@ -66,7 +68,7 @@ impl Session {
     pub fn boot(root: PathBuf) -> Self {
         let mut sink: Box<dyn AudioSink> = open_sink();
         if let Err(e) = sink.open(GBA_HZ) {
-            eprintln!("omega-zero: audio: {e}");
+            crate::log!("audio: {e}");
             // a computer with no sound device plays into a ring no one hears, as OMEGA_SILENT
             // has it, rather than into none at all
             #[cfg(feature = "host")]
@@ -92,6 +94,7 @@ impl Session {
             running: None,
             opening: None,
             starting: false,
+            music: Music::new(),
         }
     }
 
@@ -104,6 +107,38 @@ impl Session {
         let mut samples = sfx.render(rate);
         crate::audio::volume::apply(&mut samples, self.app.sample_volume());
         ring.mix(&samples);
+    }
+
+    /// Keeps the shelf's tune a little ahead of the speaker while it may play: on the shelf and
+    /// in its menus, Menu Music on, no game open or opening. It fades out as a cart goes in,
+    /// and is drawn only while no core feeds the ring.
+    fn play_music(&mut self) {
+        let wanted = self.app.state.menu_music
+            && self.emu.is_none()
+            && self.opening.is_none()
+            && !self.app.powering_off()
+            && !matches!(
+                self.app.phase(),
+                Phase::Inserting { .. }
+                    | Phase::Playing { .. }
+                    | Phase::Ejecting { .. }
+                    | Phase::Doze { .. }
+            );
+        self.music.set_playing(wanted);
+        if self.emu.is_some() || self.music.silent() {
+            return;
+        }
+        let ring = self.sink.ring();
+        let rate = ring.sample_rate();
+        if rate == 0 {
+            return;
+        }
+        // past half the ring, where a ring that ran dry starts again
+        let lead = ring.capacity_frames() * 3 / 4;
+        let short = lead.saturating_sub(ring.queued_frames());
+        if short > 0 {
+            ring.push(&self.music.render(rate, short, self.app.sample_volume()));
+        }
     }
 
     pub fn audio_queued(&self) -> usize {
@@ -236,7 +271,7 @@ impl Session {
 
     fn act(&mut self, action: Action) {
         if trace() {
-            eprintln!("omega-zero: {action:?} in {:?}", self.app.phase());
+            crate::log!("{action:?} in {:?}", self.app.phase());
         }
         match action {
             Action::RewindStart => self.rewinding = true,
@@ -280,7 +315,7 @@ impl Session {
                     Some(player) => emu.begin_cable(player, transport),
                     None => emu.begin_link(client_id, transport),
                 },
-                None => eprintln!("omega-zero: link: a transport arrived with no core to run it"),
+                None => crate::log!("link: a transport arrived with no core to run it"),
             }
         }
         if let Some(on) = self.app.take_colour_correction() {
@@ -324,6 +359,7 @@ impl Session {
         if let Some(sfx) = self.app.take_sfx() {
             self.play_sfx(sfx);
         }
+        self.play_music();
         sw.step("options");
         self.sync_core();
         sw.step("core");
@@ -630,13 +666,13 @@ impl Session {
         };
         if let Some((index, path)) = emu.take_swapped_disc() {
             if let Err(e) = persist::write_disc(&self.root, *platform, stem, index, &path) {
-                eprintln!("omega-zero: disc: could not keep disc {index} of {stem}: {e}");
+                crate::log!("disc: could not keep disc {index} of {stem}: {e}");
             }
         }
     }
 
     fn reload_for_link(&mut self, stem: &str, serial: &'static str) {
-        eprintln!("omega-zero: link: loading {stem} again with gpsp_serial={serial}");
+        crate::log!("link: loading {stem} again with gpsp_serial={serial}");
         if self.emu.is_some() {
             self.app.flush_resume();
         }

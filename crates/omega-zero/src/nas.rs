@@ -79,7 +79,7 @@ impl std::fmt::Display for NasFail {
 fn fail(e: smb2::Error) -> NasFail {
     use smb2::ErrorKind;
     // what the NAS said, in full, for the log: the settings say it in a few words
-    eprintln!("omega-zero: nas: {e}");
+    crate::log!("nas: {e}");
     match e.kind() {
         ErrorKind::AuthRequired | ErrorKind::SigningRequired => NasFail::Login,
         ErrorKind::AccessDenied | ErrorKind::NotFound => NasFail::Denied,

@@ -47,7 +47,7 @@ pub fn ensure(root: &Path) {
         let _ = std::fs::create_dir_all(root.join(sub));
     }
     if let Err(e) = omega_store::move_config(root) {
-        eprintln!("omega-zero: config: {e}");
+        crate::log!("config: {e}");
     }
 }
 

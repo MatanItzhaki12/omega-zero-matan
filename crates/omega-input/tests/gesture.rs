@@ -43,13 +43,21 @@ fn a_select_held_past_the_window_reaches_the_game_then() {
 fn a_game_button_under_select_hands_select_over_first() {
     let mut g = Gestures::new();
     assert!(g.feed(Down(Select), 0).is_empty());
-    assert_eq!(g.feed(Down(X), 100), vec![GbaDown(Select), GbaDown(X)]);
-    assert_eq!(g.feed(Up(X), 200), vec![GbaUp(X)]);
+    assert_eq!(g.feed(Down(Start), 100), vec![GbaDown(Select), GbaDown(Start)]);
+    assert_eq!(g.feed(Up(Start), 200), vec![GbaUp(Start)]);
     assert!(
         g.tick(SELECT_CHORD_MS).is_empty(),
         "SELECT was pressed twice"
     );
     assert_eq!(g.feed(Up(Select), 900), vec![GbaUp(Select)]);
+}
+
+#[test]
+fn select_x_takes_a_screenshot_and_x_never_reaches_the_game() {
+    let mut g = Gestures::new();
+    g.feed(Down(Select), 0);
+    assert_eq!(g.feed(Down(X), 100), vec![Screenshot]);
+    assert!(g.feed(Up(X), 150).is_empty(), "X's release reached the game");
 }
 
 #[test]

@@ -1,3 +1,7 @@
+//! What omega-zero draws: the shelf and its carts, the bars, the menus' panels and rows, the
+//! toasts, the keyboard and the opening, each as draw calls over faces baked once. `kit` holds
+//! the UI kit everything is drawn in, Omega Zero's: its palette, type, panels and rows.
+
 mod art;
 mod backdrop;
 mod battery;

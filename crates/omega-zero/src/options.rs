@@ -8,8 +8,8 @@
 //! Palette. Its last row, Emulators, opens EMULATORS: the core each system's games run on unless
 //! one was switched by hand in the core picker, and a row a system to put those back on it.
 //!
-//! SHELF: Recents, Game Titles, the Clock's 12 or 24 hours, Lid Power Off, and the Boot
-//! Animation, the opening's terminal, off unless switched on.
+//! SHELF: Recents, Game Titles, the Clock's 12 or 24 hours, Lid Power Off, the Boot Animation,
+//! the opening's terminal, off unless switched on, and the Menu Sounds and Menu Music.
 //!
 //! ACHIEVEMENTS, opened from CONFIGS' RetroAchievements: switching them on, the account and
 //! Hardcore. Its Account row signs in on the keyboard, as Labels signs in to ScreenScraper: A
@@ -123,6 +123,8 @@ impl OptionsPage {
                 OptionRow::Clock,
                 OptionRow::LidOff,
                 OptionRow::BootAnimation,
+                OptionRow::MenuSounds,
+                OptionRow::MenuMusic,
             ],
         }
     }
@@ -178,6 +180,8 @@ pub enum OptionRow {
     Clock,
     LidOff,
     BootAnimation,
+    MenuSounds,
+    MenuMusic,
     /// GAMEPLAY's way into the EMULATORS panel.
     Emulators,
     /// The core a system's games run on unless switched by hand.
@@ -274,6 +278,8 @@ impl OptionRow {
             OptionRow::Clock => "Clock",
             OptionRow::LidOff => "Lid Power Off",
             OptionRow::BootAnimation => "Boot Animation",
+            OptionRow::MenuSounds => "Menu Sounds",
+            OptionRow::MenuMusic => "Menu Music",
             OptionRow::Emulators => "Emulators",
             OptionRow::DefaultCore(Platform::Snes) => "SNES Default",
             OptionRow::DefaultCore(_) => "GBA Default",
@@ -320,6 +326,8 @@ impl OptionRow {
             OptionRow::Clock => "12 or 24-hour time",
             OptionRow::LidOff => "A shut lid powers off after this",
             OptionRow::BootAnimation => "The terminal before the shelf",
+            OptionRow::MenuSounds => "Clicks and chimes in the menus",
+            OptionRow::MenuMusic => "A soft tune on the shelf",
             OptionRow::Emulators => "Each system's default core",
             OptionRow::DefaultCore(_) => "Games not switched by hand",
             OptionRow::Switched(_) => "A puts them on the default",
@@ -506,6 +514,8 @@ impl App {
             OptionRow::Clock => if s.clock_24h { "24-HOUR" } else { "12-HOUR" }.to_string(),
             OptionRow::LidOff => format!("{} MIN", s.lid_off_min),
             OptionRow::BootAnimation => on_off(s.boot_animation),
+            OptionRow::MenuSounds => on_off(s.menu_sounds),
+            OptionRow::MenuMusic => on_off(s.menu_music),
             // a row that opens a panel shows only its ›
             OptionRow::Emulators => String::new(),
             OptionRow::DefaultCore(platform) => self.default_core(platform).name().to_uppercase(),
@@ -598,6 +608,8 @@ impl App {
             OptionRow::Titles => s.show_titles = !s.show_titles,
             OptionRow::Clock => s.clock_24h = !s.clock_24h,
             OptionRow::BootAnimation => s.boot_animation = !s.boot_animation,
+            OptionRow::MenuSounds => s.menu_sounds = !s.menu_sounds,
+            OptionRow::MenuMusic => s.menu_music = !s.menu_music,
             OptionRow::Cheevos => {
                 s.cheevos = !s.cheevos;
                 match s.cheevos {
@@ -944,7 +956,7 @@ impl App {
             right,
         );
         if let Err(e) = omega_store::write_default_core(&root, platform, to) {
-            eprintln!("omega-zero: core: could not write default_core.ini: {e}");
+            crate::log!("core: could not write default_core.ini: {e}");
         }
         self.count_switched_games();
     }
@@ -1001,7 +1013,7 @@ impl App {
         }
         for stem in &stems {
             if let Err(e) = omega_store::clear_selected_core(&root, stem) {
-                eprintln!("omega-zero: core: could not write selected_core.ini: {e}");
+                crate::log!("core: could not write selected_core.ini: {e}");
             }
         }
         self.count_switched_games();

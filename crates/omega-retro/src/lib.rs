@@ -1,3 +1,8 @@
+//! The cores: a libretro frontend that loads a core's library, gives it a game, runs it a frame
+//! at a time, and takes its picture, sound, saves and states. It also holds what one core needs
+//! of its own, gpSP's code cache room and link reset in [`gpsp`], and the link cable's
+//! exchange for the GBA's.
+
 mod core;
 mod elf;
 mod ffi;

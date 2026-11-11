@@ -43,7 +43,7 @@ impl Job {
         match self {
             Job::Write(path, bytes) => {
                 if let Err(e) = atomic_write(&path, &bytes) {
-                    eprintln!("omega-zero: {}: {e}", path.display());
+                    crate::log!("{}: {e}", path.display());
                 }
             }
             Job::Remove(path) => {
@@ -90,7 +90,7 @@ fn ask(job: Job) {
             .name("omega-card".into())
             .spawn(run);
         if let Err(e) = spawned {
-            eprintln!("omega-zero: no thread to write the card on: {e}");
+            crate::log!("no thread to write the card on: {e}");
         }
     });
     let mut queue = lock();

@@ -38,7 +38,7 @@ impl FaceBuilder {
                 }
             });
         if let Err(e) = spawned {
-            eprintln!("omega-zero: faces: worker thread failed to start: {e}");
+            crate::log!("faces: worker thread failed to start: {e}");
         }
         FaceBuilder { requests, built }
     }
