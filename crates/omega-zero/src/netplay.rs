@@ -415,7 +415,7 @@ impl RelayHost {
                             }
                         }
                         other => {
-                            eprintln!("omega-zero: netplay: the relay said {other:#010x}");
+                            crate::log!("netplay: the relay said {other:#010x}");
                             return;
                         }
                     }

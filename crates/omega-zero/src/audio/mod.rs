@@ -3,6 +3,8 @@ pub mod bt_volume;
 mod chime;
 #[cfg(feature = "host")]
 mod host;
+mod menu_sound;
+pub mod music;
 mod ring;
 mod sfx;
 mod sink;
@@ -12,6 +14,7 @@ pub mod volume;
 pub use alsa::{bluetooth_pcm, on_bluetooth, route_bluetooth, AlsaSink};
 #[cfg(feature = "host")]
 pub use host::HostAudio;
+pub use music::Music;
 pub use ring::{ring_capacity, Ring};
 pub use sfx::Sfx;
 pub use sink::{AudioError, AudioSink};

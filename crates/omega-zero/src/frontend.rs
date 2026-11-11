@@ -77,6 +77,9 @@ use sync_top_bar::{sync_top_bar, TopBarTexes};
 /// plays over the shelf.
 const FACE_BYTES_PER_FRAME: usize = 1 << 19;
 
+/// A UMD's disc made for its spin: the disc, and the same as a blur of rings.
+type SpinFaces = (omega_ui::CartFace, omega_ui::CartFace);
+
 pub struct Frontend {
     session: Session,
     start: Instant,
@@ -98,13 +101,12 @@ pub struct Frontend {
     disc: DiscTexes,
     /// The disc of the UMD going in, spinning in its window while its game loads.
     spin_disc: Option<omega_gfx::TexId>,
+    /// The same disc as a blur of rings, for when it spins too fast to be seen turning.
+    spin_blur: Option<omega_gfx::TexId>,
     /// The hub drawn still over a spinning disc, made once.
     spin_hub: Option<omega_gfx::TexId>,
     /// A disc being made off the main thread, for the game by this stem.
-    spin_making: Option<(
-        String,
-        std::sync::mpsc::Receiver<Option<omega_ui::CartFace>>,
-    )>,
+    spin_making: Option<(String, std::sync::mpsc::Receiver<Option<SpinFaces>>)>,
     pause: PauseTex,
     options: OptionsTex,
     title: TitleTex,
@@ -204,6 +206,7 @@ impl Frontend {
             disc: DiscTexes::default(),
             spin_disc: None,
             spin_hub: None,
+            spin_blur: None,
             spin_making: None,
             pause: PauseTex::default(),
             options: OptionsTex::default(),
@@ -554,8 +557,8 @@ impl Frontend {
                 let clear = overlay_clear(&face.rgba, face.w, face.h, picture);
                 if !clear {
                     let path = root.map(|r| overlay_path(&r, platform));
-                    eprintln!(
-                        "omega-zero: overlay: {} covers the game at {picture:?}, so it is not drawn",
+                    crate::log!(
+                        "overlay: {} covers the game at {picture:?}, so it is not drawn",
                         path.map_or_else(String::new, |p| p.display().to_string())
                     );
                 }
@@ -611,13 +614,20 @@ impl Frontend {
                 Ok(face) => {
                     let stem = stem.clone();
                     self.spin_making = None;
-                    if let Some(face) = face {
+                    if let Some((face, blurred)) = face {
                         let id = crate::frontend::faces::upload_rgba(
                             compositor,
                             &mut self.spin_disc,
                             face.w,
                             face.h,
                             &face.rgba,
+                        );
+                        let blur = crate::frontend::faces::upload_rgba(
+                            compositor,
+                            &mut self.spin_blur,
+                            blurred.w,
+                            blurred.h,
+                            &blurred.rgba,
                         );
                         let hub = match self.spin_hub {
                             Some(hub) => hub,
@@ -632,7 +642,7 @@ impl Frontend {
                                 )
                             }
                         };
-                        self.session.app_mut().set_spin_disc(stem, id, hub);
+                        self.session.app_mut().set_spin_disc(stem, id, blur, hub);
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
@@ -655,7 +665,10 @@ impl Frontend {
             .name("omega-disc".into())
             .spawn(move || {
                 crate::spawn::stand_back();
-                let _ = tx.send(omega_ui::umd_disc(&cart));
+                let _ = tx.send(omega_ui::umd_disc(&cart).map(|disc| {
+                    let blur = omega_ui::umd_disc_blur(&disc);
+                    (disc, blur)
+                }));
             })
             .is_ok()
         {

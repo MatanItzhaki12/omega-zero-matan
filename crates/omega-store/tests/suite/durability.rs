@@ -2,8 +2,8 @@ use crate::common;
 
 use common::tmp_root;
 use omega_store::{
-    atomic_write, read_app_state, write_app_state, AppState, BackdropStyle, Font, Platform,
-    ScreenFilter, BACKDROP_COLOURS, FF_SPEEDS, FF_SPEED_DEFAULT,
+    app_state_text, atomic_write, read_app_state, write_app_state, AppState, BackdropStyle, Font,
+    Platform, ScreenFilter, BACKDROP_COLOURS, FF_SPEEDS, FF_SPEED_DEFAULT,
 };
 use tempfile::tempdir;
 
@@ -673,4 +673,180 @@ fn slots_settings_round_trip_and_an_older_card_takes_slots_defaults() {
         "7 is not a choice Lid Power Off offers"
     );
     assert_eq!(read.gb_colors, omega_store::GbColors::Auto);
+}
+
+/// The file a card keeps is the one earlier versions wrote, key for key and in the same order,
+/// with each setting added since at the end: an older omega-zero still reads it.
+#[test]
+fn the_state_file_keeps_its_keys_and_their_order() {
+    let default: String = [
+        "cart=\n",
+        "cart_platform=\n",
+        "brightness=5\n",
+        "blue_light=0\n",
+        "volume=60\n",
+        "volume_hp=60\n",
+        "muted=0\n",
+        "muted_hp=0\n",
+        "clock_set=0\n",
+        "utc_offset_min=0\n",
+        "rumble=1\n",
+        "ff_speed=6\n",
+        "ff_sound=0\n",
+        "colour_correction=0\n",
+        "screen_filter=lcd\n",
+        "wifi=0\n",
+        "ssh=on\n",
+        "bluetooth=off\n",
+        "backdrop=\n",
+        "backdrop_moving=1\n",
+        "backdrop_colour=night\n",
+        "font=bold\n",
+        "auto_load=1\n",
+        "eject_save=1\n",
+        "rewind=1\n",
+        "turbo=1\n",
+        "blending=off\n",
+        "gb_palette=auto\n",
+        "show_recents=0\n",
+        "show_titles=0\n",
+        "clock_24h=1\n",
+        "lid_off_min=3\n",
+        "cheevos=0\n",
+        "cheevos_hardcore=0\n",
+        "boot_animation=0\n",
+        "holo=1\n",
+        "run_ahead=0\n",
+        "online_name=\n",
+        "relay=1\n",
+        "online_password=\n",
+        "online_address=\n",
+        "backup=0\n",
+        "backup_host=\n",
+        "backup_name=\n",
+        "backup_user=\n",
+        "backup_password=\n",
+        "backup_share=\n",
+        "backup_dir=\n",
+        "shelf=\n",
+        "picked=\n",
+        "picked_platform=\n",
+        "psp_screen=fit\n",
+        "menu_sounds=1\n",
+        "menu_music=1\n",
+        "menu_sounds_volume=7\n",
+        "menu_music_volume=6\n",
+    ]
+    .concat();
+    assert_eq!(app_state_text(&AppState::default()), default);
+    let s = AppState {
+        cart: Some("Cheats = On".into()),
+        cart_platform: Some(Platform::Gba),
+        brightness: 3,
+        blue_light: 9,
+        volume: 71,
+        volume_hp: 20,
+        muted: true,
+        clock_set: true,
+        utc_offset_min: -450,
+        ssh: false,
+        bluetooth: true,
+        online_name: "Matan".into(),
+        backup_host: "1.2.3.4".into(),
+        picked_platform: Some(Platform::Psp),
+        ..AppState::default()
+    };
+    let sample: String = [
+        "cart=Cheats = On\n",
+        "cart_platform=gba\n",
+        "brightness=3\n",
+        "blue_light=9\n",
+        "volume=71\n",
+        "volume_hp=20\n",
+        "muted=1\n",
+        "muted_hp=0\n",
+        "clock_set=1\n",
+        "utc_offset_min=-450\n",
+        "rumble=1\n",
+        "ff_speed=6\n",
+        "ff_sound=0\n",
+        "colour_correction=0\n",
+        "screen_filter=lcd\n",
+        "wifi=0\n",
+        "ssh=off\n",
+        "bluetooth=on\n",
+        "backdrop=\n",
+        "backdrop_moving=1\n",
+        "backdrop_colour=night\n",
+        "font=bold\n",
+        "auto_load=1\n",
+        "eject_save=1\n",
+        "rewind=1\n",
+        "turbo=1\n",
+        "blending=off\n",
+        "gb_palette=auto\n",
+        "show_recents=0\n",
+        "show_titles=0\n",
+        "clock_24h=1\n",
+        "lid_off_min=3\n",
+        "cheevos=0\n",
+        "cheevos_hardcore=0\n",
+        "boot_animation=0\n",
+        "holo=1\n",
+        "run_ahead=0\n",
+        "online_name=Matan\n",
+        "relay=1\n",
+        "online_password=\n",
+        "online_address=\n",
+        "backup=0\n",
+        "backup_host=1.2.3.4\n",
+        "backup_name=\n",
+        "backup_user=\n",
+        "backup_password=\n",
+        "backup_share=\n",
+        "backup_dir=\n",
+        "shelf=\n",
+        "picked=\n",
+        "picked_platform=psp\n",
+        "psp_screen=fit\n",
+        "menu_sounds=1\n",
+        "menu_music=1\n",
+        "menu_sounds_volume=7\n",
+        "menu_music_volume=6\n",
+    ]
+    .concat();
+    assert_eq!(app_state_text(&s), sample);
+}
+
+#[test]
+fn every_setting_round_trips_through_the_file() {
+    let d = tmp_root();
+    let s = AppState {
+        cart: Some("Emerald".into()),
+        volume_hp: 15,
+        muted_hp: true,
+        ssh: false,
+        backdrop: Some(BackdropStyle::Dotted),
+        menu_sounds: false,
+        menu_music: false,
+        menu_sounds_volume: 10,
+        menu_music_volume: 1,
+        psp_screen: "stretch".into(),
+        backup_password: "p a=ss".into(),
+        ..AppState::default()
+    };
+    write_app_state(d.path(), &s).unwrap();
+    assert_eq!(read_app_state(d.path()), s);
+}
+
+#[test]
+fn a_file_from_before_the_menu_sounds_keeps_them_on() {
+    let d = tmp_root();
+    let old = app_state_text(&AppState::default()).replace(
+        "menu_sounds=1\nmenu_music=1\nmenu_sounds_volume=7\nmenu_music_volume=6\n",
+        "",
+    );
+    std::fs::write(d.path().join("Config/omega-zero.state"), old).unwrap();
+    let s = read_app_state(d.path());
+    assert!(s.menu_sounds && s.menu_music);
 }

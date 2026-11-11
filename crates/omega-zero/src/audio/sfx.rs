@@ -1,4 +1,5 @@
 use super::chime::{self, BLIP_S, KEY_S, OMEGA_S, READING_S};
+use super::menu_sound::{self, BACK_S, CONFIRM_S, MOVE_S, SHELF_S};
 
 const INSERT: &[u8] = include_bytes!("../../assets/insert.pcm");
 const EJECT: &[u8] = include_bytes!("../../assets/eject.pcm");
@@ -16,6 +17,21 @@ pub enum Sfx {
     Reading,
     /// The opening's last file, OMEGA: the same warble an octave down, held longer.
     Omega,
+    /// A menu's cursor, or the shelf's pick, moving on: a short tick.
+    Move,
+    /// A choice taken, a row stepped or a menu opened: two notes up.
+    Confirm,
+    /// A menu left: two notes down.
+    Back,
+    /// The shelf changed for another: a soft glide up.
+    Shelf,
+}
+
+impl Sfx {
+    /// Whether it is one of the menus' sounds, which Settings › Shelf › Menu Sounds silences.
+    pub fn is_menu(self) -> bool {
+        matches!(self, Sfx::Move | Sfx::Confirm | Sfx::Back | Sfx::Shelf)
+    }
 }
 
 impl Sfx {
@@ -23,7 +39,7 @@ impl Sfx {
         match self {
             Sfx::Insert => 0.097,
             Sfx::Eject => 0.021,
-            Sfx::Blip | Sfx::Key | Sfx::Reading | Sfx::Omega => 0.0,
+            _ => 0.0,
         }
     }
 
@@ -35,6 +51,10 @@ impl Sfx {
             Sfx::Key => KEY_S,
             Sfx::Reading => READING_S,
             Sfx::Omega => OMEGA_S,
+            Sfx::Move => MOVE_S,
+            Sfx::Confirm => CONFIRM_S,
+            Sfx::Back => BACK_S,
+            Sfx::Shelf => SHELF_S,
         };
         secs - self.lead()
     }
@@ -45,6 +65,9 @@ impl Sfx {
             Sfx::Eject => EJECT,
             Sfx::Blip | Sfx::Key | Sfx::Reading | Sfx::Omega => {
                 return stereo(chime::render(self, sample_rate))
+            }
+            Sfx::Move | Sfx::Confirm | Sfx::Back | Sfx::Shelf => {
+                return stereo(menu_sound::render(self, sample_rate))
             }
         };
         stereo(resampled(pcm, sample_rate))

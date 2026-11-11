@@ -60,7 +60,7 @@ pub fn mark_starting(root: &Path, platform: Platform, stem: &str) {
     // through the card's writer, after a note of the game before being taken off, and on the
     // card before the core opens
     if let Err(e) = crate::card_writer::write(&root.join(STARTING), key.clone().into_bytes()) {
-        eprintln!("omega-zero: could not note {key} starting: {e}");
+        crate::log!("could not note {key} starting: {e}");
     }
     crate::card_writer::settle();
 }

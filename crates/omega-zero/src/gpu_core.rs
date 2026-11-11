@@ -78,7 +78,7 @@ impl GpuCore {
                 return false;
             };
             if let Err(e) = thread.make_current() {
-                eprintln!("omega-zero: gpu: {e}");
+                crate::log!("gpu: {e}");
                 return false;
             }
             thread.shares()
@@ -90,12 +90,12 @@ impl GpuCore {
                 self.frames = Some(frames);
             }
             Err(e) => {
-                eprintln!("omega-zero: gpu: the framebuffers: {e}");
+                crate::log!("gpu: the framebuffers: {e}");
                 return false;
             }
         }
-        eprintln!(
-            "omega-zero: gpu: the core draws on OpenGL ES {}.{}{}",
+        crate::log!(
+            "gpu: the core draws on OpenGL ES {}.{}{}",
             request.version.0,
             request.version.1,
             if shares {

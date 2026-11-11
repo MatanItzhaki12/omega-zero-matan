@@ -100,7 +100,7 @@ impl LabelCutter {
                     }
                 });
             if let Err(e) = spawned {
-                eprintln!("omega-zero: labels: cutter thread failed to start: {e}");
+                crate::log!("labels: cutter thread failed to start: {e}");
             }
         }
         LabelCutter {

@@ -7,6 +7,15 @@ edition = "2021"
 rust-version = "1.96"
 license = "GPL-3.0-or-later"
 
+# One set of lints for every crate, each of which takes them with `[lints] workspace = true`:
+# no leftover debugging and no unfinished stubs. (`unsafe_op_in_unsafe_fn`, the 2024 edition's
+# default, is for the move to that edition: the libretro host's callbacks need their blocks
+# first.)
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+
 [workspace.dependencies]
 lz4_flex = { version = "0.11", default-features = false, features = ["std"] }
 png = "0.17"

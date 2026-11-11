@@ -330,7 +330,7 @@ impl Announcer {
             .spawn(move || {
                 while !until.load(Ordering::Acquire) {
                     if let Err(e) = announce(&base, &room, count.load(Ordering::Relaxed)) {
-                        eprintln!("omega-zero: netplay: the lobby: {e}");
+                        crate::log!("netplay: the lobby: {e}");
                     }
                     // waits in short steps, so a room closed is let go at once
                     for _ in 0..ANNOUNCE_EVERY.as_secs() * 4 {

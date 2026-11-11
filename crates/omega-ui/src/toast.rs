@@ -44,6 +44,10 @@ pub enum Toast {
     Headphones(&'static str),
     /// A newer omega-zero to install.
     Update(&'static str),
+    /// SELECT+X in a game kept its screen in Screenshots.
+    Screenshot,
+    /// X on Recents took the game off it.
+    RecentRemoved,
 }
 
 /// What the toast says once disc `n` is in, for every disc a PlayStation game can have.
@@ -61,7 +65,7 @@ const DISC_IN: [&str; 9] = [
 
 impl Toast {
     /// Every toast there is, a disc's once, as disc 1.
-    pub const ALL: [Toast; 24] = [
+    pub const ALL: [Toast; 26] = [
         Toast::StateSaved,
         Toast::StateLoaded,
         Toast::NeedsGpsp,
@@ -86,6 +90,8 @@ impl Toast {
         Toast::Backup(""),
         Toast::Headphones(""),
         Toast::Update(""),
+        Toast::Screenshot,
+        Toast::RecentRemoved,
     ];
 
     /// Its place in `ALL`: every disc's toast is the one place.
@@ -115,6 +121,8 @@ impl Toast {
             Toast::Backup(_) => 21,
             Toast::Headphones(_) => 22,
             Toast::Update(_) => 23,
+            Toast::Screenshot => 24,
+            Toast::RecentRemoved => 25,
         }
     }
 
@@ -142,6 +150,8 @@ impl Toast {
             Toast::Backup(_) => "SAVE BACKUP",
             Toast::Headphones(_) => "HEADPHONES",
             Toast::Update(_) => "UPDATE",
+            Toast::Screenshot => "SCREENSHOT",
+            Toast::RecentRemoved => "RECENTS",
         }
     }
 
@@ -177,6 +187,8 @@ impl Toast {
             | Toast::Update(title) => title,
             Toast::Restarted => "Restarted",
             Toast::StateDeleted => "State deleted",
+            Toast::Screenshot => "Saved",
+            Toast::RecentRemoved => "Removed",
         }
     }
 

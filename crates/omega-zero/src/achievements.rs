@@ -214,7 +214,7 @@ impl App {
             return;
         };
         if let Err(e) = Account::keep_password(&root, user, password) {
-            eprintln!("omega-zero: {ACCOUNT_FILE}: {e}");
+            crate::log!("{ACCOUNT_FILE}: {e}");
         }
         omega_cheevos::logout();
         self.cheevos = Cheevos::default();
@@ -266,7 +266,7 @@ impl App {
                         // the password is swapped for the token, once
                         if account.password.is_some() && !token.is_empty() {
                             if let Err(e) = Account::keep_token(root, &account.user, &token) {
-                                eprintln!("omega-zero: {ACCOUNT_FILE}: {e}");
+                                crate::log!("{ACCOUNT_FILE}: {e}");
                             }
                         }
                     }
@@ -275,7 +275,7 @@ impl App {
                 }
                 omega_cheevos::Login::Unreachable(why) => {
                     self.cheevos.signing_in = false;
-                    eprintln!("omega-zero: cheevos: no network to sign in: {why}");
+                    crate::log!("cheevos: no network to sign in: {why}");
                     if self.cheevos.retries == 0 {
                         self.hud.toast(Toast::Cheevos("Waiting for network"), now);
                     }
@@ -284,7 +284,7 @@ impl App {
                 omega_cheevos::Login::Refused(why) => {
                     self.cheevos.signing_in = false;
                     self.cheevos.refused = Some(why.clone());
-                    eprintln!("omega-zero: cheevos: sign-in refused: {why}");
+                    crate::log!("cheevos: sign-in refused: {why}");
                     self.hud.toast(Toast::Cheevos("Sign-in failed"), now);
                 }
                 _ => {}
@@ -321,10 +321,7 @@ impl App {
                     n => Toast::Cheevos(shown(&format!("{n} offline unlocks sent"))),
                 },
                 E::ServerError => {
-                    eprintln!(
-                        "omega-zero: cheevos: {}: {}",
-                        event.title, event.description
-                    );
+                    crate::log!("cheevos: {}: {}", event.title, event.description);
                     continue;
                 }
                 E::LeaderboardStarted | E::LeaderboardFailed => continue,

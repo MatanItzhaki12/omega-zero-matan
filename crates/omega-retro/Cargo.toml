@@ -1,9 +1,13 @@
 [package]
 name = "omega-retro"
-version = "2.6.8"
+version = "2.7.0"
+description = "omega-zero's libretro host: loads and runs the emulator cores"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
 libloading.workspace = true
+
+[lints]
+workspace = true

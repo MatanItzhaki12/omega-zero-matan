@@ -44,6 +44,8 @@ pub enum Action {
     /// SELECT+A and SELECT+B, as on Slot: the next screen filter, and the one before.
     FilterNext,
     FilterPrev,
+    /// SELECT+X: the game's screen kept as a picture.
+    Screenshot,
     PowerPress,
     PowerTap,
     PowerHold,
@@ -328,6 +330,7 @@ impl Gestures {
             Btn::Y if self.keys.colour => (64, Action::ColourCorrectionToggle),
             Btn::A => (512, Action::FilterNext),
             Btn::B => (1024, Action::FilterPrev),
+            Btn::X => (2048, Action::Screenshot),
             // L2 joining R2 locks fast forward; its release ends the chord it began
             Btn::L2
                 if self.keys.game_l2_r2

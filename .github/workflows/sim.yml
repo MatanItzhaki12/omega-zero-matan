@@ -1,0 +1,50 @@
+name: sim
+
+# The frontend run off screen on an Arm runner, near the H700 the handheld has: four cores,
+# each held to a share of its time, as scripts/sim.sh runs it. Its frames and its log are kept
+# as the run's artifact. Run by hand from the Actions page or the API, and on a push that changes
+# the run itself.
+on:
+  push:
+    paths:
+      - scripts/sim.sh
+      - scripts/sim/**
+      - .github/workflows/sim.yml
+  workflow_dispatch:
+    inputs:
+      script:
+        description: The button script, under scripts/sim/
+        default: umd-insert.txt
+      quota:
+        description: Each core's share of its time, as systemd's CPUQuota takes it
+        default: 140%
+
+permissions:
+  contents: read
+
+jobs:
+  sim:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the host build's system libraries and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev pkg-config \
+            libegl1 libegl-mesa0 libgl1-mesa-dri
+
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Run the frontend off screen
+        run: |
+          SIM_CPUS=4 SIM_QUOTA="${{ inputs.quota || '140%' }}" \
+            sh scripts/sim.sh "scripts/sim/${{ inputs.script || 'umd-insert.txt' }}" target/sim
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sim
+          path: target/sim

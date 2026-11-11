@@ -1,7 +1,7 @@
 # omega-zero-matan: what this fork changes
 
 omega-zero-matan, this fork of [Omega Zero](https://github.com/oauramos/omega-zero) 1.2.0, brings back the parts of
-[Slot](https://github.com/BrandonKowalski/slot) that omega-zero left behind (its buttons, favorites,
+[Slot](https://github.com/slot-cfw/slot) that omega-zero left behind (its buttons, favorites,
 recents, in-game menu and settings) and adds RetroAchievements. Everything is drawn in omega-zero's
 own kit, so the new screens look like the rest of it. It is in daily use on an **Anbernic RG SP**.
 
@@ -9,6 +9,8 @@ The short version is in the [README](README.md#about-this-fork). This page cover
 full: what it does, its defaults, and the files it keeps on the card.
 
 - [Controls](#controls)
+- [Menu sounds and music](#menu-sounds-and-music)
+- [Game clocks](#game-clocks)
 - [Favorites and Recents](#favorites-and-recents)
 - [Screen filter](#screen-filter)
 - [Settings](#settings)
@@ -20,7 +22,7 @@ full: what it does, its defaults, and the files it keeps on the card.
 - [Save Backup](#save-backup)
 - [RetroAchievements](#retroachievements)
 - [Files on the card](#files-on-the-card)
-- [Building and installing](#building-and-installing)
+- [Building and installing](#building-and-installing) (and [developing](DEVELOPING.md))
 - [Credits and licences](#credits-and-licences)
 
 ## Controls
@@ -37,8 +39,11 @@ you are on.
 | ◀ ▶ | Browse |
 | ▲ ▼ | Jump to the previous or next letter |
 | L1 / R1 | Previous or next shelf |
+| **L2** | Back to the shelf's first cart |
+| **R2** | A cart picked at random |
 | **Y** | Add the cart to Favorites, or take it off |
 | **START** | Pick the core, on GBA and SNES carts (X still works too) |
+| **X on Recents** | Take the game off Recents, as on Slot; it stays on its own shelf |
 | **MENU** | Settings |
 | SELECT | CONTROLS |
 
@@ -52,6 +57,7 @@ you are on.
 | SELECT + MENU | Link play, or DISC on a PlayStation game on several discs |
 | **SELECT + A / B** | Next or previous screen filter |
 | SELECT + Y | Colour correction on or off |
+| **SELECT + X** | Screenshot: the game's screen as a PNG in `Screenshots/<system>/` |
 | SELECT + L1 / R1 | Load the newest state / save a state |
 | SELECT + ▲ ▼ / ◀ ▶ | Brightness / blue light |
 | L2 | Rewind |
@@ -62,6 +68,28 @@ you are on.
 | Tap / hold POWER | Sleep / power off |
 | START while holding POWER | Restart |
 
+## Menu sounds and music
+
+The menus click and chime as they are used, and a soft tune plays on the shelf. Both are made
+by omega-zero as they play, out of sines, so no recording ships with it. Settings › Shelf ›
+Sound turns each off and sets each one's volume.
+
+- A cursor that moves ticks, a menu that opens chimes up, and one that closes chimes down. A
+  press that changes nothing, such as Up at the top of a list, makes no sound. On the shelf,
+  each cart the pick passes ticks, and a shelf changed for another glides up.
+- In a game the buttons are the game's and make no sound until a menu is opened over it.
+- The tune is eight slow bars of a pad, a bass and a music box, a few notes left out at random
+  each time round. It fades out as a cart goes in, and comes back on the shelf. It follows the
+  volume, and it never plays while a game does.
+- Sounds no longer cut each other off: one that starts while another plays is laid over it.
+
+## Game clocks
+
+A cart with a clock on it, as Pokémon Ruby, Sapphire and Emerald and Boktai have, reads the time
+of day from the handheld. BaseOS keeps the clock in UTC, so these games used to be hours out.
+The cores now take the offset Date & Time was set to, so berries, tides and Boktai's sun follow
+your own day. Date & Time is set on the shelf, and the next game opened keeps to it.
+
 ## Favorites and Recents
 
 **Favorites.** Y on a cart adds it to a FAVORITES shelf, and every favorite gets a small gold
@@ -70,7 +98,9 @@ shelves' order (GBA, GB, GBC, SNES, PS1), then by name within each system. Takin
 off empties the shelf, and omega-zero moves on to the next one.
 
 **Recents.** With Settings › Shelf › Recents on, a RECENTS shelf stands first: the last ten games
-played, newest first. The boot opens on it, unless the handheld went off on another shelf.
+played, newest first. The boot opens on it, unless the handheld went off on another shelf. X on a game
+there takes it off Recents, as on Slot. The game stays on its own shelf, and the pick moves to
+the game that takes its place.
 
 Both lists are kept in Slot's own files and format (`Config/favorites.txt` and
 `Config/recents.txt`, one `gba/<name>` per line), so a card moved over from Slot keeps them.
@@ -151,6 +181,16 @@ on. A toast says so when the picker opens on a game switched by hand.
 | Clock | 12-hour, 24-hour: the top bar and Date & Time | 24-hour |
 | Lid Power Off | 1, 3, 5, 10, 15, 30 minutes | 3 |
 | Boot Animation | On, Off: the terminal that types out before the shelf at boot | Off |
+| Sound › | Opens SOUND, below | |
+
+**SHELF › Sound ›**
+
+| Row | Choices | Default |
+|---|---|---|
+| Menu Sounds | On, Off: a tick as a cursor moves, a chime up as a menu opens and down as it closes | On |
+| Sounds Volume | 1 to 10 | 7 |
+| Menu Music | On, Off: a soft tune on the shelf and in its menus, fading out as a game goes in | On |
+| Music Volume | 1 to 10 | 6 |
 
 **LABELS ›** fetches labels from ScreenScraper, and has **Holo Sheen**: the rainbow on a clear or
 glitter cart's label, on or off (on).
@@ -446,7 +486,7 @@ there:
 | Running the game | The emulator's thread (`omega-emu`) |
 | Opening a core, reading its save and resume | `omega-core-open`, at low priority, so the cart going in is drawn meanwhile |
 | Closing a core | The emulator's thread, as it stops. The next core waits for it, so two of one core are never open at once, and so do powering off and restarting |
-| Making a PSP game's spinning disc | `omega-disc` |
+| Making a PSP game's spinning disc | `omega-disc`, with its blur of rings. The disc spins up to 20 turns a second over about a second and a half, fading into the blur as it gets too fast to be seen turning; the UMD goes in once it has spun at full speed a moment, and the PSP core opens once the screen is dark |
 | The autosave: the core's state and writing it | `omega-autosave` |
 | Taking and writing a cart's state as it comes out | `omega-eject-save`. The emulator answers its ask before it closes the core. The same game put back in waits for the write before it reads its resume; another game does not |
 | omega-zero's state, Recents, Favorites, the note of a game starting | `omega-card`, in order, the newest of each file only; powering off and restarting wait for it, and nothing else does. Tests write at once |
@@ -457,8 +497,9 @@ Each frame's animations step by the time between the last two frames the panel s
 their swaps returned, rather than by when the frame began, which moves with how long recent
 frames took to make.
 
-`omega-zero.log` on the card says where a slow frame's time went, so a hitch can be found
-without a debugger:
+Every line of `omega-zero.log` starts with the seconds since omega-zero started, as
+`[   12.345] omega-zero: …`, so the time between two lines can be read off. The log says
+where a slow frame's time went, so a hitch can be found without a debugger:
 
 - `slow frame going in: N ms: update …, emulator …, draw …, swap …` for a frame of a cart going
   in that took over 30 ms;
@@ -483,6 +524,7 @@ without a debugger:
 | `Config/save_backup_undo/` | The handheld's own saves as they were before Sync From Backup replaced them |
 | `System/trace-latency.on` | When it is there, each press's latency is written to the log |
 | `System/omega-zero.previous` | The omega-zero an update replaced, to go back to |
+| `Screenshots/<system>/` | SELECT + X's pictures, `<game> <date>_<time>.png` |
 | `Labels/cart_shell.txt` | Cart shells as Slot and Cart Studio write them |
 
 New keys in `Config/omega-zero.state`. A card from before this fork reads each one as its default.
@@ -502,6 +544,8 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `backup` | `1`, `0` |
 | `backup_host`, `backup_name`, `backup_user`, `backup_password`, `backup_share`, `backup_dir` | Save Backup's NAS, its name, user, password, share and folder |
 | `shelf`, `picked`, `picked_platform` | The shelf and the game the shelf was on when the handheld went off |
+| `menu_sounds`, `menu_music` | `1`, `0` |
+| `menu_sounds_volume`, `menu_music_volume` | `1` to `10` |
 
 `ff_speed` also takes `0` now, for OFF.
 
@@ -588,7 +632,7 @@ Without them, those tests pass at once.
 
 Everything credited in the [README](README.md#credits-and-licence) still applies. In addition:
 
-- The controls, settings and in-game menu follow [Slot](https://github.com/BrandonKowalski/slot) by
+- The controls, settings and in-game menu follow [Slot](https://github.com/slot-cfw/slot) by
   Brandon T. Kowalski (GPL-3.0). The Game Boy palette list and the frame blending options are
   ported from it.
 - [rcheevos](https://github.com/RetroAchievements/rcheevos) by RetroAchievements.org (MIT),

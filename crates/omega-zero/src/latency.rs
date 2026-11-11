@@ -112,8 +112,8 @@ pub fn swapped(swap_ms: f64) {
     BITS.store(0, Ordering::Release);
     let core = CORE.swap(0, Ordering::AcqRel) as f64 / 1e6;
     let ms = |from: u64, to: u64| to.saturating_sub(from) as f64 / 1e6;
-    eprintln!(
-        "omega-zero: latency: read>pad {:.1} pad>emu {:.1} emu>pub {:.1} (core {:.1}) pub>take {:.1} take>swapped {:.1} (swap {:.1}) total {:.1} ms",
+    crate::log!(
+        "latency: read>pad {:.1} pad>emu {:.1} emu>pub {:.1} (core {:.1}) pub>take {:.1} take>swapped {:.1} (swap {:.1}) total {:.1} ms",
         ms(r, a),
         ms(a, e),
         ms(e, p),

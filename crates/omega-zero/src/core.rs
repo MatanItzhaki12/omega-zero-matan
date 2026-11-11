@@ -168,18 +168,18 @@ fn open_named(
                 if let Some(player) = link {
                     apply_link_options(&mut opened, core, player);
                 }
-                eprintln!("omega-zero: core {}", path.display());
+                crate::log!("core {}", path.display());
                 return Some(Box::new(opened));
             }
-            Err(e) => eprintln!("omega-zero: {}: {e}", path.display()),
+            Err(e) => crate::log!("{}: {e}", path.display()),
         }
     }
     None
 }
 
 fn report_missing(core: Core, paths: &[PathBuf]) {
-    eprintln!(
-        "omega-zero: no {} core found, running the mock test pattern instead. Looked in: {}",
+    crate::log!(
+        "no {} core found, running the mock test pattern instead. Looked in: {}",
         core.as_str(),
         paths
             .iter()
@@ -206,7 +206,7 @@ pub fn apply_link_options(core: &mut LibretroCore, which: Core, player: u8) {
     }
     core.set_option("mgba_link", "on");
     core.set_option("mgba_link_player", &player.to_string());
-    eprintln!("omega-zero: core: link mode on, player {player}");
+    crate::log!("core: link mode on, player {player}");
 }
 
 pub fn apply_core_options(

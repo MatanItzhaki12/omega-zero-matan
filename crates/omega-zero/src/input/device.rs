@@ -37,11 +37,7 @@ impl DeviceInput {
     fn open_traced(dev: &Path, sys: &Path, trace: Option<Arc<Trace>>) -> Self {
         let pending: Arc<Mutex<Vec<RawEvent>>> = Arc::new(Mutex::new(Vec::new()));
         for node in pick_devices(dev, sys) {
-            eprintln!(
-                "omega-zero: input {} ({})",
-                node.display(),
-                device_name(sys, &node)
-            );
+            crate::log!("input {} ({})", node.display(), device_name(sys, &node));
             quicken_poll(sys, &node);
             let queue = pending.clone();
             let name = node.display().to_string();
@@ -50,7 +46,7 @@ impl DeviceInput {
                 .name(format!("omega-input-{name}"))
                 .spawn(move || read_node(&node, &queue, trace.as_deref()));
             if let Err(e) = spawned {
-                eprintln!("omega-zero: input {name}: {e}");
+                crate::log!("input {name}: {e}");
             }
         }
         DeviceInput {
@@ -77,11 +73,8 @@ fn quicken_poll(sys: &Path, node: &Path) {
     };
     if now > POLL_MS {
         match std::fs::write(&attr, POLL_MS.to_string()) {
-            Ok(()) => eprintln!(
-                "omega-zero: input {}: poll {now} ms -> {POLL_MS} ms",
-                node.display()
-            ),
-            Err(e) => eprintln!("omega-zero: input {}: poll: {e}", node.display()),
+            Ok(()) => crate::log!("input {}: poll {now} ms -> {POLL_MS} ms", node.display()),
+            Err(e) => crate::log!("input {}: poll: {e}", node.display()),
         }
     }
 }
@@ -95,7 +88,7 @@ fn read_node(node: &Path, queue: &Mutex<Vec<RawEvent>>, trace: Option<&Trace>) {
     let mut file = match File::open(node) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("omega-zero: input {}: {e}", node.display());
+            crate::log!("input {}: {e}", node.display());
             return;
         }
     };
@@ -106,7 +99,7 @@ fn read_node(node: &Path, queue: &Mutex<Vec<RawEvent>>, trace: Option<&Trace>) {
             Ok(n) => n,
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e) => {
-                eprintln!("omega-zero: input {}: {e}", node.display());
+                crate::log!("input {}: {e}", node.display());
                 return;
             }
         };
@@ -144,7 +137,7 @@ impl Trace {
         let mut file = match File::create(&path) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("omega-zero: {}: {e}", path.display());
+                crate::log!("{}: {e}", path.display());
                 return None;
             }
         };

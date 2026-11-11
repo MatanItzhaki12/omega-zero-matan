@@ -27,8 +27,8 @@ pub fn link_port() -> u16 {
     }
     match raw.to_str().and_then(|s| s.trim().parse::<u16>().ok()) {
         None | Some(0) => {
-            eprintln!(
-                "omega-zero: {PORT_ENV}={:?} is not a port a link can meet on, using {DEFAULT_LINK_PORT}",
+            crate::log!(
+                "{PORT_ENV}={:?} is not a port a link can meet on, using {DEFAULT_LINK_PORT}",
                 raw.to_string_lossy()
             );
             DEFAULT_LINK_PORT
@@ -192,7 +192,7 @@ impl LinkStarter {
                     RadioFail::NoHost => LinkFail::NobodyCame,
                     RadioFail::Cancelled => LinkFail::Cancelled,
                     RadioFail::Radio(why) => {
-                        eprintln!("omega-zero: link: {role:?} could not bring the radio up: {why}");
+                        crate::log!("link: {role:?} could not bring the radio up: {why}");
                         LinkFail::Radio
                     }
                 };
@@ -201,23 +201,23 @@ impl LinkStarter {
                 return;
             }
             let _ = tx.send(LinkProgress::At(LinkStep::Waiting));
-            eprintln!("omega-zero: link: {role:?} using {HOST_ADDR}:{port}");
+            crate::log!("link: {role:?} using {HOST_ADDR}:{port}");
             match socket(port, &flag) {
                 Ok(link) => {
-                    eprintln!("omega-zero: link: {role:?} connected on {HOST_ADDR}:{port}");
+                    crate::log!("link: {role:?} connected on {HOST_ADDR}:{port}");
                     let ready = Connected {
                         link: Box::new(link),
                         client: None,
                         peer: None,
                     };
                     if tx.send(LinkProgress::Ready(ready)).is_err() {
-                        eprintln!("omega-zero: link: nobody left to hand it to, radio back down");
+                        crate::log!("link: nobody left to hand it to, radio back down");
                         radio_down();
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "omega-zero: link: {role:?} failed on {HOST_ADDR}:{port}: {e} (kind {:?})",
+                    crate::log!(
+                        "link: {role:?} failed on {HOST_ADDR}:{port}: {e} (kind {:?})",
                         e.kind()
                     );
                     radio_down();
@@ -423,7 +423,7 @@ impl LinkStarter {
                                 .and_then(|s| netplay::join_with(s, &nick, &password, ANSWER)),
                         };
                         joined.map(|j| ready(j, None, None)).map_err(|e| {
-                            eprintln!("omega-zero: netplay: the room: {e}");
+                            crate::log!("netplay: the room: {e}");
                             online_fail(&e)
                         })
                     }
@@ -438,7 +438,7 @@ impl LinkStarter {
                             .and_then(|s| netplay::join_with(s, &nick, &password, ANSWER))
                             .map(|j| ready(j, None, None))
                             .map_err(|e| {
-                                eprintln!("omega-zero: netplay: {addr}:{port}: {e}");
+                                crate::log!("netplay: {addr}:{port}: {e}");
                                 online_fail(&e)
                             })
                     }
@@ -506,11 +506,11 @@ fn host_online(
     );
     let _ = tx.send(LinkProgress::At(LinkStep::Room));
     let (addr, port) = netplay_lobby::tunnel(lobby, relay).map_err(|e| {
-        eprintln!("omega-zero: netplay: the relay {relay}: {e}");
+        crate::log!("netplay: the relay {relay}: {e}");
         LinkFail::Lobby
     })?;
     let hosting = RelayHost::open(&addr, port, ANSWER).map_err(|e| {
-        eprintln!("omega-zero: netplay: the relay at {addr}:{port}: {e}");
+        crate::log!("netplay: the relay at {addr}:{port}: {e}");
         LinkFail::Lobby
     })?;
     let announced = Announcer::start(
@@ -535,13 +535,13 @@ fn host_online(
         };
         match netplay::host_with(player, nick, password, crc, ANSWER) {
             Ok(joined) => {
-                eprintln!("omega-zero: netplay: {} joined the room", joined.peer);
+                crate::log!("netplay: {} joined the room", joined.peer);
                 announced.set_players(2);
                 return Ok(ready(joined, Some(hosting), Some(announced)));
             }
             // the lobby looking in, or a player who did not finish: the room stays open
             Err(NetplayFail::Probe) => {}
-            Err(e) => eprintln!("omega-zero: netplay: a player could not join: {e}"),
+            Err(e) => crate::log!("netplay: a player could not join: {e}"),
         }
     }
     Err(LinkFail::NobodyCame)
@@ -558,7 +558,7 @@ fn host_lan(
 ) -> Result<Connected, LinkFail> {
     let port = ad.port;
     let held = |e: std::io::Error| {
-        eprintln!("omega-zero: netplay: port {port}: {e}");
+        crate::log!("netplay: port {port}: {e}");
         LinkFail::Port
     };
     let listener =
@@ -580,18 +580,18 @@ fn host_lan(
                 continue;
             }
             Err(e) => {
-                eprintln!("omega-zero: netplay: the room on the network: {e}");
+                crate::log!("netplay: the room on the network: {e}");
                 return Err(LinkFail::PeerVanished);
             }
         };
         let _ = player.set_nonblocking(false);
         match netplay::host_with(player, &nick, password, crc, ANSWER) {
             Ok(joined) => {
-                eprintln!("omega-zero: netplay: {} joined on the network", joined.peer);
+                crate::log!("netplay: {} joined on the network", joined.peer);
                 return Ok(ready(joined, None, None));
             }
             Err(NetplayFail::Probe) => {}
-            Err(e) => eprintln!("omega-zero: netplay: a player could not join: {e}"),
+            Err(e) => crate::log!("netplay: a player could not join: {e}"),
         }
     }
     Err(LinkFail::NobodyCame)
@@ -611,7 +611,7 @@ impl RoomsFetch {
             .spawn(move || {
                 let rooms = netplay_lobby::rooms(&lobby)
                     .map(|all| all.into_iter().filter(Room::joinable).collect())
-                    .map_err(|e| eprintln!("omega-zero: netplay: the lobby's rooms: {e}"));
+                    .map_err(|e| crate::log!("netplay: the lobby's rooms: {e}"));
                 let _ = tx.send(rooms);
             });
         RoomsFetch { rx }
@@ -626,7 +626,7 @@ impl RoomsFetch {
             .spawn(move || {
                 let rooms = crate::netplay_lan::discover(Duration::from_millis(1500))
                     .map(|all| all.into_iter().filter(Room::joinable).collect())
-                    .map_err(|e| eprintln!("omega-zero: netplay: the network's rooms: {e}"));
+                    .map_err(|e| crate::log!("netplay: the network's rooms: {e}"));
                 let _ = tx.send(rooms);
             });
         RoomsFetch { rx }

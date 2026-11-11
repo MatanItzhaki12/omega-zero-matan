@@ -2,6 +2,62 @@
 
 ## Unreleased
 
+## omega-zero 2.7.0
+
+- The menus have sounds: a soft tick as a cursor moves, a chime up as a menu opens and down as
+  it closes, and a glide as the shelf changes. Settings › Shelf › Sound turns them off or sets
+  their volume.
+  A press that changes nothing makes no sound, and a game's buttons make none until a menu is
+  opened over it.
+
+- A gentle tune plays on the shelf and in its menus, a slow pad, bass and music box made as it
+  plays. It fades out as a cart goes in and back in on the shelf. Settings › Shelf › Sound
+  turns it off or sets its volume.
+
+- SELECT + X in a game takes a screenshot, a PNG at the game's own size in
+  `Screenshots/<system>/`, named after the game and the time.
+
+- X on the Recents shelf takes the game picked off it, as on Slot. It stays on its own shelf.
+
+- L2 on the shelf goes back to its first cart, and R2 picks one at random.
+
+- Games with a clock on the cart, such as Pokémon Ruby, Sapphire and Emerald and Boktai, read the
+  time in your time zone, as Date & Time has it, rather than UTC, so berries, tides and the sun
+  follow your day.
+
+- A PSP game's disc spins smoothly as its game loads. The spin had a stutter that was never
+  the frame rate: the UMD's disc was drawn spinning only while the cart stood square to the
+  screen, and a cart still swaying at the top of its rise flicked between its spinning disc and
+  its still label. The cart now squares up as it rises. The disc spins up the way a drive spins
+  one up, slowly off the mark and then fast, to a real disc's speed in about a second and a
+  half, and as it gets too fast to be seen turning it fades into a blur of rings, as a spinning
+  disc looks to the eye, rather than strobing from place to place. The UMD stays up at the top
+  of its rise until it has spun at full speed a moment, then goes in, and the game's core opens
+  only once the screen has gone dark, so the core's opening never stalls the animation. The game
+  starts about two seconds later than before.
+
+- Settings › Shelf › Sound opens SOUND: Menu Sounds and Menu Music on or off, and each one's
+  volume, from 1 to 10.
+
+- Sounds no longer cut each other off. One that starts while another is playing is laid over it,
+  and a sound over a game's or the tune's sound no longer pushes it later.
+
+- Every line of `omega-zero.log` starts with the seconds since omega-zero started, so the gaps
+  in a slow start or a stall can be read off it.
+
+- The README is rewritten for this fork: what it is, where it comes from (Omega Zero and Slot,
+  now at slot-cfw/slot), and what it can do. `DEVELOPING.md` maps the code and shows how to
+  add a setting, a screen, a toast or a sound.
+
+- For developers: `scripts/sim.sh` runs the frontend off screen, a script of presses in and PNG
+  frames out, on the computer or, through the `sim` workflow, on an Arm runner held near the
+  H700's speed. A test draws a UMD going in frame by frame and fails on a jerk or a strobe.
+
+- For developers: settings are kept by one table in `omega-store`, so a new one is a field, its
+  default and one line, and a test pins the file so older versions still read it. Link play
+  and saves have their own files under `app/`. Every crate has its summary and shares one set
+  of lints, and `.editorconfig` keeps editors to the project's style.
+
 ## omega-zero 2.6.8
 
 - A UMD's hub is a real one's: white, UMD across it in blue and UNIVERSAL MEDIA DISC under it

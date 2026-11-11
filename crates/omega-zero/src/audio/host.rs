@@ -175,7 +175,7 @@ fn start(
                     *o = f32::from(*s) / 32768.0;
                 }
             },
-            |e| eprintln!("omega-zero: audio: {e}"),
+            |e| crate::log!("audio: {e}"),
             None,
         )
         .map_err(|e| AudioError::Device(e.to_string()))?;

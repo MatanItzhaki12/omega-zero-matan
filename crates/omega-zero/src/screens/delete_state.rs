@@ -107,7 +107,7 @@ impl App {
             return self.refuse();
         };
         if let Err(e) = ring.remove(&stamp) {
-            eprintln!("omega-zero: delete: {e}");
+            crate::log!("delete: {e}");
             return self.refuse();
         }
         let undoes_it = matches!(

@@ -466,6 +466,19 @@ impl Shelf {
         self.ride += delta as f32;
     }
 
+    /// Picks the cart at `target`, the shelf sliding to it the shorter way round, as a jump
+    /// to a letter does.
+    pub fn glide_to(&mut self, target: usize) {
+        let n = self.carts.len() as i32;
+        if target as i32 >= n || target == self.index {
+            return;
+        }
+        let ahead = (target as i32 - self.index as i32).rem_euclid(n);
+        let delta = if ahead <= n / 2 { ahead } else { ahead - n };
+        self.index = target;
+        self.ride += delta as f32;
+    }
+
     pub fn hold_left(&mut self, now: Millis) {
         self.hold(-1, now);
     }

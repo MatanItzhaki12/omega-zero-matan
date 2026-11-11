@@ -34,7 +34,7 @@ impl Stopwatch {
     /// Logs each step's time, as `what`'s, if it all took longer than `over`.
     pub fn log_over(&self, what: &str, over: Duration) {
         if let Some(report) = self.report_over(what, over) {
-            eprintln!("omega-zero: {report}");
+            crate::log!("{report}");
         }
     }
 

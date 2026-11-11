@@ -1,3 +1,7 @@
+//! The buttons, from raw presses to what they mean: [`Gestures`] turns the handheld's events
+//! into [`Action`]s, taps, holds and SELECT chords, with the timings omega-zero and Slot share,
+//! and [`Keys`] says which buttons the game being played keeps for itself.
+
 mod gesture;
 mod raw;
 

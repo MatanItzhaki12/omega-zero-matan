@@ -33,7 +33,7 @@ pub(super) fn render(sfx: Sfx, rate: u32) -> Vec<f32> {
         Sfx::Key => key(rate),
         Sfx::Reading => warble(rate, READING_S, &READING_NOTES, READING_LEVEL),
         Sfx::Omega => warble(rate, OMEGA_S, &OMEGA_NOTES, OMEGA_LEVEL),
-        Sfx::Insert | Sfx::Eject => Vec::new(),
+        _ => Vec::new(),
     };
     soften(&mut out, rate);
     soften(&mut out, rate);

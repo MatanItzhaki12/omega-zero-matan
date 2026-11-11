@@ -18,7 +18,13 @@ struct Inner {
     placed: usize,
     pending_at: u64,
     drained: u64,
+    /// When samples were last pushed: while something feeds the ring, a sound mixed in is laid
+    /// over what arrives rather than after it, so the stream it is laid on runs unbroken.
+    pushed: Option<Instant>,
 }
+
+/// How long after the last push the ring counts as fed.
+const FED_FOR: Duration = Duration::from_millis(100);
 
 pub struct Ring {
     inner: Mutex<Inner>,
@@ -45,6 +51,7 @@ impl Ring {
                 placed: 0,
                 pending_at: 0,
                 drained: 0,
+                pushed: None,
             }),
             room: Condvar::new(),
             queued: AtomicUsize::new(0),
@@ -68,6 +75,7 @@ impl Ring {
         i.placed = 0;
         i.pending_at = 0;
         i.drained = 0;
+        i.pushed = None;
         i.len = drc_target(frames) * 2;
         self.queued.store(i.len, Ordering::Relaxed);
         self.capacity.store(frames, Ordering::Relaxed);
@@ -81,6 +89,8 @@ impl Ring {
     pub fn push(&self, samples: &[i16]) {
         let mut i = self.lock();
         let lost = write_into(&mut i, samples).len();
+        i.pushed = Some(Instant::now());
+        lay_pending(&mut i, false);
         self.queued.store(i.len, Ordering::Relaxed);
         drop(i);
         if lost > 0 && !self.muted() && self.capacity_frames() > 0 {
@@ -98,6 +108,8 @@ impl Ring {
         let mut i = self.lock();
         loop {
             rest = write_into(&mut i, rest);
+            i.pushed = Some(Instant::now());
+            lay_pending(&mut i, false);
             self.queued.store(i.len, Ordering::Relaxed);
             if rest.is_empty() || self.muted() {
                 return;
@@ -116,23 +128,43 @@ impl Ring {
         }
     }
 
+    /// Mixes `samples` in from the next sample heard, over whatever is queued and over the
+    /// part of an earlier sound still to come, so a quick run of sounds overlaps rather than
+    /// each cutting off the one before.
     pub fn mix(&self, samples: &[i16]) {
         self.priming.store(false, Ordering::Relaxed);
         let mut i = self.lock();
-        i.pending.clear();
-        i.placed = 0;
         if i.buf.is_empty() {
+            i.pending.clear();
+            i.placed = 0;
             return;
         }
-        i.pending_at = i.drained;
-        i.pending.extend_from_slice(samples);
-        lay_pending(&mut i);
+        let now = i.drained;
+        // what of the earlier sound is still to be laid, and how far from now it starts; one
+        // the playhead already passed is gone
+        let rest = &i.pending[i.placed..];
+        let rest_off = i.pending_at.checked_sub(now).map(|off| off as usize);
+        let mut layered = samples.to_vec();
+        if let Some(off) = rest_off.filter(|_| !rest.is_empty()) {
+            if layered.len() < off + rest.len() {
+                layered.resize(off + rest.len(), 0);
+            }
+            for (k, s) in rest.iter().enumerate() {
+                layered[off + k] = layered[off + k].saturating_add(*s);
+            }
+        }
+        i.pending = layered;
+        i.placed = 0;
+        i.pending_at = now;
+        let fed = i.pushed.is_some_and(|at| at.elapsed() < FED_FOR);
+        lay_pending(&mut i, !fed);
         self.queued.store(i.len, Ordering::Relaxed);
     }
 
     pub fn fill(&self, out: &mut [i16]) {
         let mut i = self.lock();
-        lay_pending(&mut i);
+        let fed = i.pushed.is_some_and(|at| at.elapsed() < FED_FOR);
+        lay_pending(&mut i, !fed);
         let cap = i.buf.len();
         let holding = self.priming.load(Ordering::Relaxed) && cap > 0 && i.len < cap / 2;
         self.priming.store(holding, Ordering::Relaxed);
@@ -203,7 +235,9 @@ impl Ring {
     }
 }
 
-fn lay_pending(i: &mut Inner) {
+/// Lays as much of the pending sound into the queue as it reaches: over what is queued, and,
+/// where `extend`, past its end, which a ring no one feeds needs for the sound to be heard.
+fn lay_pending(i: &mut Inner, extend: bool) {
     let cap = i.buf.len();
     if cap == 0 || i.placed >= i.pending.len() {
         return;
@@ -217,7 +251,11 @@ fn lay_pending(i: &mut Inner) {
     if off >= cap {
         return;
     }
-    let n = (i.pending.len() - i.placed).min(cap - off);
+    let room = if extend { cap } else { i.len };
+    if off >= room {
+        return;
+    }
+    let n = (i.pending.len() - i.placed).min(room - off);
     let len = i.len;
     for k in 0..n {
         let s = i.pending[i.placed + k];

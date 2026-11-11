@@ -258,7 +258,7 @@ impl Updater {
                 let done = match done {
                     Ok(()) => Update::Installed(version),
                     Err(why) => {
-                        eprintln!("omega-zero: update: {why}");
+                        crate::log!("update: {why}");
                         Update::Failed(why)
                     }
                 };

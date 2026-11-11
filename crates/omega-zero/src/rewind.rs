@@ -65,7 +65,7 @@ impl Rewind {
                 self.cur = Some(prev);
             }
             Err(e) => {
-                eprintln!("omega-zero: rewind: {e}");
+                crate::log!("rewind: {e}");
                 self.deltas.clear();
                 self.bytes = 0;
             }

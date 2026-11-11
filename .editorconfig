@@ -1,0 +1,31 @@
+# One style for every editor: what rustfmt and the card's scripts already keep.
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.rs]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+
+[*.sh]
+indent_style = tab
+
+[*.{c,h}]
+indent_style = space
+indent_size = 4
+
+# a core's patch is applied byte for byte
+[cores/**/*.patch]
+trim_trailing_whitespace = false
+insert_final_newline = false
+
+[*.{yml,yaml,toml,json,md,html,css,js}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false

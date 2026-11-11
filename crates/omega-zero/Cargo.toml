@@ -1,6 +1,7 @@
 [package]
 name = "omega-zero"
-version = "2.6.8"
+version = "2.7.0"
+description = "A cartridge-shelf frontend for Anbernic H700 handhelds"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -31,3 +32,6 @@ tokio = { version = "1", default-features = false, features = ["rt", "time"] }
 [dev-dependencies]
 omega-gfx = { path = "../omega-gfx", default-features = false, features = ["test-support"] }
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

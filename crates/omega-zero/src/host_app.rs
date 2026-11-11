@@ -39,13 +39,13 @@ impl ApplicationHandler for HostApp {
         let (surface, mut compositor) = match built {
             Ok(gfx) => gfx,
             Err(e) => {
-                eprintln!("omega-zero: {e}");
+                omega_zero::log!("{e}");
                 events.exit();
                 return;
             }
         };
         if let Err(e) = compositor.set_rotation(omega_gfx::host_rotation()) {
-            eprintln!("omega-zero: {e}");
+            omega_zero::log!("{e}");
         }
         self.frontend.upload_faces(&mut compositor);
         if let Some(logo) = boot_logo(self.frontend.app().root()) {
@@ -71,7 +71,7 @@ impl ApplicationHandler for HostApp {
                 let swapped = surface.swap();
                 omega_zero::latency::swapped(swap.elapsed().as_secs_f64() * 1000.0);
                 if let Err(e) = swapped {
-                    eprintln!("omega-zero: {e}");
+                    omega_zero::log!("{e}");
                     events.exit();
                     return;
                 }
@@ -108,12 +108,12 @@ pub fn run() {
     let events = match EventLoop::new() {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("omega-zero: {e}");
+            omega_zero::log!("{e}");
             return;
         }
     };
     events.set_control_flow(ControlFlow::Poll);
     if let Err(e) = events.run_app(&mut HostApp::new()) {
-        eprintln!("omega-zero: {e}");
+        omega_zero::log!("{e}");
     }
 }

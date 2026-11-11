@@ -407,12 +407,12 @@ fn copy(
             e => Err(e),
         })
         .map_err(|e| {
-            eprintln!("omega-zero: save backup: {}: {e}", to.login.host);
+            crate::log!("save backup: {}: {e}", to.login.host);
             (total, e)
         })?;
     for (done, (rel, bytes)) in todo.into_iter().enumerate() {
         if let Err(e) = nas.put(&to.share, &to.remote(&rel), &bytes) {
-            eprintln!("omega-zero: save backup: {rel}: {e}");
+            crate::log!("save backup: {rel}: {e}");
             let _ = list.write(root);
             return Err((total - done, e));
         }
@@ -428,12 +428,9 @@ fn copy(
         }
     }
     if let Err(e) = list.write(root) {
-        eprintln!("omega-zero: save backup: {LIST}: {e}");
+        crate::log!("save backup: {LIST}: {e}");
     }
-    eprintln!(
-        "omega-zero: save backup: {total} copied to {}",
-        to.login.host
-    );
+    crate::log!("save backup: {total} copied to {}", to.login.host);
     Ok(())
 }
 
@@ -588,7 +585,7 @@ pub fn restore(root: &Path, from: &Differs, stamp: &str) -> std::io::Result<()> 
         for core in omega_store::Core::for_platform(platform) {
             let ring = omega_store::StateRing::new(root, platform, *core, &stem);
             if let Ok(Some(to)) = ring.retire_resume(stamp) {
-                eprintln!("omega-zero: sync from backup: set {} aside", to.display());
+                crate::log!("sync from backup: set {} aside", to.display());
             }
         }
     }

@@ -79,12 +79,12 @@ fn choose_canvas(panel: (u32, u32)) -> Rotation {
     let upright = rotation.upright(panel);
     if std::env::var_os(CANVAS_ENV).is_none() {
         if let Err(drawn) = set_canvas(Canvas::for_panel(upright.0, upright.1)) {
-            eprintln!("omega-zero: the canvas was already {drawn:?} before the panel was read");
+            omega_zero::log!("the canvas was already {drawn:?} before the panel was read");
         }
     }
     let c = canvas();
-    eprintln!(
-        "omega-zero: {} panel {}x{} turned {rotation:?}, canvas {}x{}",
+    omega_zero::log!(
+        "{} panel {}x{} turned {rotation:?}, canvas {}x{}",
         release
             .as_ref()
             .and_then(|r| r.model.clone().or(r.target.clone()))
@@ -124,7 +124,7 @@ pub fn run() {
     let mut surface = match FbdevSurface::new() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("omega-zero: {e}");
+            omega_zero::log!("{e}");
             return;
         }
     };
@@ -133,12 +133,12 @@ pub fn run() {
     // a context for cores that draw on the GPU, lent to each game that wants one
     match omega_gfx::Surface::gpu_thread(&surface) {
         Ok(gpu) => omega_zero::gpu_core::provide(gpu),
-        Err(e) => eprintln!("omega-zero: gpu: {e}"),
+        Err(e) => omega_zero::log!("gpu: {e}"),
     }
     let mut compositor = match Compositor::new(&surface) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("omega-zero: {e}");
+            omega_zero::log!("{e}");
             return;
         }
     };
@@ -146,10 +146,10 @@ pub fn run() {
     // of it
     omega_zero::spawn::keep_files_to_self();
     if let Err(e) = compositor.set_rotation(rotation) {
-        eprintln!("omega-zero: the panel cannot be turned {rotation:?}, drawing it unturned: {e}");
+        omega_zero::log!("the panel cannot be turned {rotation:?}, drawing it unturned: {e}");
     }
     let platform = DevicePlatform::new(root.clone());
-    eprintln!("omega-zero: {}", platform.report());
+    omega_zero::log!("{}", platform.report());
     platform.trace_boot();
     let mut frontend = Frontend::boot(Box::new(platform));
     frontend.upload_faces(&mut compositor);
@@ -192,7 +192,7 @@ pub fn run() {
         let swap = Instant::now();
         let work = swap - began;
         if let Err(e) = surface.swap() {
-            eprintln!("omega-zero: {e}");
+            omega_zero::log!("{e}");
             return;
         }
         let swap_took = swap.elapsed();
@@ -206,8 +206,8 @@ pub fn run() {
             )
         {
             let ms = |d: Duration| d.as_secs_f64() * 1e3;
-            eprintln!(
-                "omega-zero: slow frame going in: {:.0} ms: update {:.0}, emulator {:.0}, draw {:.0}, swap {:.0}",
+            omega_zero::log!(
+                "slow frame going in: {:.0} ms: update {:.0}, emulator {:.0}, draw {:.0}, swap {:.0}",
                 ms(total),
                 ms(advanced),
                 ms(stepped),
@@ -223,8 +223,8 @@ pub fn run() {
             early += u32::from(swap_took > pacer.period / 2);
             if frames == 600 {
                 let (longest, sound, sound_max) = omega_zero::latency::window();
-                eprintln!(
-                    "omega-zero: pace: 600 frames, {missed} missed a latch, {early} drawn early, {unanswered} ticks unanswered, work {:.1} ms, period {:.2} ms, core frame up to {longest:.1} ms, sound waits {sound:.0} ms (up to {sound_max:.1})",
+                omega_zero::log!(
+                    "pace: 600 frames, {missed} missed a latch, {early} drawn early, {unanswered} ticks unanswered, work {:.1} ms, period {:.2} ms, core frame up to {longest:.1} ms, sound waits {sound:.0} ms (up to {sound_max:.1})",
                     pacer.work.as_secs_f64() * 1e3,
                     pacer.period.as_secs_f64() * 1e3
                 );

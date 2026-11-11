@@ -1,3 +1,7 @@
+//! What omega-zero draws: the shelf and its carts, the bars, the menus' panels and rows, the
+//! toasts, the keyboard and the opening, each as draw calls over faces baked once. `kit` holds
+//! the UI kit everything is drawn in, Omega Zero's: its palette, type, panels and rows.
+
 mod art;
 mod backdrop;
 mod battery;
@@ -55,15 +59,15 @@ pub use board::{
 pub use cart::{
     cart_box, cart_face, cart_shadow, clean_label, face_labels, gb_cart_shadow, gb_label_panel,
     gb_shell_of, generated_face, holo_frames, label_colour, label_panel, label_tags, label_text,
-    model_box, model_of, model_shadow, seated_box, umd_disc, umd_hub, umd_hub_share, umd_window,
-    CartFace, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y,
-    HOLO_FRAMES, LABEL_H, LABEL_W, LABEL_X, LABEL_Y,
+    model_box, model_of, model_shadow, seated_box, umd_disc, umd_disc_blur, umd_hub, umd_hub_share,
+    umd_window, CartFace, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X,
+    GB_LABEL_Y, HOLO_FRAMES, LABEL_H, LABEL_W, LABEL_X, LABEL_Y,
 };
 pub use chrome::{edge, housing, set_theme, ChromeColours, BAR_H};
 pub use clock::{
     clock_label, clock_text, date_time_text, date_time_text_in, hhmm, zone_text, ClockPicker, Field,
 };
-pub use dive::{alert_face, CartDive, ALERT_H, ALERT_W};
+pub use dive::{alert_face, CartDive, SpinningDisc, ALERT_H, ALERT_W};
 pub use draw::{out_h, out_w, Draw, MeshId, TexId};
 pub use footer::Printed;
 pub use hud::{

@@ -104,6 +104,8 @@ fn the_banner_says_what_happened_and_never_what_is_on_screen() {
             Toast::Backup(""),
             Toast::Headphones(""),
             Toast::Update(""),
+            Toast::Screenshot,
+            Toast::RecentRemoved,
         ],
         "a banner was added or dropped"
     );
