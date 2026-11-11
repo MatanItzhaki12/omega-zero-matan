@@ -29,7 +29,8 @@ mod theme;
 pub use app_state::{
     app_state_text, kept_text, online_name, online_password, read_app_state, state_path,
     write_app_state, AppState, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, FF_SPEEDS, FF_SPEED_DEFAULT,
-    LID_OFF_MINUTES, UTC_OFFSET_MAX, UTC_OFFSET_MIN, VOLUME_MAX,
+    LID_OFF_MINUTES, MENU_MUSIC_VOLUME, MENU_SOUNDS_VOLUME, MENU_VOLUME_MAX, UTC_OFFSET_MAX,
+    UTC_OFFSET_MIN, VOLUME_MAX,
 };
 pub use atomic::{atomic_write, atomic_write_dated};
 pub use backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};

@@ -310,10 +310,9 @@ pub struct App {
     pub(crate) alert_face: Option<TexId>,
     /// The disc of the UMD going in, by its game's stem, uploaded to spin in its window while
     /// the game loads.
-    spin_disc: Option<(String, TexId, TexId)>,
-    /// How long the UMD going in has spun, how far it has turned, and how far over the last
-    /// frame, in seconds and radians.
-    pub(crate) spin: (f32, f32, f32),
+    spin_disc: Option<(String, TexId, TexId, TexId)>,
+    /// How long the UMD going in has spun, in seconds, and how far it has turned, in radians.
+    pub(crate) spin: (f32, f32),
     /// What holding POWER has put over the screen: its menu, or the screen after its choice.
     pub(crate) power_screen: Option<PowerScreen>,
     /// The slide to or from a power screen under way.
@@ -591,7 +590,7 @@ impl App {
             refused_from: None,
             alert_face: None,
             spin_disc: None,
-            spin: (0.0, 0.0, 0.0),
+            spin: (0.0, 0.0),
             power_screen: None,
             power_slide: None,
             power_menu_panel: None,
@@ -2852,9 +2851,10 @@ impl App {
         (omega_ui::model_of(c) == omega_ui::CartModel::Umd).then(|| c.clone())
     }
 
-    /// The disc of the UMD by `stem`, and the hub drawn still over it.
-    pub fn set_spin_disc(&mut self, stem: String, tex: TexId, hub: TexId) {
-        self.spin_disc = Some((stem, tex, hub));
+    /// The disc of the UMD by `stem`, the same disc as a blur of rings, and the hub drawn still
+    /// over it.
+    pub fn set_spin_disc(&mut self, stem: String, tex: TexId, blur: TexId, hub: TexId) {
+        self.spin_disc = Some((stem, tex, blur, hub));
     }
 
     /// The disc of the UMD going in, how far it has turned, and how far over the last frame:
@@ -2863,12 +2863,15 @@ impl App {
         if !matches!(self.phase, Phase::Inserting { .. }) {
             return None;
         }
-        let (s, tex, hub) = self.spin_disc.as_ref()?;
-        let (_, turn, smear) = self.spin;
+        let (s, tex, blur, hub) = self.spin_disc.as_ref()?;
+        let (age, turn) = self.spin;
+        // seen turning up to 3 turns a second, a blur of rings from 9, the one into the other
+        let k = ((disc_speed(age) - 3.0) / 6.0).clamp(0.0, 1.0);
         (s == stem).then_some(omega_ui::SpinningDisc {
             tex: *tex,
             turn,
-            smear,
+            blur: *blur,
+            blurred: k * k * (3.0 - 2.0 * k),
             hub: *hub,
         })
     }
@@ -2888,14 +2891,16 @@ impl App {
     /// the mark and then fast to full, τ being half of `DISC_SPIN_UP`.
     fn step_spin(&mut self, dt: f32) {
         if !self.umd_going_in() {
-            self.spin = (0.0, 0.0, 0.0);
+            self.spin = (0.0, 0.0);
             return;
         }
-        let (age, turn, _) = self.spin;
+        let (age, turn) = self.spin;
         let age = age + dt;
         let speed = disc_speed(age);
-        let smear = speed * std::f32::consts::TAU * dt;
-        self.spin = (age, (turn + smear) % std::f32::consts::TAU, smear);
+        self.spin = (
+            age,
+            (turn + speed * std::f32::consts::TAU * dt) % std::f32::consts::TAU,
+        );
     }
 
     /// How fast the UMD going in spins, in turns a second; 0 for any other.

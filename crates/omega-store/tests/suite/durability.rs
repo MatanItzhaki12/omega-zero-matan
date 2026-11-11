@@ -680,114 +680,62 @@ fn slots_settings_round_trip_and_an_older_card_takes_slots_defaults() {
 #[test]
 fn the_state_file_keeps_its_keys_and_their_order() {
     let default: String = [
-        "cart=
-",
-        "cart_platform=
-",
-        "brightness=5
-",
-        "blue_light=0
-",
-        "volume=60
-",
-        "volume_hp=60
-",
-        "muted=0
-",
-        "muted_hp=0
-",
-        "clock_set=0
-",
-        "utc_offset_min=0
-",
-        "rumble=1
-",
-        "ff_speed=6
-",
-        "ff_sound=0
-",
-        "colour_correction=0
-",
-        "screen_filter=lcd
-",
-        "wifi=0
-",
-        "ssh=on
-",
-        "bluetooth=off
-",
-        "backdrop=
-",
-        "backdrop_moving=1
-",
-        "backdrop_colour=night
-",
-        "font=bold
-",
-        "auto_load=1
-",
-        "eject_save=1
-",
-        "rewind=1
-",
-        "turbo=1
-",
-        "blending=off
-",
-        "gb_palette=auto
-",
-        "show_recents=0
-",
-        "show_titles=0
-",
-        "clock_24h=1
-",
-        "lid_off_min=3
-",
-        "cheevos=0
-",
-        "cheevos_hardcore=0
-",
-        "boot_animation=0
-",
-        "holo=1
-",
-        "run_ahead=0
-",
-        "online_name=
-",
-        "relay=1
-",
-        "online_password=
-",
-        "online_address=
-",
-        "backup=0
-",
-        "backup_host=
-",
-        "backup_name=
-",
-        "backup_user=
-",
-        "backup_password=
-",
-        "backup_share=
-",
-        "backup_dir=
-",
-        "shelf=
-",
-        "picked=
-",
-        "picked_platform=
-",
-        "psp_screen=fit
-",
-        "menu_sounds=1
-",
-        "menu_music=1
-",
+        "cart=\n",
+        "cart_platform=\n",
+        "brightness=5\n",
+        "blue_light=0\n",
+        "volume=60\n",
+        "volume_hp=60\n",
+        "muted=0\n",
+        "muted_hp=0\n",
+        "clock_set=0\n",
+        "utc_offset_min=0\n",
+        "rumble=1\n",
+        "ff_speed=6\n",
+        "ff_sound=0\n",
+        "colour_correction=0\n",
+        "screen_filter=lcd\n",
+        "wifi=0\n",
+        "ssh=on\n",
+        "bluetooth=off\n",
+        "backdrop=\n",
+        "backdrop_moving=1\n",
+        "backdrop_colour=night\n",
+        "font=bold\n",
+        "auto_load=1\n",
+        "eject_save=1\n",
+        "rewind=1\n",
+        "turbo=1\n",
+        "blending=off\n",
+        "gb_palette=auto\n",
+        "show_recents=0\n",
+        "show_titles=0\n",
+        "clock_24h=1\n",
+        "lid_off_min=3\n",
+        "cheevos=0\n",
+        "cheevos_hardcore=0\n",
+        "boot_animation=0\n",
+        "holo=1\n",
+        "run_ahead=0\n",
+        "online_name=\n",
+        "relay=1\n",
+        "online_password=\n",
+        "online_address=\n",
+        "backup=0\n",
+        "backup_host=\n",
+        "backup_name=\n",
+        "backup_user=\n",
+        "backup_password=\n",
+        "backup_share=\n",
+        "backup_dir=\n",
+        "shelf=\n",
+        "picked=\n",
+        "picked_platform=\n",
+        "psp_screen=fit\n",
+        "menu_sounds=1\n",
+        "menu_music=1\n",
+        "menu_sounds_volume=7\n",
+        "menu_music_volume=6\n",
     ]
     .concat();
     assert_eq!(app_state_text(&AppState::default()), default);
@@ -809,114 +757,62 @@ fn the_state_file_keeps_its_keys_and_their_order() {
         ..AppState::default()
     };
     let sample: String = [
-        "cart=Cheats = On
-",
-        "cart_platform=gba
-",
-        "brightness=3
-",
-        "blue_light=9
-",
-        "volume=71
-",
-        "volume_hp=20
-",
-        "muted=1
-",
-        "muted_hp=0
-",
-        "clock_set=1
-",
-        "utc_offset_min=-450
-",
-        "rumble=1
-",
-        "ff_speed=6
-",
-        "ff_sound=0
-",
-        "colour_correction=0
-",
-        "screen_filter=lcd
-",
-        "wifi=0
-",
-        "ssh=off
-",
-        "bluetooth=on
-",
-        "backdrop=
-",
-        "backdrop_moving=1
-",
-        "backdrop_colour=night
-",
-        "font=bold
-",
-        "auto_load=1
-",
-        "eject_save=1
-",
-        "rewind=1
-",
-        "turbo=1
-",
-        "blending=off
-",
-        "gb_palette=auto
-",
-        "show_recents=0
-",
-        "show_titles=0
-",
-        "clock_24h=1
-",
-        "lid_off_min=3
-",
-        "cheevos=0
-",
-        "cheevos_hardcore=0
-",
-        "boot_animation=0
-",
-        "holo=1
-",
-        "run_ahead=0
-",
-        "online_name=Matan
-",
-        "relay=1
-",
-        "online_password=
-",
-        "online_address=
-",
-        "backup=0
-",
-        "backup_host=1.2.3.4
-",
-        "backup_name=
-",
-        "backup_user=
-",
-        "backup_password=
-",
-        "backup_share=
-",
-        "backup_dir=
-",
-        "shelf=
-",
-        "picked=
-",
-        "picked_platform=psp
-",
-        "psp_screen=fit
-",
-        "menu_sounds=1
-",
-        "menu_music=1
-",
+        "cart=Cheats = On\n",
+        "cart_platform=gba\n",
+        "brightness=3\n",
+        "blue_light=9\n",
+        "volume=71\n",
+        "volume_hp=20\n",
+        "muted=1\n",
+        "muted_hp=0\n",
+        "clock_set=1\n",
+        "utc_offset_min=-450\n",
+        "rumble=1\n",
+        "ff_speed=6\n",
+        "ff_sound=0\n",
+        "colour_correction=0\n",
+        "screen_filter=lcd\n",
+        "wifi=0\n",
+        "ssh=off\n",
+        "bluetooth=on\n",
+        "backdrop=\n",
+        "backdrop_moving=1\n",
+        "backdrop_colour=night\n",
+        "font=bold\n",
+        "auto_load=1\n",
+        "eject_save=1\n",
+        "rewind=1\n",
+        "turbo=1\n",
+        "blending=off\n",
+        "gb_palette=auto\n",
+        "show_recents=0\n",
+        "show_titles=0\n",
+        "clock_24h=1\n",
+        "lid_off_min=3\n",
+        "cheevos=0\n",
+        "cheevos_hardcore=0\n",
+        "boot_animation=0\n",
+        "holo=1\n",
+        "run_ahead=0\n",
+        "online_name=Matan\n",
+        "relay=1\n",
+        "online_password=\n",
+        "online_address=\n",
+        "backup=0\n",
+        "backup_host=1.2.3.4\n",
+        "backup_name=\n",
+        "backup_user=\n",
+        "backup_password=\n",
+        "backup_share=\n",
+        "backup_dir=\n",
+        "shelf=\n",
+        "picked=\n",
+        "picked_platform=psp\n",
+        "psp_screen=fit\n",
+        "menu_sounds=1\n",
+        "menu_music=1\n",
+        "menu_sounds_volume=7\n",
+        "menu_music_volume=6\n",
     ]
     .concat();
     assert_eq!(app_state_text(&s), sample);
@@ -933,6 +829,8 @@ fn every_setting_round_trips_through_the_file() {
         backdrop: Some(BackdropStyle::Dotted),
         menu_sounds: false,
         menu_music: false,
+        menu_sounds_volume: 10,
+        menu_music_volume: 1,
         psp_screen: "stretch".into(),
         backup_password: "p a=ss".into(),
         ..AppState::default()
@@ -945,9 +843,7 @@ fn every_setting_round_trips_through_the_file() {
 fn a_file_from_before_the_menu_sounds_keeps_them_on() {
     let d = tmp_root();
     let old = app_state_text(&AppState::default()).replace(
-        "menu_sounds=1
-menu_music=1
-",
+        "menu_sounds=1\nmenu_music=1\nmenu_sounds_volume=7\nmenu_music_volume=6\n",
         "",
     );
     std::fs::write(d.path().join("Config/omega-zero.state"), old).unwrap();

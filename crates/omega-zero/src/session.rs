@@ -105,6 +105,13 @@ impl Session {
             return;
         }
         let mut samples = sfx.render(rate);
+        if sfx.is_menu() {
+            let level = f32::from(self.app.state.menu_sounds_volume)
+                / f32::from(omega_store::MENU_SOUNDS_VOLUME);
+            for s in &mut samples {
+                *s = (f32::from(*s) * level).clamp(-32_768.0, 32_767.0) as i16;
+            }
+        }
         crate::audio::volume::apply(&mut samples, self.app.sample_volume());
         ring.mix(&samples);
     }
@@ -125,6 +132,9 @@ impl Session {
                     | Phase::Doze { .. }
             );
         self.music.set_playing(wanted);
+        self.music.set_level(
+            f32::from(self.app.state.menu_music_volume) / f32::from(omega_store::MENU_MUSIC_VOLUME),
+        );
         if self.emu.is_some() || self.music.silent() {
             return;
         }

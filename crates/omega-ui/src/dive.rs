@@ -108,15 +108,12 @@ pub struct SpinningDisc {
     pub tex: TexId,
     /// How far it has turned, in radians.
     pub turn: f32,
-    /// How far it turned over the frame shown, in radians: the arc it is smeared along, as
-    /// the eye smears a spinning disc. Past a turn and a half it is drawn as a blur all round.
-    pub smear: f32,
+    /// The disc as a blur of rings, and how much of it shows over the sharp disc: none while
+    /// the disc turns slowly enough to be seen turning, all of it once it is too fast to.
+    pub blur: TexId,
+    pub blurred: f32,
     pub hub: TexId,
 }
-
-/// The most copies of the disc a frame's smear is drawn from, and how far apart they may be.
-const SMEAR_COPIES: usize = 12;
-const SMEAR_STEP: f32 = std::f32::consts::PI / 30.0;
 
 impl CartDive<'_> {
     pub fn draw(&self, out: &mut Vec<Draw>) {
@@ -189,25 +186,29 @@ impl CartDive<'_> {
         if let (Some(disc), true) = (self.disc, pose.yaw == 0.0) {
             let (wx, wy, ww, wh) = crate::cart::umd_window();
             let (dx, dy, dw, dh) = (x + wx * cw, y + wy * ch, ww * cw, wh * ch);
-            // copies spread back along the arc it turned this frame, each laid over the ones
-            // before at a share that leaves every copy an equal part of the whole: a slow disc
-            // is drawn once, a fast one as the blur of its turn
-            let smear = disc.smear.abs().min(std::f32::consts::TAU * 1.5);
-            let copies = ((smear / SMEAR_STEP).ceil() as usize).clamp(1, SMEAR_COPIES);
-            for k in 0..copies {
-                let back = if copies > 1 {
-                    smear * k as f32 / copies as f32
-                } else {
-                    0.0
-                };
+            // the blur of rings first, whole, once the disc is fast enough for any of it to
+            // show, and the sharp disc over it, fading out as the disc speeds up: slow, it is
+            // seen turning; fast, it is the blur the eye makes of a spinning disc
+            let blurred = disc.blurred.clamp(0.0, 1.0);
+            if blurred > 0.0 {
+                out.push(Draw::Tex {
+                    x: dx,
+                    y: dy,
+                    w: dw,
+                    h: dh,
+                    tex: disc.blur,
+                    alpha: 1.0,
+                });
+            }
+            if blurred < 1.0 {
                 out.push(Draw::Turned {
                     x: dx,
                     y: dy,
                     w: dw,
                     h: dh,
                     tex: disc.tex,
-                    alpha: 1.0 / (k + 1) as f32,
-                    turn: (disc.turn - back).rem_euclid(std::f32::consts::TAU),
+                    alpha: 1.0 - blurred,
+                    turn: disc.turn.rem_euclid(std::f32::consts::TAU),
                 });
             }
             let hub = disc.hub;
@@ -254,7 +255,15 @@ impl CartDive<'_> {
         let (cw, ch) = (sw * grown, sh * grown);
         let centre = self.rest + w0 / 2.0;
         let x = centre + (cx() - centre) * k - cw / 2.0;
-        let pose = self.pose.toward_rest(k);
+        // a UMD whose disc spins in its window squares up to the screen by the top of its rise,
+        // where it waits for its game: its disc is drawn only square on, so a cart still
+        // swaying there would show its still label in and out between spins
+        let square = if self.disc.is_some() {
+            ease((seat / RISE).min(1.0))
+        } else {
+            0.0
+        };
+        let pose = self.pose.toward_rest(k.max(square));
         let top = foot_y(sh) - ch;
         let gone = out_h() as f32 - top;
         let fall = match drops {

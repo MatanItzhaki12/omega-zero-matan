@@ -16,7 +16,7 @@
 //! asks for the user name and then the password, and Y signs out.
 
 use omega_input::{Action, Btn};
-use omega_store::{Blending, Core, Platform, LID_OFF_MINUTES};
+use omega_store::{Blending, Core, Platform, LID_OFF_MINUTES, MENU_VOLUME_MAX};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::panel_face;
 use omega_ui::kit::row::{panel_height, row_face, row_rect, Row};
@@ -54,6 +54,8 @@ pub enum OptionsPage {
     Restore,
     /// The headphones connected, opened from Bluetooth with START on them.
     Headphones,
+    /// The menu sounds and the shelf's tune, and how loud each is, opened from SHELF.
+    Sound,
 }
 
 /// The systems with more than one core to run on, so a default to pick.
@@ -72,6 +74,7 @@ impl OptionsPage {
             OptionsPage::Folder => "FOLDER",
             OptionsPage::Restore => "FROM BACKUP",
             OptionsPage::Headphones => "HEADPHONES",
+            OptionsPage::Sound => "SOUND",
         }
     }
 
@@ -123,8 +126,13 @@ impl OptionsPage {
                 OptionRow::Clock,
                 OptionRow::LidOff,
                 OptionRow::BootAnimation,
+                OptionRow::Sound,
+            ],
+            OptionsPage::Sound => &[
                 OptionRow::MenuSounds,
+                OptionRow::SoundsVolume,
                 OptionRow::MenuMusic,
+                OptionRow::MusicVolume,
             ],
         }
     }
@@ -135,7 +143,7 @@ impl OptionsPage {
             OptionsPage::Gameplay | OptionsPage::Emulators | OptionsPage::Online => {
                 SettingsRow::Gameplay
             }
-            OptionsPage::Shelf => SettingsRow::Shelf,
+            OptionsPage::Shelf | OptionsPage::Sound => SettingsRow::Shelf,
             OptionsPage::Achievements => SettingsRow::Achievements,
             OptionsPage::Backup | OptionsPage::Nas | OptionsPage::Folder | OptionsPage::Restore => {
                 SettingsRow::Backup
@@ -149,6 +157,7 @@ impl OptionsPage {
     pub fn parent(self) -> Option<(OptionsPage, OptionRow)> {
         match self {
             OptionsPage::Emulators => Some((OptionsPage::Gameplay, OptionRow::Emulators)),
+            OptionsPage::Sound => Some((OptionsPage::Shelf, OptionRow::Sound)),
             OptionsPage::Online => Some((OptionsPage::Gameplay, OptionRow::OnlinePlay)),
             OptionsPage::Nas => Some((OptionsPage::Backup, OptionRow::BackupNas)),
             OptionsPage::Folder => Some((OptionsPage::Backup, OptionRow::BackupFolder)),
@@ -180,8 +189,12 @@ pub enum OptionRow {
     Clock,
     LidOff,
     BootAnimation,
+    /// SHELF's way into the SOUND panel.
+    Sound,
     MenuSounds,
+    SoundsVolume,
     MenuMusic,
+    MusicVolume,
     /// GAMEPLAY's way into the EMULATORS panel.
     Emulators,
     /// The core a system's games run on unless switched by hand.
@@ -234,6 +247,7 @@ impl OptionRow {
             self,
             OptionRow::Account
                 | OptionRow::Emulators
+                | OptionRow::Sound
                 | OptionRow::OnlinePlay
                 | OptionRow::OnlineName
                 | OptionRow::BackupNas
@@ -278,8 +292,11 @@ impl OptionRow {
             OptionRow::Clock => "Clock",
             OptionRow::LidOff => "Lid Power Off",
             OptionRow::BootAnimation => "Boot Animation",
+            OptionRow::Sound => "Sound",
             OptionRow::MenuSounds => "Menu Sounds",
+            OptionRow::SoundsVolume => "Sounds Volume",
             OptionRow::MenuMusic => "Menu Music",
+            OptionRow::MusicVolume => "Music Volume",
             OptionRow::Emulators => "Emulators",
             OptionRow::DefaultCore(Platform::Snes) => "SNES Default",
             OptionRow::DefaultCore(_) => "GBA Default",
@@ -326,8 +343,11 @@ impl OptionRow {
             OptionRow::Clock => "12 or 24-hour time",
             OptionRow::LidOff => "A shut lid powers off after this",
             OptionRow::BootAnimation => "The terminal before the shelf",
+            OptionRow::Sound => "Menu sounds and music",
             OptionRow::MenuSounds => "Clicks and chimes in the menus",
+            OptionRow::SoundsVolume => "How loud the menu sounds are",
             OptionRow::MenuMusic => "A soft tune on the shelf",
+            OptionRow::MusicVolume => "How loud the tune is",
             OptionRow::Emulators => "Each system's default core",
             OptionRow::DefaultCore(_) => "Games not switched by hand",
             OptionRow::Switched(_) => "A puts them on the default",
@@ -470,6 +490,14 @@ fn on_off(on: bool) -> String {
     if on { "ON" } else { "OFF" }.to_string()
 }
 
+/// A menu volume one up or down, held between 1 and the top rather than wrapping round.
+fn volume_step(at: u8, right: bool) -> u8 {
+    match right {
+        true => (at + 1).min(MENU_VOLUME_MAX),
+        false => at.saturating_sub(1).max(1),
+    }
+}
+
 fn step<T: Copy + PartialEq>(items: &[T], at: T, right: bool) -> T {
     let n = items.len();
     let i = items.iter().position(|x| *x == at).unwrap_or(0);
@@ -514,8 +542,11 @@ impl App {
             OptionRow::Clock => if s.clock_24h { "24-HOUR" } else { "12-HOUR" }.to_string(),
             OptionRow::LidOff => format!("{} MIN", s.lid_off_min),
             OptionRow::BootAnimation => on_off(s.boot_animation),
+            OptionRow::Sound => String::new(),
             OptionRow::MenuSounds => on_off(s.menu_sounds),
+            OptionRow::SoundsVolume => format!("{} / {MENU_VOLUME_MAX}", s.menu_sounds_volume),
             OptionRow::MenuMusic => on_off(s.menu_music),
+            OptionRow::MusicVolume => format!("{} / {MENU_VOLUME_MAX}", s.menu_music_volume),
             // a row that opens a panel shows only its ›
             OptionRow::Emulators => String::new(),
             OptionRow::DefaultCore(platform) => self.default_core(platform).name().to_uppercase(),
@@ -609,7 +640,11 @@ impl App {
             OptionRow::Clock => s.clock_24h = !s.clock_24h,
             OptionRow::BootAnimation => s.boot_animation = !s.boot_animation,
             OptionRow::MenuSounds => s.menu_sounds = !s.menu_sounds,
+            OptionRow::SoundsVolume => {
+                s.menu_sounds_volume = volume_step(s.menu_sounds_volume, right)
+            }
             OptionRow::MenuMusic => s.menu_music = !s.menu_music,
+            OptionRow::MusicVolume => s.menu_music_volume = volume_step(s.menu_music_volume, right),
             OptionRow::Cheevos => {
                 s.cheevos = !s.cheevos;
                 match s.cheevos {
@@ -619,6 +654,7 @@ impl App {
             }
             // the keyboard signs in, not the arrows, and A opens the panel
             OptionRow::Account
+            | OptionRow::Sound
             | OptionRow::Emulators
             | OptionRow::OnlinePlay
             | OptionRow::OnlineName => return,
@@ -754,6 +790,10 @@ impl App {
             Action::GbaDown(Btn::A) if row == OptionRow::OnlineName => self.open_online_name(),
             Action::GbaDown(Btn::A) if row == OptionRow::OnlinePlay => self.go(
                 Phase::Options(OptionsScreen::new(OptionsPage::Online)),
+                Dir::Deeper,
+            ),
+            Action::GbaDown(Btn::A) if row == OptionRow::Sound => self.go(
+                Phase::Options(OptionsScreen::new(OptionsPage::Sound)),
                 Dir::Deeper,
             ),
             Action::GbaDown(Btn::A) if row == OptionRow::Emulators => {

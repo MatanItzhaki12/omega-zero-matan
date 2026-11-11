@@ -86,6 +86,8 @@ pub struct Music {
     seed: u32,
     gain: f32,
     playing: bool,
+    /// The tune's loudness against the level it was tuned to, from Settings.
+    level: f32,
 }
 
 impl Default for Music {
@@ -103,12 +105,18 @@ impl Music {
             seed: 0x51ed_2705,
             gain: 0.0,
             playing: false,
+            level: 1.0,
         }
     }
 
     /// Fades the tune in, or out.
     pub fn set_playing(&mut self, playing: bool) {
         self.playing = playing;
+    }
+
+    /// How loud it plays against the level it was tuned to: Settings' Music Volume.
+    pub fn set_level(&mut self, level: f32) {
+        self.level = level.max(0.0);
     }
 
     /// Whether it is faded all the way out, so nothing needs drawing.
@@ -119,7 +127,7 @@ impl Music {
     /// The next `frames` of the tune at `rate`, as interleaved stereo at `volume` out of 100.
     pub fn render(&mut self, rate: u32, frames: usize, volume: u8) -> Vec<i16> {
         let rate = rate.max(1) as f32;
-        let loud = LEVEL * crate::audio::volume::gain(volume) * 32_767.0;
+        let loud = LEVEL * self.level * crate::audio::volume::gain(volume) * 32_767.0;
         let mut out = Vec::with_capacity(frames * 2);
         for _ in 0..frames {
             while self.clock >= self.step as f64 * EIGHTH_S {

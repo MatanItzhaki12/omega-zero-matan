@@ -122,6 +122,21 @@ task fmt
 On the handheld, `task deploy:device` builds and copies the binary over SSH. `task log:device`
 shows its log.
 
+## Off-screen runs
+
+`scripts/sim.sh [SCRIPT] [OUT]` boots the real frontend with no window and no sound, on a card
+it makes for the run, plays a script of presses, and keeps the frames the script asks for as
+PNGs, with the log beside them. The script is `examples/record.rs`'s: `wait N`, `tap BUTTON
+[FRAMES]`, `shot NAME`. The first press of a boot only ends its fade-in. `scripts/sim/` holds
+the scripts; `umd-insert.txt` puts a UMD in and keeps its spin.
+
+The `sim` workflow runs the same on GitHub's Arm runner, pinned to four cores with each held to
+a share of its time to come near the H700's four Cortex-A53s at 1.5 GHz. Its frames and log are
+the run's artifact. It is not the handheld: the GPU is Mesa's software renderer rather than the
+Mali-G31, and a core's speed only comes near. It shows what is drawn, frame by frame, and so
+catches what a frame-time log cannot: the PSP spin's stutter was a disc drawn in some frames
+and not others, at a steady 60 frames a second.
+
 ## Releasing
 
 1. Write what changed under `## Unreleased` in `CHANGELOG.md`, for the people who play on it.

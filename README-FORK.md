@@ -71,8 +71,8 @@ you are on.
 ## Menu sounds and music
 
 The menus click and chime as they are used, and a soft tune plays on the shelf. Both are made
-by omega-zero as they play, out of sines, so no recording ships with it. Settings › Shelf turns
-each off.
+by omega-zero as they play, out of sines, so no recording ships with it. Settings › Shelf ›
+Sound turns each off and sets each one's volume.
 
 - A cursor that moves ticks, a menu that opens chimes up, and one that closes chimes down. A
   press that changes nothing, such as Up at the top of a list, makes no sound. On the shelf,
@@ -181,8 +181,16 @@ on. A toast says so when the picker opens on a game switched by hand.
 | Clock | 12-hour, 24-hour: the top bar and Date & Time | 24-hour |
 | Lid Power Off | 1, 3, 5, 10, 15, 30 minutes | 3 |
 | Boot Animation | On, Off: the terminal that types out before the shelf at boot | Off |
+| Sound › | Opens SOUND, below | |
+
+**SHELF › Sound ›**
+
+| Row | Choices | Default |
+|---|---|---|
 | Menu Sounds | On, Off: a tick as a cursor moves, a chime up as a menu opens and down as it closes | On |
+| Sounds Volume | 1 to 10 | 7 |
 | Menu Music | On, Off: a soft tune on the shelf and in its menus, fading out as a game goes in | On |
+| Music Volume | 1 to 10 | 6 |
 
 **LABELS ›** fetches labels from ScreenScraper, and has **Holo Sheen**: the rainbow on a clear or
 glitter cart's label, on or off (on).
@@ -478,7 +486,7 @@ there:
 | Running the game | The emulator's thread (`omega-emu`) |
 | Opening a core, reading its save and resume | `omega-core-open`, at low priority, so the cart going in is drawn meanwhile |
 | Closing a core | The emulator's thread, as it stops. The next core waits for it, so two of one core are never open at once, and so do powering off and restarting |
-| Making a PSP game's spinning disc | `omega-disc`. The disc spins up to 20 turns a second over a second, drawn smeared along each frame's turn, and the PSP core opens once it is up to speed |
+| Making a PSP game's spinning disc | `omega-disc`, with its blur of rings. The disc spins up to 20 turns a second over a second, fading into the blur as it gets too fast to be seen turning, and the PSP core opens once it is up to speed |
 | The autosave: the core's state and writing it | `omega-autosave` |
 | Taking and writing a cart's state as it comes out | `omega-eject-save`. The emulator answers its ask before it closes the core. The same game put back in waits for the write before it reads its resume; another game does not |
 | omega-zero's state, Recents, Favorites, the note of a game starting | `omega-card`, in order, the newest of each file only; powering off and restarting wait for it, and nothing else does. Tests write at once |
@@ -537,6 +545,7 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `backup_host`, `backup_name`, `backup_user`, `backup_password`, `backup_share`, `backup_dir` | Save Backup's NAS, its name, user, password, share and folder |
 | `shelf`, `picked`, `picked_platform` | The shelf and the game the shelf was on when the handheld went off |
 | `menu_sounds`, `menu_music` | `1`, `0` |
+| `menu_sounds_volume`, `menu_music_volume` | `1` to `10` |
 
 `ff_speed` also takes `0` now, for OFF.
 

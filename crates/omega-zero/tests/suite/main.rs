@@ -105,6 +105,7 @@ mod swap;
 mod thumb;
 mod toast;
 mod top_bar;
+mod umd_spin;
 mod volume;
 mod wallpaper;
 mod wifi;

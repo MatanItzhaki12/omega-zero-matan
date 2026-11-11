@@ -119,7 +119,16 @@ pub struct AppState {
     pub menu_sounds: bool,
     /// A soft tune plays on the shelf and in its menus, and stops for a game.
     pub menu_music: bool,
+    /// How loud the menus' sounds and the tune are, each 1 to `MENU_VOLUME_MAX`.
+    pub menu_sounds_volume: u8,
+    pub menu_music_volume: u8,
 }
+
+/// The top of the menu sounds' and the tune's volumes.
+pub const MENU_VOLUME_MAX: u8 = 10;
+/// Where each starts: the loudness each was tuned to on the handheld.
+pub const MENU_SOUNDS_VOLUME: u8 = 7;
+pub const MENU_MUSIC_VOLUME: u8 = 6;
 
 impl Default for AppState {
     fn default() -> Self {
@@ -179,6 +188,8 @@ impl Default for AppState {
             psp_screen: "fit".to_string(),
             menu_sounds: true,
             menu_music: true,
+            menu_sounds_volume: MENU_SOUNDS_VOLUME,
+            menu_music_volume: MENU_MUSIC_VOLUME,
         }
     }
 }
@@ -484,7 +495,28 @@ const FIELDS: &[Field] = &[
     text!("psp_screen", psp_screen),
     flag!("menu_sounds", menu_sounds),
     flag!("menu_music", menu_music),
+    may!(
+        "menu_sounds_volume",
+        |s| s.menu_sounds_volume.to_string(),
+        |t, v| if let Some(n) = menu_volume(v) {
+            t.menu_sounds_volume = n
+        }
+    ),
+    may!(
+        "menu_music_volume",
+        |s| s.menu_music_volume.to_string(),
+        |t, v| if let Some(n) = menu_volume(v) {
+            t.menu_music_volume = n
+        }
+    ),
 ];
+
+fn menu_volume(value: &str) -> Option<u8> {
+    value
+        .parse()
+        .ok()
+        .filter(|n| (1..=MENU_VOLUME_MAX).contains(n))
+}
 
 fn parse(text: &str) -> Option<AppState> {
     let mut s = AppState::default();

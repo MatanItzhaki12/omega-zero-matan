@@ -329,6 +329,55 @@ pub fn umd_disc(cart: &Cart) -> Option<CartFace> {
     Some(CartFace { rgba, w: lw, h: lh })
 }
 
+/// A UMD's disc as the eye sees it spinning fast: each ring of it the average of its colours
+/// all the way round, so it looks the same at every turn. A disc spun faster than the screen can
+/// show it turning, a third of a turn a frame and more, would only strobe; this is what the
+/// eye makes of a real one. Each pixel keeps its own coverage, so the disc's edge stays sharp.
+pub fn umd_disc_blur(disc: &CartFace) -> CartFace {
+    let (w, h) = (disc.w as usize, disc.h as usize);
+    let (cx, cy) = (w as f32 / 2.0, h as f32 / 2.0);
+    let radius = |x: usize, y: usize| (x as f32 + 0.5 - cx).hypot(y as f32 + 0.5 - cy);
+    let rings = cx.max(cy).ceil() as usize + 2;
+    // each ring's colour, weighted by how much of it is there, and that weight
+    let mut sum = vec![[0f64; 4]; rings];
+    for y in 0..h {
+        for x in 0..w {
+            let px = &disc.rgba[(y * w + x) * 4..][..4];
+            let a = f64::from(px[3]) / 255.0;
+            let ring = &mut sum[(radius(x, y) as usize).min(rings - 1)];
+            for c in 0..3 {
+                ring[c] += f64::from(px[c]) * a;
+            }
+            ring[3] += a;
+        }
+    }
+    let colour = |i: usize| -> [f64; 3] {
+        let s = sum[i.min(rings - 1)];
+        if s[3] <= 0.0 {
+            [0.0; 3]
+        } else {
+            [s[0] / s[3], s[1] / s[3], s[2] / s[3]]
+        }
+    };
+    let mut rgba = disc.rgba.clone();
+    for y in 0..h {
+        for x in 0..w {
+            let r = radius(x, y);
+            let (i, f) = (r as usize, f64::from(r.fract()));
+            let (a, b) = (colour(i), colour(i + 1));
+            let px = &mut rgba[(y * w + x) * 4..][..4];
+            for c in 0..3 {
+                px[c] = (a[c] * (1.0 - f) + b[c] * f).round().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+    CartFace {
+        rgba,
+        w: disc.w,
+        h: disc.h,
+    }
+}
+
 /// The hub laid over a UMD's disc, `size` pixels across: for the frontend to draw over a
 /// spinning disc, still.
 pub fn umd_hub(size: u32) -> CartFace {

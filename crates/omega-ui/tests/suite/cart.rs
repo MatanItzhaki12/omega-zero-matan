@@ -1484,3 +1484,38 @@ fn the_holo_sheen_is_over_the_label_and_its_light_moves() {
         "the light does not travel along the label: {path:?}"
     );
 }
+
+#[test]
+fn a_spinning_disc_s_blur_is_the_same_all_the_way_round_and_keeps_its_edge() {
+    // a disc with a label on one side only: the blur spreads it round each ring
+    let (w, h) = (64u32, 64u32);
+    let mut rgba = vec![0u8; (w * h * 4) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let d = (x as f32 + 0.5 - 32.0).hypot(y as f32 + 0.5 - 32.0);
+            let i = ((y * w + x) * 4) as usize;
+            if d < 31.0 {
+                let red = if x < 32 { 255 } else { 0 };
+                rgba[i..i + 4].copy_from_slice(&[red, 0, 255 - red, 255]);
+            }
+        }
+    }
+    let disc = omega_ui::CartFace { rgba, w, h };
+    let blur = omega_ui::umd_disc_blur(&disc);
+    let at = |x: u32, y: u32| &blur.rgba[((y * w + x) * 4) as usize..][..4];
+    // two points on the same ring, either side, are alike, and half red, half blue
+    let (left, right) = (at(12, 32), at(51, 32));
+    for c in 0..3 {
+        assert!(
+            left[c].abs_diff(right[c]) <= 4,
+            "{left:?} and {right:?} differ"
+        );
+    }
+    assert!(
+        left[0].abs_diff(128) < 20 && left[2].abs_diff(128) < 20,
+        "{left:?}"
+    );
+    // outside the disc stays clear, inside stays solid
+    assert_eq!(at(1, 1)[3], 0);
+    assert_eq!(at(32, 32)[3], 255);
+}
