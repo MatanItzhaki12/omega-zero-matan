@@ -246,14 +246,14 @@ fn a_umd_spins_up_like_a_drive_before_its_core_opens() {
     a.apply(Action::Insert);
     assert!(!a.core_may_open(), "the core opened before the disc spun");
     let mut speeds = Vec::new();
-    for _ in 0..70 {
+    for _ in 0..110 {
         a.update(1.0 / 60.0);
+        assert!(
+            a.seat() >= 1.0 || !a.core_may_open(),
+            "the core opened before the UMD was all the way in"
+        );
         speeds.push(a.disc_turns());
     }
-    assert!(
-        a.core_may_open(),
-        "the core still waits after a second's spin"
-    );
     assert!(
         speeds[5] < 1.0,
         "the disc started at {} turns a second",
@@ -264,8 +264,13 @@ fn a_umd_spins_up_like_a_drive_before_its_core_opens() {
         "the disc slowed as it spun up"
     );
     assert!(
-        speeds[69] > 18.0,
+        speeds[60] < 18.0,
+        "the disc was at {} turns a second after a second: too fast a spin-up",
+        speeds[60]
+    );
+    assert!(
+        speeds[109] > 18.0,
         "the disc reached only {} turns a second",
-        speeds[69]
+        speeds[109]
     );
 }

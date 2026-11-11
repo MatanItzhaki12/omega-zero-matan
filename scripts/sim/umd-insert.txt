@@ -1,17 +1,20 @@
-# A UMD going in, its disc spinning up while its game loads, kept as frames.
+# A UMD going in: its disc spins up at the top of its rise, it goes in, and its game opens
+# behind the dark. Kept as frames.
 wait 90
 tap b # the first press ends the boot's fade
 wait 30
 shot shelf
 tap a 4
-wait 6
-shot spin-10
-wait 9
-shot spin-20
-wait 9
+wait 26
 shot spin-30
 wait 30
-shot spin-61
-wait 1
-shot spin-62
+shot spin-60
+wait 40
+shot spin-100
+wait 20
+shot spin-120
+wait 10
+shot going-in-130
+wait 30
+shot dark-160
 wait 30

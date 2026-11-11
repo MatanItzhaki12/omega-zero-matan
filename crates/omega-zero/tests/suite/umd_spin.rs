@@ -74,7 +74,7 @@ fn going_in(frames: usize, ready: usize) -> Vec<Option<Frame>> {
 
 #[test]
 fn a_disc_too_fast_to_be_seen_turning_is_drawn_as_its_blur_and_never_strobes() {
-    let frames = going_in(120, 1_000);
+    let frames = going_in(110, 1_000);
     let last = frames.last().unwrap().as_ref().expect("no disc drawn");
     assert_eq!(last.blurred, 1.0, "the fast disc is not all blur: {last:?}");
     assert_eq!(
@@ -95,6 +95,31 @@ fn a_disc_too_fast_to_be_seen_turning_is_drawn_as_its_blur_and_never_strobes() {
             }
         }
     }
+}
+
+#[test]
+fn a_umd_spins_up_at_the_top_and_goes_in_before_its_core_opens() {
+    let d = tmp_root_with_carts(&[]);
+    let dir = d.path().join("Games/PSP");
+    std::fs::create_dir_all(&dir).unwrap();
+    for stem in ["Patapon", "Patapon 2"] {
+        std::fs::write(dir.join(format!("{stem}.iso")), vec![0u8; 64 * 1024]).unwrap();
+    }
+    let mut a = boot(d.path());
+    a.set_spin_disc("Patapon".into(), DISC, BLUR, HUB);
+    a.apply(Action::Insert);
+    let mut opened_at = None;
+    for f in 0..240 {
+        a.update(1.0 / 60.0);
+        if a.core_may_open() {
+            opened_at.get_or_insert(f);
+            assert!(a.seat() >= 1.0, "the core opened with the UMD in sight");
+        } else if f < 100 {
+            assert!(a.seat() < 0.5, "the UMD went in before it spun up");
+        }
+    }
+    let at = opened_at.expect("the core never opened");
+    assert!(at < 200, "the core waited {at} frames");
 }
 
 #[test]

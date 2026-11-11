@@ -27,10 +27,12 @@
   the frame rate: the UMD's disc was drawn spinning only while the cart stood square to the
   screen, and a cart still swaying at the top of its rise flicked between its spinning disc and
   its still label. The cart now squares up as it rises. The disc spins up the way a drive spins
-  one up, slowly off the mark and then fast, to a real disc's speed within a second, and as it
-  gets too fast to be seen turning it fades into a blur of rings, as a spinning disc looks to
-  the eye, rather than strobing from place to place. The game's core is opened once the disc is
-  up to speed, so the game starts about a second later.
+  one up, slowly off the mark and then fast, to a real disc's speed in about a second and a
+  half, and as it gets too fast to be seen turning it fades into a blur of rings, as a spinning
+  disc looks to the eye, rather than strobing from place to place. The UMD stays up at the top
+  of its rise until it has spun at full speed a moment, then goes in, and the game's core opens
+  only once the screen has gone dark, so the core's opening never stalls the animation. The game
+  starts about two seconds later than before.
 
 - Settings › Shelf › Sound opens SOUND: Menu Sounds and Menu Music on or off, and each one's
   volume, from 1 to 10.

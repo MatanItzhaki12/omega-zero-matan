@@ -62,14 +62,18 @@ pub const SEATED_AT: f32 = INSERT_S - INSERT_HOLD_S;
 
 pub const EJECT_S: f32 = SEATED_AT;
 
-/// How far into its way in a cart waits for a game still loading: at the top of its rise.
+/// How far into its way in a UMD waits while its disc spins up: at the top of its rise.
 const LOADING_HOLD: f32 = 0.2;
 
 /// How a UMD's disc spins in its window as its game loads: up from still the way a drive spins
 /// one up, slowly off the mark, then faster and faster, to `DISC_SPIN` turns a second, near
 /// enough by `DISC_SPIN_UP` seconds. A disc that fast is a blur to the eye, and is drawn as one.
+/// The UMD is held up at the top of its rise until it has spun at full speed for a moment,
+/// `DISC_SPUN` seconds from the press, and its game opens only once it is all the way in and
+/// the screen is dark, so the core's opening never stalls a frame of the spin.
 const DISC_SPIN: f32 = 20.0;
-const DISC_SPIN_UP: f32 = 1.0;
+const DISC_SPIN_UP: f32 = 1.6;
+const DISC_SPUN: f32 = DISC_SPIN_UP + 0.4;
 
 const EJECT_HOLD_S: f32 = 0.2;
 
@@ -2355,6 +2359,7 @@ impl App {
                 .is_some_and(|(stem, ..)| stem == cart),
             _ => false,
         };
+        let spun = self.spin.0 >= DISC_SPUN;
         let next = match &mut self.phase {
             Phase::Inserting {
                 cart,
@@ -2365,10 +2370,10 @@ impl App {
             } => {
                 let was = *t;
                 *t += dt;
-                // a game still loading holds its UMD up at the top of its rise, its disc
-                // spinning, and it goes in once the game is ready
+                // a UMD is held up at the top of its rise while its disc spins up, and goes
+                // in once it has spun at full speed a moment; its game opens behind the dark
                 let hold = SEATED_AT * LOADING_HOLD;
-                if spinning && !*core_ready && !*resumed && was <= hold {
+                if spinning && !spun && !*resumed && was <= hold {
                     *t = t.min(hold);
                 }
                 let at = SEATED_AT - Sfx::Insert.lead();
@@ -2912,12 +2917,12 @@ impl App {
         }
     }
 
-    /// Whether the core may be opened for the game going in. A UMD's waits for its disc to
-    /// spin up, so the core's opening, the heaviest work the handheld does, never lands on
-    /// the spin while it is still finding its speed: the game starts a moment later, and the
-    /// spin is clean.
+    /// Whether the core may be opened for the game going in. A UMD's waits until the UMD is
+    /// all the way in and the screen dark, so the core's opening, the heaviest work the
+    /// handheld does, never lands on the spin or the UMD's way in: the game starts a little
+    /// later, and the animation is clean.
     pub fn core_may_open(&self) -> bool {
-        !self.umd_going_in() || self.spin.0 >= DISC_SPIN_UP
+        !self.umd_going_in() || self.seat() >= 1.0
     }
 
     pub fn alert_visible(&self) -> bool {
