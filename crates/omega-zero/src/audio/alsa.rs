@@ -33,6 +33,15 @@ static BLUETOOTH: Mutex<Option<String>> = Mutex::new(None);
 /// The sound is going to Bluetooth headphones now.
 static ON_BLUETOOTH: AtomicBool = AtomicBool::new(false);
 
+/// The sound is held silent: from the moment it leaves headphones for the speaker until the
+/// speaker has been muted and what was queued at the headphones' volume has played out.
+static HUSH: AtomicBool = AtomicBool::new(false);
+
+/// Holds the sound silent, or lets it play again.
+pub fn hush(on: bool) {
+    HUSH.store(on, Ordering::Relaxed);
+}
+
 /// Sends the sound to the Bluetooth headphones at `mac`, through bluez-alsa, or back to the
 /// speaker for none. The output thread moves over between one period and the next.
 pub fn route_bluetooth(mac: Option<&str>) {
@@ -326,7 +335,10 @@ impl Playback {
                 }
             }
         }
-        ON_BLUETOOTH.store(false, Ordering::Relaxed);
+        // off the headphones onto the speaker: silent until the speaker is muted
+        if ON_BLUETOOTH.swap(false, Ordering::Relaxed) {
+            HUSH.store(true, Ordering::Relaxed);
+        }
         self.bluetooth = None;
         match self.alsa.open_pcm(self.rate) {
             Ok(pcm) => self.pcm = pcm,
@@ -339,6 +351,9 @@ impl Playback {
         while !stop.load(Ordering::Relaxed) {
             self.follow();
             ring.fill(&mut buf);
+            if HUSH.load(Ordering::Relaxed) {
+                buf.fill(0);
+            }
             if self.pcm.is_null() {
                 // no output at all: keep the ring draining at its pace
                 std::thread::sleep(Duration::from_micros(

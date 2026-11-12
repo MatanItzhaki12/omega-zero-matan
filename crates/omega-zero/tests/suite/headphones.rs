@@ -63,7 +63,12 @@ fn speaker_and_headphones_keep_their_own_volume() {
         speaker,
         "the speaker came back at the headphone level"
     );
-    assert_eq!(a.hud_icon(), GaugeIcon::Volume);
+    // out of the jack, the game never plays aloud by surprise
+    assert_eq!(
+        a.hud_icon(),
+        GaugeIcon::Muted,
+        "the speaker was not muted as the headphones came out"
+    );
 
     jack.store(true, Ordering::Relaxed);
     settle(&mut a);
@@ -78,7 +83,7 @@ fn speaker_and_headphones_keep_their_own_volume() {
 }
 
 #[test]
-fn muting_the_headphones_leaves_the_speaker_alone() {
+fn the_headphones_keep_a_mute_of_their_own() {
     let d = tmp_root_with_carts(&["Emerald"]);
     let (mut a, jack) = app_playing_with_jack(d.path(), "Emerald");
     let speaker = a.volume();
@@ -89,9 +94,16 @@ fn muting_the_headphones_leaves_the_speaker_alone() {
     assert_eq!(a.output_volume(), 0);
     assert_eq!(a.hud_icon(), GaugeIcon::Muted);
 
+    // out of the jack the speaker is muted too, and unmuted it plays at its own level
     jack.store(false, Ordering::Relaxed);
     settle(&mut a);
-    assert_eq!(a.output_volume(), speaker, "the speaker came back muted");
+    assert_eq!(
+        a.output_volume(),
+        0,
+        "the speaker played as the headphones came out"
+    );
+    a.apply(Action::MuteToggle);
+    assert_eq!(a.output_volume(), speaker, "the speaker lost its level");
 
     jack.store(true, Ordering::Relaxed);
     settle(&mut a);
@@ -103,4 +115,19 @@ fn muting_the_headphones_leaves_the_speaker_alone() {
 
     let saved = read_app_state(d.path());
     assert_eq!((saved.muted, saved.muted_hp), (false, true));
+}
+
+#[test]
+fn plugging_headphones_in_leaves_the_speaker_s_mute_as_it_was() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let (mut a, jack) = app_playing_with_jack(d.path(), "Emerald");
+    assert!(!a.muted());
+    jack.store(true, Ordering::Relaxed);
+    settle(&mut a);
+    assert!(!a.muted(), "the headphones came in muted");
+    assert!(
+        !read_app_state(d.path()).muted,
+        "plugging in muted the speaker"
+    );
+    assert_eq!(a.output(), omega_zero::app::Output::Wired);
 }

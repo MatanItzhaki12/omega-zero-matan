@@ -54,6 +54,10 @@ use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
 
 mod link;
 mod saves;
+mod sound;
+
+pub use sound::Output;
+use sound::{BtVolume, Jack};
 
 pub const INSERT_S: f32 = 0.88;
 const INSERT_HOLD_S: f32 = 0.28;
@@ -90,11 +94,6 @@ const BATTERY_CRITICAL: u8 = 5;
 const BATTERY_POLL_MS: Millis = 10_000;
 
 const CHARGE_POLL_MS: Millis = 1_000;
-const HEADPHONES_POLL_MS: Millis = 500;
-
-/// How long Bluetooth headphones are given to take a volume sent them before what they say is
-/// taken for a change made on them.
-const BT_VOLUME_ANSWER_MS: Millis = 2_500;
 
 const BATTERY_LOW: u8 = 20;
 
@@ -401,12 +400,8 @@ pub struct App {
     pub(crate) root: Option<PathBuf>,
     pub(crate) state: AppState,
     pub(crate) vol_before: Vec<(u8, bool, Millis)>,
-    /// Bluetooth headphones' own volume as last set from here, and as last read from them.
-    pub(crate) bt_volume_sent: Option<u8>,
-    pub(crate) bt_volume_seen: Option<u8>,
-    /// When a volume was last sent to Bluetooth headphones and they have not yet said they
-    /// took it: what they say until then is the volume they had, coming in late.
-    pub(crate) bt_volume_sent_at: Option<Millis>,
+    /// Bluetooth headphones' own volume, kept as the console's.
+    pub(crate) bt_volume: BtVolume,
     /// Bluetooth headphones connected without their sound, since when, and when they were last
     /// asked to connect it.
     pub(crate) bt_audio_wait: Option<(String, Millis, Option<Millis>)>,
@@ -415,8 +410,10 @@ pub struct App {
     /// Headphones connected whose own volume is being set before sound goes to them, and since
     /// when.
     pub(crate) bt_volume_wait: Option<(String, Millis)>,
-    /// Sound went to Bluetooth headphones at the last tick.
-    pub(crate) bt_was_on: bool,
+    /// Where the sound played as last followed.
+    pub(crate) output: Output,
+    /// When the sound, held silent as it left headphones, may play again.
+    pub(crate) hush_until: Option<Millis>,
     /// The check for an update as Wi-Fi first joins a network: since when it has been joined,
     /// whether the check was made, and whether an update found was told of.
     pub(crate) update_online_since: Option<Millis>,
@@ -469,10 +466,9 @@ pub struct App {
     pending_for: Option<(Platform, String)>,
     pub(crate) battery_at: Millis,
     pub(crate) charge_at: Millis,
-    pub(crate) headphones: bool,
-    /// What the jack read last: the headphones are taken for in or out once it reads the same
-    /// twice running, so one odd read never moves the volume between theirs and the speaker's.
-    pub(crate) headphones_read: bool,
+    /// The headphone jack, and whether its last read disagreed with what is believed of it.
+    pub(crate) jack: Jack,
+    pub(crate) jack_doubt: bool,
     pub(crate) headphones_at: Millis,
     pub(crate) battery: Option<Battery>,
     pub(crate) last_led: Option<LedState>,
@@ -661,13 +657,12 @@ impl App {
             root: None,
             state: AppState::default(),
             vol_before: Vec::new(),
-            bt_volume_sent: None,
-            bt_volume_seen: None,
-            bt_volume_sent_at: None,
+            bt_volume: BtVolume::default(),
             bt_audio_wait: None,
             bt_audio_asks: 0,
             bt_volume_wait: None,
-            bt_was_on: false,
+            output: Output::Speaker,
+            hush_until: None,
             update_online_since: None,
             update_checked: false,
             update_told: false,
@@ -707,8 +702,8 @@ impl App {
             pending_for: None,
             battery_at: BATTERY_POLL_MS,
             charge_at: CHARGE_POLL_MS,
-            headphones: false,
-            headphones_read: false,
+            jack: Jack::default(),
+            jack_doubt: false,
             headphones_at: 0,
             battery: None,
             last_led: None,
@@ -1407,15 +1402,15 @@ impl App {
 
     pub fn set_power(&mut self, mut power: Power) {
         power.set_backlight(self.state.brightness);
-        self.headphones = power.headphones();
-        self.headphones_read = self.headphones;
-        self.hud.set_headphones(self.on_headphones());
+        self.jack = Jack::new(power.headphones());
         let secs = power.now();
         if matches!(self.phase, Phase::SetClock { .. }) || secs < CLOCK_FLOOR {
             self.phase = clock_screen(secs, 0, false);
             self.slide = None;
         }
         self.power = Some(power);
+        self.output = self.output();
+        self.hud.set_headphones(self.output.headphones());
         self.battery_at = self.now();
         self.charge_at = self.now();
         self.last_led = None;
@@ -2064,48 +2059,6 @@ impl App {
         self.state.brightness
     }
 
-    pub fn volume(&self) -> u8 {
-        self.level()
-    }
-
-    /// Headphones have their volume and mute of their own: wired ones in the jack, or
-    /// Bluetooth ones the sound is going to.
-    fn on_headphones(&self) -> bool {
-        self.headphones || crate::audio::on_bluetooth()
-    }
-
-    fn level(&self) -> u8 {
-        if self.on_headphones() {
-            self.state.volume_hp
-        } else {
-            self.state.volume
-        }
-    }
-
-    fn level_mut(&mut self) -> &mut u8 {
-        if self.on_headphones() {
-            &mut self.state.volume_hp
-        } else {
-            &mut self.state.volume
-        }
-    }
-
-    pub fn muted(&self) -> bool {
-        if self.on_headphones() {
-            self.state.muted_hp
-        } else {
-            self.state.muted
-        }
-    }
-
-    fn muted_mut(&mut self) -> &mut bool {
-        if self.on_headphones() {
-            &mut self.state.muted_hp
-        } else {
-            &mut self.state.muted
-        }
-    }
-
     /// Checks for an update once a boot, quietly, once Wi-Fi has been joined to a network for
     /// 5 s, at boot or after; and says when one is found.
     fn check_for_update(&mut self, now: Millis) {
@@ -2149,152 +2102,6 @@ impl App {
         self.bluetooth.set_enabled(!self.bluetooth.enabled(), now);
         self.state.bluetooth = self.bluetooth.enabled();
         self.persist();
-    }
-
-    /// How loud the samples are made: on Bluetooth headphones, which play at a volume of their
-    /// own, full but for mute and conversational awareness; else the volume.
-    pub fn sample_volume(&self) -> u8 {
-        if !crate::audio::on_bluetooth() {
-            return self.output_volume();
-        }
-        if self.muted() {
-            return 0;
-        }
-        let duck = self.phones.phones().map_or(1.0, |p| p.duck);
-        (100.0 * duck).round() as u8
-    }
-
-    /// Whether sound may go to the headphones at `audio`: once their own volume is the one
-    /// they are kept at here, so they never play for a moment at whatever they were left at.
-    /// Should it not be set within 2.5 s, the sound goes to them all the same.
-    fn bluetooth_volume_ready(&mut self, audio: Option<&str>, now: Millis) -> bool {
-        const GIVE_UP_MS: Millis = 2_500;
-        let Some(mac) = audio else {
-            self.bt_volume_wait = None;
-            return false;
-        };
-        if crate::audio::on_bluetooth() {
-            return true;
-        }
-        let want = self.state.volume_hp;
-        if self.bt_volume_wait.as_ref().is_none_or(|(m, _)| m != mac) {
-            crate::audio::bt_volume::set(want);
-            self.bt_volume_wait = Some((mac.to_string(), now));
-        }
-        let since = self.bt_volume_wait.as_ref().map_or(now, |(_, at)| *at);
-        crate::audio::bt_volume::level().is_some_and(|l| l.abs_diff(want) <= 1)
-            || now.saturating_sub(since) >= GIVE_UP_MS
-    }
-
-    /// Says when the sound goes to Bluetooth headphones and when it comes back from them, and
-    /// mutes the speaker as it does, so a game playing aloud never surprises anyone.
-    fn tell_bluetooth_sound(&mut self) {
-        let on = crate::audio::on_bluetooth();
-        if on == self.bt_was_on {
-            return;
-        }
-        self.bt_was_on = on;
-        let now = self.now();
-        if on {
-            // one toast for both: connected, and the mode they connected in where it is known
-            let said = self
-                .phones
-                .phones()
-                .and_then(|p| p.noise.map(|n| n.connected(p.kind)))
-                .unwrap_or("Headphones connected");
-            self.hud.toast(Toast::Headphones(said), now);
-        } else {
-            self.hud
-                .toast(Toast::Headphones("Headphones disconnected"), now);
-            if !self.headphones && !self.state.muted {
-                self.state.muted = true;
-                self.persist();
-            }
-        }
-    }
-
-    /// Headphones that connect by themselves can come without their sound: bluetoothd has
-    /// them, but not the A2DP stream. Asking them to connect again, once they have gone a
-    /// moment without it, brings it, and every 15 s while it stays away.
-    fn connect_bluetooth_sound(&mut self, audio: Option<&str>, now: Millis) {
-        const WAIT_MS: Millis = 5_000;
-        const AGAIN_MS: Millis = 15_000;
-        let Some(mac) = audio.filter(|_| !crate::audio::on_bluetooth()) else {
-            self.bt_audio_wait = None;
-            if audio.is_none() {
-                self.bt_audio_asks = 0;
-            }
-            return;
-        };
-        if self.bt_audio_wait.as_ref().is_none_or(|(m, ..)| m != mac) {
-            self.bt_audio_wait = Some((mac.to_string(), now, None));
-        }
-        let Some((_, since, asked)) = &mut self.bt_audio_wait else {
-            return;
-        };
-        let due = match asked {
-            None => now.saturating_sub(*since) >= WAIT_MS,
-            Some(at) => now.saturating_sub(*at) >= AGAIN_MS,
-        };
-        // twice at most: headphones a phone is taking back are left to it
-        if due && self.bt_audio_asks < 2 {
-            self.bt_audio_asks += 1;
-            *asked = Some(now);
-            crate::log!("bluetooth: {mac} connected without its sound, asked again");
-            self.bluetooth.connect_quietly(mac);
-        }
-    }
-
-    /// Keeps the headphones' own volume and the console's as one while sound goes to
-    /// Bluetooth headphones: the buttons set theirs, and theirs changed on the headphones shows
-    /// on the gauge and is kept.
-    fn follow_bluetooth_volume(&mut self, now: Millis) {
-        use crate::audio::bt_volume;
-        if !crate::audio::on_bluetooth() {
-            self.bt_volume_sent = None;
-            self.bt_volume_seen = None;
-            self.bt_volume_sent_at = None;
-            return;
-        }
-        let level = self.state.volume_hp;
-        if let Some(read) = bt_volume::level() {
-            if self.bt_volume_seen != Some(read) {
-                self.bt_volume_seen = Some(read);
-                // the headphones answer a volume sent them late, first with the one they had:
-                // taken for a step of their own, it was sent back and forth between the two
-                let answering = self
-                    .bt_volume_sent_at
-                    .is_some_and(|at| now.saturating_sub(at) < BT_VOLUME_ANSWER_MS);
-                if read.abs_diff(level) <= 1 {
-                    self.bt_volume_sent_at = None;
-                }
-                // changed on the headphones: a step of their own, not the rounding of ours
-                if !answering && self.bt_volume_sent.is_some() && read.abs_diff(level) > 1 {
-                    self.state.volume_hp = read;
-                    self.bt_volume_sent = Some(read);
-                    self.hud
-                        .show(HudKind::Volume, self.output_volume(), self.muted(), now);
-                    self.persist();
-                    return;
-                }
-            }
-        }
-        if self.bt_volume_sent != Some(level) {
-            bt_volume::set(level);
-            self.bt_volume_sent = Some(level);
-            self.bt_volume_seen = Some(level);
-            self.bt_volume_sent_at = Some(now);
-        }
-    }
-
-    pub fn output_volume(&self) -> u8 {
-        if self.muted() {
-            0
-        } else {
-            // AirPods hearing their wearer talk turn the sound down until they stop
-            let duck = self.phones.phones().map_or(1.0, |p| p.duck);
-            (f32::from(self.level()) * duck).round() as u8
-        }
     }
 
     pub fn hud_icon(&self) -> GaugeIcon {
@@ -2469,7 +2276,9 @@ impl App {
         crate::audio::route_bluetooth(audio.as_deref().filter(|_| ready));
         self.connect_bluetooth_sound(audio.as_deref(), now);
         self.follow_bluetooth_volume(now);
-        self.tell_bluetooth_sound();
+        self.read_jack(now);
+        self.follow_output(now);
+        self.end_hush(now);
         self.tell_headphones_noise();
         self.check_for_update(now);
         let phones = self.bluetooth.connected_headphones();
@@ -2495,19 +2304,6 @@ impl App {
             if let Some(b) = self.battery {
                 self.on_battery(b);
             }
-        }
-        if self.now() >= self.headphones_at {
-            self.headphones_at = self.now() + HEADPHONES_POLL_MS;
-            let on = self.power.as_ref().is_some_and(|p| p.headphones());
-            let steady = std::mem::replace(&mut self.headphones_read, on) == on;
-            if steady && on != self.headphones {
-                self.headphones = on;
-                let now = self.now();
-                self.hud
-                    .show(HudKind::Volume, self.output_volume(), self.muted(), now);
-            }
-            // the gauge's headphones, wired or Bluetooth: either has its own volume
-            self.hud.set_headphones(self.on_headphones());
         }
         if self.now() >= self.charge_at {
             self.charge_at = self.now() + CHARGE_POLL_MS;

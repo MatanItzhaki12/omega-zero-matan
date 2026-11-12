@@ -2,7 +2,8 @@
 //! as the A2DP transport's Volume (0 to 127, AVRCP's absolute volume). The headphones play at
 //! it themselves, so while sound goes to them it is the volume: the console's buttons set it,
 //! and the headphones changing it shows on the console's gauge. A thread of its own reads and
-//! sets it through `dbus-send`, once a second while headphones are connected.
+//! sets it through `dbus-send`, once a second while headphones are connected, and at once for a
+//! volume set.
 
 use std::sync::atomic::{AtomicI16, Ordering};
 use std::sync::Mutex;
@@ -14,7 +15,8 @@ static WATCHED: Mutex<Option<String>> = Mutex::new(None);
 static SEEN: AtomicI16 = AtomicI16::new(-1);
 /// The volume to set, 0 to 100; -1 for nothing to set.
 static WANT: AtomicI16 = AtomicI16::new(-1);
-static STARTED: std::sync::Once = std::sync::Once::new();
+/// The thread, woken as a volume is set rather than at its next look a moment later.
+static THREAD: std::sync::OnceLock<std::thread::Thread> = std::sync::OnceLock::new();
 
 const MAX: u16 = 127;
 
@@ -40,12 +42,13 @@ pub fn watch(mac: Option<&str>) {
         SEEN.store(-1, Ordering::Relaxed);
         WANT.store(-1, Ordering::Relaxed);
     }
-    if mac.is_some() {
-        STARTED.call_once(|| {
-            let _ = std::thread::Builder::new()
-                .name("omega-bt-volume".into())
-                .spawn(run);
-        });
+    if mac.is_some() && THREAD.get().is_none() {
+        if let Ok(t) = std::thread::Builder::new()
+            .name("omega-bt-volume".into())
+            .spawn(run)
+        {
+            let _ = THREAD.set(t.thread().clone());
+        }
     }
 }
 
@@ -57,6 +60,9 @@ pub fn level() -> Option<u8> {
 /// Sets the headphones' volume, 0 to 100.
 pub fn set(level: u8) {
     WANT.store(i16::from(level.min(100)), Ordering::Relaxed);
+    if let Some(t) = THREAD.get() {
+        t.unpark();
+    }
 }
 
 fn dbus(args: &[&str]) -> Option<String> {
@@ -105,7 +111,8 @@ fn run() {
     crate::spawn::stand_back();
     let mut path: Option<(String, String)> = None;
     loop {
-        std::thread::sleep(Duration::from_millis(800));
+        // a look a second, sooner for a volume to set
+        std::thread::park_timeout(Duration::from_millis(800));
         let Some(mac) = WATCHED.lock().ok().and_then(|w| w.clone()) else {
             path = None;
             continue;

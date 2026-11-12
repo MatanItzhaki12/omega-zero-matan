@@ -107,7 +107,7 @@ impl Session {
         let mut samples = sfx.render(rate);
         if sfx.is_menu() {
             let level = f32::from(self.app.state.menu_sounds_volume)
-                / f32::from(omega_store::MENU_SOUNDS_VOLUME);
+                / f32::from(omega_store::MENU_VOLUME_DEFAULT);
             for s in &mut samples {
                 *s = (f32::from(*s) * level).clamp(-32_768.0, 32_767.0) as i16;
             }
@@ -133,7 +133,8 @@ impl Session {
             );
         self.music.set_playing(wanted);
         self.music.set_level(
-            f32::from(self.app.state.menu_music_volume) / f32::from(omega_store::MENU_MUSIC_VOLUME),
+            f32::from(self.app.state.menu_music_volume)
+                / f32::from(omega_store::MENU_VOLUME_DEFAULT),
         );
         if self.emu.is_some() || self.music.silent() {
             return;

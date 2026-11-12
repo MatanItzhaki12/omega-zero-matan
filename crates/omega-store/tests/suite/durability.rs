@@ -734,8 +734,8 @@ fn the_state_file_keeps_its_keys_and_their_order() {
         "psp_screen=fit\n",
         "menu_sounds=1\n",
         "menu_music=1\n",
-        "menu_sounds_volume=7\n",
-        "menu_music_volume=6\n",
+        "menu_sounds_volume=5\n",
+        "menu_music_volume=5\n",
     ]
     .concat();
     assert_eq!(app_state_text(&AppState::default()), default);
@@ -811,8 +811,8 @@ fn the_state_file_keeps_its_keys_and_their_order() {
         "psp_screen=fit\n",
         "menu_sounds=1\n",
         "menu_music=1\n",
-        "menu_sounds_volume=7\n",
-        "menu_music_volume=6\n",
+        "menu_sounds_volume=5\n",
+        "menu_music_volume=5\n",
     ]
     .concat();
     assert_eq!(app_state_text(&s), sample);
@@ -843,7 +843,7 @@ fn every_setting_round_trips_through_the_file() {
 fn a_file_from_before_the_menu_sounds_keeps_them_on() {
     let d = tmp_root();
     let old = app_state_text(&AppState::default()).replace(
-        "menu_sounds=1\nmenu_music=1\nmenu_sounds_volume=7\nmenu_music_volume=6\n",
+        "menu_sounds=1\nmenu_music=1\nmenu_sounds_volume=5\nmenu_music_volume=5\n",
         "",
     );
     std::fs::write(d.path().join("Config/omega-zero.state"), old).unwrap();

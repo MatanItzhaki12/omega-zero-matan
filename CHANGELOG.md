@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## omega-zero 2.7.1
+
+- Bluetooth headphones' volume no longer jumps back and forth as the volume buttons are pressed.
+  Headphones take a volume a moment late and say the one they had until then, which was taken
+  for a change made on them. A press now reaches them at once rather than up to a second later.
+- The volume gauge shows the headphones for Bluetooth headphones as it does for wired ones.
+- Sound leaving headphones, wired or Bluetooth, is silent at once: no burst of the game from
+  the speaker as they disconnect or come out of the jack. Wired headphones pulled out mute the
+  speaker, as Bluetooth ones disconnecting already did.
+- The headphone jack is believed plugged or unplugged once it reads the same twice running, so
+  one odd read never moves the volume between the headphones' and the speaker's.
+- Menu Sounds and Menu Music start at 5 of 10, as loud as 10 was, with as much again above it.
+- Where the sound goes, the speaker, wired or Bluetooth headphones, is decided in one place
+  (`app/sound.rs`), with the volumes, mutes and moves between them.
+
 ## omega-zero 2.7.0
 
 - The menus have sounds: a soft tick as a cursor moves, a chime up as a menu opens and down as

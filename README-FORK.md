@@ -188,9 +188,9 @@ on. A toast says so when the picker opens on a game switched by hand.
 | Row | Choices | Default |
 |---|---|---|
 | Menu Sounds | On, Off: a tick as a cursor moves, a chime up as a menu opens and down as it closes | On |
-| Sounds Volume | 1 to 10 | 7 |
+| Sounds Volume | 1 to 10 | 5 |
 | Menu Music | On, Off: a soft tune on the shelf and in its menus, fading out as a game goes in | On |
-| Music Volume | 1 to 10 | 6 |
+| Music Volume | 1 to 10 | 5 |
 
 **LABELS ›** fetches labels from ScreenScraper, and has **Holo Sheen**: the rainbow on a clear or
 glitter cart's label, on or off (on).
