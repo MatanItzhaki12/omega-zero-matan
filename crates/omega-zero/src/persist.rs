@@ -44,6 +44,25 @@ pub fn flush(
     Ok(())
 }
 
+/// As [`flush`], for the autosave while the game plays on: the state is written paced, so the
+/// game's own reads of the card go between its slices.
+pub fn autosave_flush(
+    root: &Path,
+    platform: Platform,
+    core: Core,
+    stem: &str,
+    state: Option<&[u8]>,
+    sav: Option<&[u8]>,
+) -> std::io::Result<()> {
+    if let Some(state) = state {
+        StateRing::new(root, platform, core, stem).write_resume_paced(state)?;
+    }
+    if let Some(sav) = sav {
+        write_sav(root, platform, stem, sav)?;
+    }
+    Ok(())
+}
+
 /// Where the game whose core is opening is named, as `<system>/<stem>`, until it has run a
 /// moment. A boot that finds it names a game whose start took omega-zero down, and leaves that
 /// game on the shelf: a core that aborts as it opens a game would otherwise have every boot open

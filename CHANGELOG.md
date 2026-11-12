@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- A PSP game no longer stutters once a minute. Its autosaved state is 40 MB, and written whole
+  it held the game's reads of its disc for some seconds: it is now written in slices, the
+  game's reads going between them, and every five minutes rather than every minute. A state is
+  still written as the cart comes out and as the console sleeps.
+- AirPods hearing their wearer talk turn down only the sound going to them, never the speaker
+  or wired headphones while the AirPods are only in reach.
+- The log says each time the sound moves between the speaker and headphones, and each read of
+  the jack that disagrees with what is believed of it.
+
 ## omega-zero 2.7.1
 
 - Bluetooth headphones' volume no longer jumps back and forth as the volume buttons are pressed.

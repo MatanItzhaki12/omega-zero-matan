@@ -88,6 +88,7 @@ const POWER_OFF_S: f32 = 0.5;
 const VOLUME_STEP: u8 = 5;
 
 const AUTOSAVE_MS: Millis = 60_000;
+const AUTOSAVE_PSP_MS: Millis = 300_000;
 
 const BATTERY_CRITICAL: u8 = 5;
 

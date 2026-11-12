@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::atomic::{atomic_write, sync_dir};
+use crate::atomic::{atomic_write, atomic_write_paced, sync_dir};
 use crate::core::Core;
 use crate::platform::Platform;
 
@@ -84,6 +84,13 @@ impl StateRing {
     pub fn write_resume(&self, state: &[u8]) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.dir)?;
         atomic_write(&self.path(RESUME, STATE_EXT), state)
+    }
+
+    /// As [`StateRing::write_resume`], paced so a game reading the card is not held up: for
+    /// the autosave, which can take its time.
+    pub fn write_resume_paced(&self, state: &[u8]) -> std::io::Result<()> {
+        std::fs::create_dir_all(&self.dir)?;
+        atomic_write_paced(&self.path(RESUME, STATE_EXT), state)
     }
 
     pub fn read_resume(&self) -> std::io::Result<Option<Vec<u8>>> {

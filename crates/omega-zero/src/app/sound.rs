@@ -181,7 +181,12 @@ impl App {
         (100.0 * self.duck()).round() as u8
     }
 
+    /// How far AirPods hearing their wearer talk turn the sound down: only the sound going to
+    /// them, never the speaker's or wired headphones' while they are only in reach.
     fn duck(&self) -> f32 {
+        if self.output() != Output::Bluetooth {
+            return 1.0;
+        }
         self.phones.phones().map_or(1.0, |p| p.duck)
     }
 
@@ -195,6 +200,13 @@ impl App {
         self.headphones_at = now + HEADPHONES_POLL_MS;
         let raw = self.power.as_ref().is_some_and(|p| p.headphones());
         let doubt = self.jack.read(raw);
+        if doubt != self.jack_doubt {
+            crate::log!(
+                "sound: the jack read {}, believed {}",
+                if raw { "in" } else { "out" },
+                if self.jack.plugged() { "in" } else { "out" }
+            );
+        }
         if self.output != Output::Wired {
             return;
         }
@@ -218,6 +230,7 @@ impl App {
         if from == to {
             return;
         }
+        crate::log!("sound: {from:?} to {to:?}");
         self.jack_doubt = false;
         if to == Output::Bluetooth {
             // one toast for both: connected, and the mode they connected in where it is known

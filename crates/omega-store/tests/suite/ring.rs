@@ -255,3 +255,19 @@ fn a_second_retirement_in_the_same_second_does_not_overwrite_the_first() {
     assert_eq!(std::fs::read(&first).unwrap(), [1u8; 8], "the first went");
     assert_eq!(std::fs::read(&second).unwrap(), [2u8; 8]);
 }
+
+#[test]
+fn a_paced_resume_is_the_same_state_as_one_written_whole() {
+    let d = tempdir().unwrap();
+    let r = StateRing::new(d.path(), Platform::Psp, Core::Ppsspp, "Patapon");
+    // a few slices and a bit over, as a PSP state is many
+    let state: Vec<u8> = (0..1_300_000u32).map(|i| (i % 251) as u8).collect();
+    r.write_resume_paced(&state).unwrap();
+    assert_eq!(r.read_resume().unwrap().as_deref(), Some(&state[..]));
+    let left: Vec<_> = std::fs::read_dir(d.path().join("States/PSP/ppsspp/Patapon"))
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name())
+        .collect();
+    assert_eq!(left.len(), 1, "the paced write left {left:?}");
+}
