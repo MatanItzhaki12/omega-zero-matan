@@ -83,6 +83,8 @@ pub struct DevicePlatform {
     /// The jack as last read where it could be: a read that fails, or finds no line for it,
     /// says what was last known rather than that the headphones came out.
     jack: std::sync::atomic::AtomicBool,
+    /// Whether a read of the jack that failed has been logged.
+    jack_unread: std::sync::atomic::AtomicBool,
 }
 
 impl DevicePlatform {
@@ -131,6 +133,7 @@ impl DevicePlatform {
             motor,
             led,
             jack: std::sync::atomic::AtomicBool::new(false),
+            jack_unread: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -536,18 +539,27 @@ fn processes(names: &[&str]) -> Vec<u32> {
 impl Platform for DevicePlatform {
     fn headphones(&self) -> bool {
         use std::sync::atomic::Ordering;
-        let read = fs::read_to_string(self.sysfs.join("kernel/debug/gpio"));
-        match read.as_deref().ok().and_then(headphones_in) {
+        // read as bytes: the list of GPIOs holds, at times, a label of another driver's that is
+        // not UTF-8, and read as text the whole list failed, which read as the headphones out
+        let read = fs::read(self.sysfs.join("kernel/debug/gpio"));
+        let state = read
+            .as_deref()
+            .ok()
+            .and_then(|g| headphones_in(&String::from_utf8_lossy(g)));
+        match state {
             Some(on) => {
                 self.jack.store(on, Ordering::Relaxed);
                 on
             }
             None => {
-                let why = match &read {
-                    Err(e) => e.to_string(),
-                    Ok(_) => "no line for it".into(),
-                };
-                eprintln!("omega-zero: jack: not read ({why}), kept as it was");
+                // once, not each poll: a jack that stays unreadable would fill the log
+                if !self.jack_unread.swap(true, Ordering::Relaxed) {
+                    let why = match &read {
+                        Err(e) => e.to_string(),
+                        Ok(_) => "no line for it".into(),
+                    };
+                    eprintln!("omega-zero: jack: not read ({why}), kept as it was");
+                }
                 self.jack.load(Ordering::Relaxed)
             }
         }

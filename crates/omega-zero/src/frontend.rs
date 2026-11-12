@@ -118,7 +118,7 @@ pub struct Frontend {
     core_built: Option<String>,
     switcher: Switcher,
     /// The panel asking whether to take a game's star off.
-    unfavorite: lone::Baked<(String, u8)>,
+    unfavorite: lone::Baked<u8>,
     clocks: Clocks,
     top_bar: TopBarTexes,
     /// About's modal, baked as one face.

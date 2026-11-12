@@ -81,7 +81,6 @@ fn taking_a_star_off_asks_first_and_b_keeps_it() {
     press(&mut a, Btn::Y);
     assert!(a.unfavorite_asked(), "Y on a starred cart did not ask");
     assert_eq!(a.bar_place().map(|b| b.actions), Some(Actions::YesNo));
-    assert_eq!(a.unfavorite_name().as_deref(), Some("Emerald"));
     // the shelf's own buttons wait while it asks
     press(&mut a, Btn::Right);
     assert_eq!(
