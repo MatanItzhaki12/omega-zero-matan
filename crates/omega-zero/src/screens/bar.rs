@@ -233,8 +233,14 @@ impl App {
             (None, _) if self.delete_asked() && matches!(self.phase, Phase::Polaroids { .. }) => {
                 (Actions::Delete, 0)
             }
-            // the shelf asking whether to take a game's star off: B NO and A YES
+            // the shelf asking whether to take a game's star off, or Saves whether to restore
+            // or delete: B NO and A YES
             (None, _) if self.unfavorite_asked() && matches!(self.phase, Phase::Shelf) => {
+                (Actions::YesNo, 0)
+            }
+            (None, _)
+                if self.saves_asking().is_some() && matches!(self.phase, Phase::Options(_)) =>
+            {
                 (Actions::YesNo, 0)
             }
             (None, _) => (actions_on(&self.phase)?, 0),

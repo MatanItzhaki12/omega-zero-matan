@@ -70,7 +70,7 @@ use sync_settings::{sync_settings, SettingsTexes};
 use sync_start_notice::sync_start_notice;
 use sync_switcher::{sync_switcher, Switcher};
 use sync_top_bar::{sync_top_bar, TopBarTexes};
-use sync_unfavorite::sync_unfavorite;
+use sync_unfavorite::{sync_saves_question, sync_unfavorite};
 
 /// How many bytes of the faces the label workers hand back are uploaded in one frame, the rest
 /// left for the frames after, so a burst of them does not hold a frame up: two Game Boy Advance
@@ -119,6 +119,8 @@ pub struct Frontend {
     switcher: Switcher,
     /// The panel asking whether to take a game's star off.
     unfavorite: lone::Baked<u8>,
+    /// The panel asking a question over Saves.
+    saves_question: lone::Baked<(&'static str, u8)>,
     clocks: Clocks,
     top_bar: TopBarTexes,
     /// About's modal, baked as one face.
@@ -221,6 +223,7 @@ impl Frontend {
             core_built: None,
             switcher: Switcher::default(),
             unfavorite: lone::Baked::default(),
+            saves_question: lone::Baked::default(),
             clocks: Clocks::default(),
             top_bar: TopBarTexes::default(),
             about: Baked::default(),
@@ -441,6 +444,7 @@ impl Frontend {
             &mut self.switcher,
         );
         sync_unfavorite(self.session.app_mut(), compositor, &mut self.unfavorite);
+        sync_saves_question(self.session.app_mut(), compositor, &mut self.saves_question);
         self.drop_boot_logo(compositor);
         self.draws.clear();
         self.session.app().draw(&mut self.draws);

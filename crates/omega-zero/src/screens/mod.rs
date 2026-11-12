@@ -15,6 +15,7 @@ pub mod labels;
 pub mod lone;
 pub mod network;
 pub mod power;
+pub mod question;
 pub mod settings;
 pub mod shelf;
 pub mod ssh;

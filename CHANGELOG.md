@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Settings › Saves is easier to find your way round:
+  - SAVES lists **NAS Backup**, **Search Games** and each system with games that have anything
+    saved, with how many. A system opens its games, each with how big its save is.
+  - **Search Games** finds a game by part of its name, typed on the keyboard, in any case.
+  - A game has its **Save** and its **Save States**, each a panel of its own. SAVE holds the
+    save, Back Up Now, each backup and Delete Save; STATES the resume point and saved states.
+  - Everything is done with A: a backup opens BACKUP, with Restore This Backup and Delete This
+    Backup. Whatever can lose something asks in a panel over the rows, B NO and A YES, its note
+    saying what yes means.
+
 ## omega-zero 2.7.2
 
 - **Saves** in Settings, in place of Save Backup: every game with a save, a backup or a state on

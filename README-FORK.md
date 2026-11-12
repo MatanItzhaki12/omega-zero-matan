@@ -341,22 +341,22 @@ it on the keyboard).
 
 ## Saves and Save Backup
 
-Settings › **Saves** lists **NAS Backup ›** first, then every game with a save, a backup or a
-state on the handheld, by system and name. A on a game opens its own panel:
+Settings › **Saves** lists **NAS Backup ›**, **Search Games ›** and each system with games that
+have a save, a backup or a state on the handheld, with how many. A system opens its games, each
+with how big its save is; Search Games types part of a name on the keyboard and lists every game
+whose name holds it, in any case. A game opens GAME, with two panels of its own:
 
-| Row | Does |
+| Panel | Rows |
 |---|---|
-| *The game* | Its save's size, and when it was saved; NO SAVE for none |
-| Back Up Save | A keeps a copy of the save on the handheld, under `Backups/<system>/<game>/<time>/` |
-| Backup, *when* | A backup kept: A puts it back, Y deletes it |
-| Resume State, State, *when* | A save state, on the core it is for, the resume state written as the game stops among them: Y deletes it |
-| Delete Save | A deletes the save, and the game starts anew |
+| **Save ›** | This Save (its size, and when it was saved), **Back Up Now** (a copy kept on the handheld, under `Backups/<system>/<game>/<time>/`), each backup kept, and **Delete Save** |
+| **Save States ›** | The Resume Point written as the game stops, any Old Resume Point set aside, and each Saved State, with its size and the core it is for |
 
-What can lose something asks first: its note says what pressing it again does, and the same
-button again does it; moving off the row lets the question go. Putting a backup back, or deleting
-the save, first keeps the save as it was as a backup of its own, and sets the game's resume state
-aside (it holds the save the game had, and would bring it back); a state set aside is listed as
-an Old Resume State, to delete. A PSP game's save is every `SAVEDATA` folder its ID starts.
+Everything is done with A. A backup opens BACKUP, with **Restore This Backup** and **Delete This
+Backup**; a state, or Delete Save, asks straight away. Whatever can lose something asks first,
+in a panel over the rows with B NO and A YES on the bar, its note saying what yes means.
+Restoring a backup, or deleting the save, first keeps the save as it was as a backup of its own,
+and sets the game's resume state aside (it holds the save the game had, and would bring it back).
+A PSP game's save is every `SAVEDATA` folder its ID starts.
 
 **NAS Backup** opens SAVE BACKUP, which copies every save on the card to a folder on a NAS, over
 Samba

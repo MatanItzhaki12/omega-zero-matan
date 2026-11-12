@@ -1,6 +1,6 @@
 [package]
 name = "omega-power"
-version = "2.7.2"
+version = "2.7.3"
 description = "omega-zero's power: battery, backlight, lid, LED, rumble, clock and shutdown"
 edition.workspace = true
 rust-version.workspace = true

@@ -4,16 +4,11 @@
 
 use omega_input::{Action, Btn};
 use omega_ui::kit::palette::Palette;
-use omega_ui::kit::panel::panel_face;
-use omega_ui::kit::pixel::text_width;
-use omega_ui::kit::row::panel_height;
 use omega_ui::{Draw, UndoFace};
 
 use crate::app::App;
-use crate::screens::lone::{notes, notes_height, Lone, NOTE_GAP, NOTE_X};
-
-/// The room either side of the question, inside the panel's frame, in art pixels.
-const MARGIN: u32 = 8;
+use crate::screens::lone::Lone;
+use crate::screens::question::question_face;
 
 /// The panel's title.
 pub const TITLE: &str = "FAVORITES";
@@ -24,16 +19,7 @@ pub const QUESTION: &str = "Remove from favorites?";
 /// The panel asking whether to take the picked game's star off, in `pal`: as wide as the
 /// question and as tall as its one line.
 pub fn unfavorite_face(pal: &Palette) -> UndoFace {
-    let lines = [QUESTION.to_string()];
-    let mut panel = panel_face(
-        text_width(QUESTION) + NOTE_X + 2 * MARGIN,
-        panel_height(notes_height(lines.len())),
-        TITLE,
-        true,
-        pal,
-    );
-    notes(&mut panel, &lines, NOTE_GAP, pal);
-    panel.face
+    question_face(TITLE, QUESTION, pal)
 }
 
 impl App {

@@ -1,6 +1,6 @@
 [package]
 name = "omega-store"
-version = "2.7.2"
+version = "2.7.3"
 description = "omega-zero's card: the games, settings, saves and states kept on the SD card"
 edition.workspace = true
 rust-version.workspace = true

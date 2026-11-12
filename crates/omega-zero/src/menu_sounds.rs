@@ -32,7 +32,7 @@ impl App {
         Mark {
             menu: self.menu_up(),
             screens: format!(
-                "{:?}{:?}{:?}{:?}{:?}{}{}",
+                "{:?}{:?}{:?}{:?}{:?}{}{}{:?}",
                 self.phase,
                 self.pause_menu,
                 self.game_menu,
@@ -40,6 +40,7 @@ impl App {
                 self.core_picker.as_ref().map(|p| (p.seat(), p.closing())),
                 self.delete_asked,
                 self.unfavorite_asked,
+                self.saves_ui.asking,
             ),
             state: self.state.clone(),
             shelf: self.shelf_at,

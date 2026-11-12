@@ -1,5 +1,6 @@
-//! Settings › Saves as it is used: SAVES lists the games with anything on the card, GAME a
-//! game's save, backups and states, and what can lose something asks first.
+//! Settings › Saves as it is used: SAVES lists the systems with games that have anything on the
+//! card, and a search finds a game by name; a game has its Save and its Save States, each a
+//! panel of its own; and whatever can lose something asks first, B NO and A YES.
 
 use crate::common;
 
@@ -10,10 +11,16 @@ use omega_ui::SettingsRow;
 use omega_zero::app::App;
 use omega_zero::options::OptionRow;
 use omega_zero::save_manager::{self, Game};
+use omega_zero::screens::bar::Actions;
 
 fn press(a: &mut App, btn: Btn) {
     a.apply(Action::GbaDown(btn));
     a.apply(Action::GbaUp(btn));
+    a.finish_slide();
+}
+
+fn title(a: &App) -> &'static str {
+    a.options_view().expect("a panel").title
 }
 
 fn lit(a: &App) -> OptionRow {
@@ -50,7 +57,17 @@ fn open_saves(a: &mut App) {
     }
     assert_eq!(a.settings_row(), Some(SettingsRow::Backup));
     press(a, Btn::A);
-    a.finish_slide();
+}
+
+/// Settings > Saves > Game Boy Advance > Emerald.
+fn open_emerald(a: &mut App) {
+    open_saves(a);
+    down_to(a, OptionRow::SavesSystem(Platform::Gba));
+    press(a, Btn::A);
+    assert_eq!(title(a), "GAMES");
+    down_to(a, OptionRow::SavesGame(0));
+    press(a, Btn::A);
+    assert_eq!(title(a), "GAME");
 }
 
 fn emerald() -> Game {
@@ -74,104 +91,150 @@ fn card() -> tempfile::TempDir {
 }
 
 #[test]
-fn saves_lists_the_nas_and_the_games_with_anything_on_the_card() {
+fn saves_lists_the_nas_a_search_and_the_systems_with_anything_saved() {
     let d = card();
     let mut a = boot(d.path());
     assert_eq!(SettingsRow::Backup.label(), "Saves");
     open_saves(&mut a);
-    let v = a.options_view().unwrap();
-    assert_eq!(v.title, "SAVES");
+    assert_eq!(title(&a), "SAVES");
     assert_eq!(
         rows(&a),
         [
             (OptionRow::SavesNas, "NAS Backup".into(), "OFF".into()),
-            (OptionRow::SavesGame(0), "Emerald".into(), "GBA".into()),
+            (OptionRow::SavesSearch, "Search Games".into(), String::new()),
+            (
+                OptionRow::SavesSystem(Platform::Gba),
+                "Game Boy Advance".into(),
+                "1 GAME".into()
+            ),
         ],
-        "Fusion has nothing, and is not listed"
+        "Fusion has nothing, and is not counted"
+    );
+    // a system lists its games, each with its save's size
+    down_to(&mut a, OptionRow::SavesSystem(Platform::Gba));
+    press(&mut a, Btn::A);
+    assert_eq!(
+        rows(&a),
+        [(OptionRow::SavesGame(0), "Emerald".into(), "11 B".into())]
     );
     // NAS Backup opens SAVE BACKUP, and B comes back to it
-    press(&mut a, Btn::A);
-    a.finish_slide();
-    assert_eq!(a.options_view().unwrap().title, "SAVE BACKUP");
     press(&mut a, Btn::B);
-    a.finish_slide();
-    assert_eq!(a.options_view().unwrap().title, "SAVES");
+    down_to(&mut a, OptionRow::SavesNas);
+    press(&mut a, Btn::A);
+    assert_eq!(title(&a), "SAVE BACKUP");
+    press(&mut a, Btn::B);
+    assert_eq!(title(&a), "SAVES");
     assert_eq!(lit(&a), OptionRow::SavesNas);
 }
 
 #[test]
-fn a_game_s_save_is_backed_up_and_put_back_and_its_state_deleted() {
+fn a_search_finds_a_game_by_part_of_its_name_in_any_case() {
     let d = card();
     let mut a = boot(d.path());
     open_saves(&mut a);
-    down_to(&mut a, OptionRow::SavesGame(0));
-    press(&mut a, Btn::A);
+    a.search_typed("MER");
     a.finish_slide();
-    assert_eq!(a.options_view().unwrap().title, "GAME");
+    assert_eq!(title(&a), "GAMES");
+    assert_eq!(rows(&a)[0].1, "Emerald");
+    // and says so when none matches
+    press(&mut a, Btn::B);
+    a.search_typed("zelda");
+    a.finish_slide();
+    assert_eq!(lit(&a), OptionRow::SavesNoMatch);
+    assert!(note(&a).contains("zelda"), "{}", note(&a));
+}
+
+#[test]
+fn a_game_has_its_save_and_its_states_each_in_a_panel_of_its_own() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_emerald(&mut a);
+    assert_eq!(
+        rows(&a),
+        [
+            (OptionRow::GameSaveMenu, "Save".into(), "11 B".into()),
+            (OptionRow::GameStatesMenu, "Save States".into(), "1".into()),
+        ]
+    );
+    assert_eq!(note(&a), "Emerald");
+
+    press(&mut a, Btn::A);
+    assert_eq!(title(&a), "SAVE");
     let shown: Vec<OptionRow> = rows(&a).iter().map(|r| r.0).collect();
     assert_eq!(
         shown,
         [
             OptionRow::GameSave,
             OptionRow::GameBackUp,
-            OptionRow::GameState(0),
-            OptionRow::GameDelete,
+            OptionRow::GameDelete
         ]
     );
-    assert_eq!(rows(&a)[0].1, "Emerald");
-    assert_eq!(rows(&a)[2].1, "Resume State");
 
-    // Back Up Save keeps a copy, and it is listed
+    press(&mut a, Btn::B);
+    down_to(&mut a, OptionRow::GameStatesMenu);
+    press(&mut a, Btn::A);
+    assert_eq!(title(&a), "STATES");
+    assert_eq!(rows(&a)[0].1, "Resume Point");
+}
+
+#[test]
+fn a_backup_is_kept_restored_after_asking_and_the_save_it_replaced_kept_too() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_emerald(&mut a);
+    press(&mut a, Btn::A);
     down_to(&mut a, OptionRow::GameBackUp);
     press(&mut a, Btn::A);
     assert_eq!(save_manager::backups(d.path(), &emerald()).len(), 1);
-    assert!(rows(&a).iter().any(|r| r.0 == OptionRow::GameBackup(0)));
 
-    // the game plays on; the backup is put back, asked first
     let sav = d.path().join("Saves/GBA/Emerald.sav");
     std::fs::write(&sav, b"lost the rival fight").unwrap();
     down_to(&mut a, OptionRow::GameBackup(0));
     press(&mut a, Btn::A);
-    assert!(note(&a).contains("A again"), "{}", note(&a));
+    assert_eq!(title(&a), "BACKUP");
+    press(&mut a, Btn::A);
+    // asked first, over the rows, the bar's actions B NO and A YES
+    assert_eq!(a.bar_place().map(|b| b.actions), Some(Actions::YesNo));
+    assert!(a.saves_asking().is_some());
     assert_eq!(std::fs::read(&sav).unwrap(), b"lost the rival fight");
+    // B lets it go
+    press(&mut a, Btn::B);
+    assert!(a.saves_asking().is_none());
+    assert_eq!(title(&a), "BACKUP", "B on the question left the panel");
+    // asked again, A restores it, and SAVE shows again
+    press(&mut a, Btn::A);
     press(&mut a, Btn::A);
     assert_eq!(std::fs::read(&sav).unwrap(), b"badge eight");
-    // the save it replaced was kept too, and the resume state set aside
+    assert_eq!(title(&a), "SAVE");
     assert_eq!(save_manager::backups(d.path(), &emerald()).len(), 2);
     let ring = StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald");
-    assert!(!ring.has_resume());
-
-    // the state set aside is deleted with Y, asked first
-    let state = rows(&a)
-        .iter()
-        .find(|r| matches!(r.0, OptionRow::GameState(_)))
-        .map(|r| r.0)
-        .expect("the state set aside is listed");
-    down_to(&mut a, state);
-    press(&mut a, Btn::Y);
-    assert!(note(&a).contains("Y again"), "{}", note(&a));
-    press(&mut a, Btn::Y);
-    assert!(ring.set_aside().is_empty(), "the state stayed");
+    assert!(!ring.has_resume(), "the resume state was not set aside");
 }
 
 #[test]
-fn moving_off_a_row_asked_once_lets_the_question_go() {
+fn a_state_is_deleted_after_asking() {
     let d = card();
     let mut a = boot(d.path());
-    open_saves(&mut a);
-    down_to(&mut a, OptionRow::SavesGame(0));
+    open_emerald(&mut a);
+    down_to(&mut a, OptionRow::GameStatesMenu);
     press(&mut a, Btn::A);
-    a.finish_slide();
+    press(&mut a, Btn::A);
+    assert!(a.saves_asking().is_some(), "A deleted it without asking");
+    press(&mut a, Btn::A);
+    let ring = StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald");
+    assert!(!ring.has_resume(), "the state stayed");
+    assert_eq!(lit(&a), OptionRow::GameNoStates);
+}
+
+#[test]
+fn deleting_the_save_asks_and_keeps_it_as_a_backup() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_emerald(&mut a);
+    press(&mut a, Btn::A);
     down_to(&mut a, OptionRow::GameDelete);
     press(&mut a, Btn::A);
-    press(&mut a, Btn::Up);
-    press(&mut a, Btn::Down);
-    press(&mut a, Btn::A);
-    assert!(
-        d.path().join("Saves/GBA/Emerald.sav").exists(),
-        "a press after moving away deleted the save"
-    );
-    // asked and answered on the row, it goes, and is kept as a backup
+    assert!(d.path().join("Saves/GBA/Emerald.sav").exists());
     press(&mut a, Btn::A);
     assert!(!d.path().join("Saves/GBA/Emerald.sav").exists());
     assert_eq!(save_manager::backups(d.path(), &emerald()).len(), 1);
