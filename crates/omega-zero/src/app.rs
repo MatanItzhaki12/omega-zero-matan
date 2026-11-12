@@ -437,6 +437,9 @@ pub struct App {
     /// X DELETE line between RETURN and LOAD.
     pub(crate) delete_asked: bool,
     pub(crate) delete_panel: Option<Lone>,
+    /// The shelf asking whether to take the picked game's star off, and its panel.
+    pub(crate) unfavorite_asked: bool,
+    pub(crate) unfavorite_panel: Option<Lone>,
     pub(crate) delete_hint: Option<Lone>,
     pub(crate) clock_panel: Option<Lone>,
     pub(crate) settings_faces: Option<SettingsFaces>,
@@ -680,6 +683,8 @@ impl App {
             polaroids: None,
             delete_asked: false,
             delete_panel: None,
+            unfavorite_asked: false,
+            unfavorite_panel: None,
             delete_hint: None,
             clock_panel: None,
             settings_faces: None,
@@ -1663,6 +1668,7 @@ impl App {
         }
         let now = self.now();
         match self.phase {
+            Phase::Shelf if self.unfavorite_asked => self.unfavorite_input(action),
             Phase::Shelf => match action {
                 // the shelf's buttons are Slot's: START picks the core (X too, as it always
                 // did, but on RECENTS, where X takes the game off it), MENU opens Settings and
@@ -1675,7 +1681,7 @@ impl App {
                 }
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 Action::QuickMenu => self.open_settings(),
-                Action::GbaDown(Btn::Y) => self.toggle_favorite(now),
+                Action::GbaDown(Btn::Y) => self.favorite_pressed(now),
                 Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),

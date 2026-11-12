@@ -54,11 +54,54 @@ fn y_stars_the_cart_onto_favorites_first_and_y_again_takes_it_off() {
     assert_eq!(a.pill_text().as_deref(), Some("FAVORITES"));
     assert_eq!(a.selected_stem(), Some("Fusion"));
 
-    // taking the last star off leaves FAVORITES empty, and the shelf moves on
+    // taking the last star off asks first, and A says yes: FAVORITES is left empty, and the
+    // shelf moves on
     press(&mut a, Btn::Y);
+    assert!(a.unfavorite_asked(), "Y on a starred cart did not ask");
+    press(&mut a, Btn::A);
+    assert!(!a.unfavorite_asked());
     assert_eq!(favorites_file(&d), "");
     assert!(!a.on_favorites(), "still on an empty FAVORITES");
     assert_eq!(a.pill_text().as_deref(), Some("GBA"));
+}
+
+#[test]
+fn taking_a_star_off_asks_first_and_b_keeps_it() {
+    use omega_zero::screens::bar::Actions;
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut a = boot(d.path());
+    press(&mut a, Btn::Y);
+    assert_eq!(
+        favorites_file(&d),
+        "gba/Emerald
+"
+    );
+    assert!(!a.unfavorite_asked(), "starring a cart asked");
+
+    press(&mut a, Btn::Y);
+    assert!(a.unfavorite_asked(), "Y on a starred cart did not ask");
+    assert_eq!(a.bar_place().map(|b| b.actions), Some(Actions::YesNo));
+    assert_eq!(a.unfavorite_name().as_deref(), Some("Emerald"));
+    // the shelf's own buttons wait while it asks
+    press(&mut a, Btn::Right);
+    assert_eq!(
+        a.selected_stem(),
+        Some("Emerald"),
+        "the shelf moved under the question"
+    );
+    press(&mut a, Btn::B);
+    assert!(!a.unfavorite_asked(), "B left the question up");
+    assert_eq!(
+        favorites_file(&d),
+        "gba/Emerald
+",
+        "B took the star off"
+    );
+    assert_eq!(a.bar_place().map(|b| b.actions), Some(Actions::Shelf));
+
+    press(&mut a, Btn::Y);
+    press(&mut a, Btn::A);
+    assert_eq!(favorites_file(&d), "", "A did not take the star off");
 }
 
 #[test]

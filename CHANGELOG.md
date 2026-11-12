@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Taking a game's star off asks first: Y on a starred game puts up a FAVORITES panel, "Remove
+  from favorites?" over the game's name, with B NO and A YES on the bar. Starring a game asks
+  nothing.
 - A PSP game no longer stutters once a minute. Its autosaved state is 40 MB, and written whole
   it held the game's reads of its disc for some seconds: it is now written in slices, the
   game's reads going between them, and every five minutes rather than every minute. A state is
