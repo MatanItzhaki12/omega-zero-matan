@@ -9,8 +9,9 @@
 
 use super::*;
 
-/// How often the headphone jack is read: a plug or unplug is believed two reads on.
-pub(super) const HEADPHONES_POLL_MS: Millis = 150;
+/// How often the headphone jack is read. A read takes a millisecond, and the first empty one
+/// silences the sound: the codec moves it to the speaker the moment the plug comes out.
+pub(super) const HEADPHONES_POLL_MS: Millis = 50;
 
 /// How long the sound stays silent after it leaves headphones: what was queued at their level
 /// plays out unheard.
@@ -36,13 +37,12 @@ impl Output {
     }
 }
 
-/// How many reads running the jack must read empty before the headphones are believed out:
-/// 0.6 s of them. The pin reads empty for most of a second at times with the headphones well
-/// in, as at boot, and believed at once that muted the speaker and moved the volume.
-const JACK_OUT_READS: u8 = 4;
+/// How many reads running the jack must read empty before the headphones are believed out and
+/// the speaker muted: 0.6 s of them, so a plug wiggled in its jack never moves the volume.
+const JACK_OUT_READS: u8 = 12;
 
-/// How many reads running it must read full before headphones are believed in.
-const JACK_IN_READS: u8 = 2;
+/// How many reads running it must read full before headphones are believed in: 0.2 s.
+const JACK_IN_READS: u8 = 4;
 
 /// The headphone jack, believed plugged or not once it has read the same a while: a glitch of
 /// its pin never moves the sound between the headphones and the speaker.
@@ -216,15 +216,23 @@ impl App {
         self.headphones_at = now + HEADPHONES_POLL_MS;
         let raw = self.power.as_ref().is_some_and(|p| p.headphones());
         let doubt = self.jack.read(raw);
-        // the sound plays on through a read in doubt: most are a glitch of the pin, and a
-        // silence for each was heard as the sound cutting out
-        if doubt != self.jack_doubt {
-            self.jack_doubt = doubt;
-            crate::log!(
-                "sound: the jack read {}, believed {}",
-                if raw { "in" } else { "out" },
-                if self.jack.plugged() { "in" } else { "out" }
-            );
+        if doubt == self.jack_doubt {
+            return;
+        }
+        self.jack_doubt = doubt;
+        crate::log!(
+            "sound: the jack read {}, believed {}",
+            if raw { "in" } else { "out" },
+            if self.jack.plugged() { "in" } else { "out" }
+        );
+        // headphones coming out: silent at once, as the codec takes the sound to the speaker
+        // before the unplug is believed and the speaker muted; back in, the sound plays on
+        if self.output == Output::Wired {
+            match doubt {
+                true => crate::audio::hush(true),
+                false if self.hush_until.is_none() => crate::audio::hush(false),
+                false => {}
+            }
         }
     }
 
@@ -369,9 +377,14 @@ mod tests {
             !jack.plugged(),
             "{JACK_OUT_READS} empty reads were not believed"
         );
-        assert!(jack.read(true));
+        for _ in 1..JACK_IN_READS {
+            assert!(jack.read(true));
+        }
         assert!(!jack.read(true));
-        assert!(jack.plugged(), "two full reads did not plug them back in");
+        assert!(
+            jack.plugged(),
+            "{JACK_IN_READS} full reads did not plug them back in"
+        );
     }
 
     /// The jack as it read at boot on the console, the headphones in all the while: empty for

@@ -3,11 +3,15 @@
 ## Unreleased
 
 - Taking a game's star off asks first: Y on a starred game puts up a FAVORITES panel, "Remove
-  from favorites?", with B NO and A YES on the bar. Starring a game asks nothing.
+  from favorites?" in a panel as small as the question, with B NO and A YES on the bar.
+  Starring a game asks nothing.
 - A PSP game no longer stutters once a minute. Its autosaved state is 40 MB, and written whole
   it held the game's reads of its disc for some seconds: it is now written in slices, the
   game's reads going between them, and every five minutes rather than every minute. A state is
   still written as the cart comes out and as the console sleeps.
+- Wired headphones pulled out go silent within a twentieth of a second, rather than playing a
+  moment of the game from the speaker: the jack is read every 50 ms, and the first empty read
+  silences the sound while the unplug is made sure of.
 - Wired headphones well in no longer move the volume to the speaker's, mute the speaker or cut
   the sound for a second, as at boot. The jack's pin reads empty for most of a second at times
   with the headphones in: they are now believed out only after 0.6 s of empty reads, a read of
