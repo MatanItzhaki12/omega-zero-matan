@@ -157,6 +157,17 @@ impl StateRing {
         std::fs::remove_file(self.path(name, STATE_EXT))
     }
 
+    /// The resume state set aside as `name`, one [`StateRing::set_aside`] gave.
+    pub fn read_set_aside(&self, name: &str) -> std::io::Result<Vec<u8>> {
+        if !name.starts_with(REFUSED) || name.contains(['/', '\\']) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("not a state set aside: {name}"),
+            ));
+        }
+        std::fs::read(self.path(name, STATE_EXT))
+    }
+
     /// The size on the card of the state by `name`: a stamp, `resume`, or one set aside.
     pub fn size_of(&self, name: &str) -> u64 {
         std::fs::metadata(self.path(name, STATE_EXT)).map_or(0, |m| m.len())

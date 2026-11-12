@@ -184,3 +184,53 @@ fn a_backup_deleted_is_gone_and_the_save_stays() {
     // a name that is no backup's is refused, not taken for a path
     assert!(save_manager::delete_backup(d.path(), &game, "../../Saves").is_err());
 }
+
+/// The index Saves opens on says what a look at each game would, read a folder at a time.
+#[test]
+fn the_index_finds_what_a_look_at_each_game_finds() {
+    let d = tempfile::tempdir().unwrap();
+    write(d.path(), "Saves/GBA/Saved.sav", b"twelve bytes");
+    write(
+        d.path(),
+        "Saves/GBA/Only A Disc.disc",
+        b"0
+",
+    );
+    write(
+        d.path(),
+        "Saves/PSP/SAVEDATA/ULJM05681MAIN00/DATA.BIN",
+        b"psp",
+    );
+    StateRing::new(d.path(), Platform::Gba, Core::Gpsp, "Stated")
+        .push(b"state", b"png", NOW)
+        .unwrap();
+    write(d.path(), "Saves/GBA/Backed.sav", b"one");
+    save_manager::back_up(d.path(), &gba("Backed"), NOW).unwrap();
+    fs::remove_file(d.path().join("Saves/GBA/Backed.sav")).unwrap();
+    let games = vec![
+        gba("Saved"),
+        gba("Only A Disc"),
+        gba("Stated"),
+        gba("Backed"),
+        gba("Nothing"),
+        Game {
+            platform: Platform::Psp,
+            stem: "Miku".into(),
+            code: "ULJM05681".into(),
+        },
+        Game {
+            platform: Platform::Psp,
+            stem: "Other".into(),
+            code: "NPJH50465".into(),
+        },
+    ];
+    let index = save_manager::index(d.path(), &games);
+    let found: Vec<usize> = index.iter().map(|(i, _)| *i).collect();
+    let looked: Vec<usize> = (0..games.len())
+        .filter(|&i| save_manager::has_any(d.path(), &games[i]))
+        .collect();
+    assert_eq!(found, looked);
+    assert_eq!(found, vec![0, 2, 3, 5]);
+    assert_eq!(index[0].1, 12, "the save's size");
+    assert_eq!(index[1].1, 0, "a game with only states has no save");
+}

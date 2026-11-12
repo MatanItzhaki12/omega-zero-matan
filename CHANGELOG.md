@@ -7,10 +7,13 @@
     saved, with how many. A system opens its games, each with how big its save is.
   - **Search Games** finds a game by part of its name, typed on the keyboard, in any case.
   - A game has its **Save** and its **Save States**, each a panel of its own. SAVE holds the
-    save, Back Up Now, each backup and Delete Save; STATES the resume point and saved states.
-  - Everything is done with A: a backup opens BACKUP, with Restore This Backup and Delete This
-    Backup. Whatever can lose something asks in a panel over the rows, B NO and A YES, its note
-    saying what yes means.
+    Current Save and Back Up Now, then, under a Backups heading the cursor passes over, each
+    backup named for the date and time it was made; STATES the resume point and saved states.
+  - On the current save, a backup or a state, **X deletes it** and **Y restores it**: a backup is
+    put back as the save, a state made the one the game resumes from. Each asks first, in a panel
+    over the rows with B NO and A YES, its note saying what yes means.
+  - SAVES opens at once on a full card: the card is read a folder at a time for every game in
+    it, rather than every folder once a game, which held the panel's slide in for a moment.
 
 ## omega-zero 2.7.2
 

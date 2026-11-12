@@ -5,13 +5,14 @@
 //!   anything on the card.
 //! - **GAMES**: a system's games, or those the search found, each with how big its save is.
 //! - **GAME**: a game's Save and its Save States, each a panel of its own.
-//! - **SAVE**: the save, Back Up Now, each backup kept, and Delete Save.
-//! - **BACKUP**: a backup kept: Restore This Backup, Delete This Backup.
+//! - **SAVE**: the Current Save and Back Up Now, then under the Backups heading each backup kept,
+//!   named for when it was made.
 //! - **STATES**: the game's save states, the resume point written as it stops among them.
 //!
-//! Everything is done with A. Whatever can lose something asks first, in a panel over the rows
-//! with B NO and A YES on the bar; and restoring a backup or deleting the save keeps the save as
-//! it was as a backup of its own (`save_manager`). Settings opens only from the shelf, so no game
+//! A opens and backs up; on a save, a backup or a state, X deletes it and Y restores it (a
+//! backup put back as the save, a state made the one the game resumes from). Each asks first, in
+//! a panel over the rows with B NO and A YES on the bar; and restoring a backup or deleting the
+//! save keeps the save as it was as a backup of its own (`save_manager`). Settings opens only from the shelf, so no game
 //! these touch is in the slot.
 
 use omega_input::{Action, Btn};
@@ -34,6 +35,7 @@ pub enum Answer {
     RestoreBackup(u16),
     DeleteBackup(u16),
     DeleteState(u16),
+    ResumeFrom(u16),
     DeleteSave,
 }
 
@@ -44,6 +46,7 @@ impl Answer {
             Answer::RestoreBackup(_) => "Restore this backup?",
             Answer::DeleteBackup(_) => "Delete this backup?",
             Answer::DeleteState(_) => "Delete this state?",
+            Answer::ResumeFrom(_) => "Resume from this state?",
             Answer::DeleteSave => "Delete this save?",
         }
     }
@@ -54,6 +57,7 @@ impl Answer {
             Answer::RestoreBackup(_) => "The save now is kept as a backup first",
             Answer::DeleteBackup(_) => "This copy cannot be brought back",
             Answer::DeleteState(_) => "This state cannot be brought back",
+            Answer::ResumeFrom(_) => "The game picks up here when it goes in",
             Answer::DeleteSave => "The game starts over; a backup is kept first",
         }
     }
@@ -81,8 +85,6 @@ pub struct SavesUi {
     /// The game GAME is open on, by its place in `games`, and what it has.
     pub open: Option<usize>,
     pub look: GameSaves,
-    /// The backup BACKUP is open on, by its place in `look.backups`.
-    pub kept: Option<u16>,
     /// The question up over the rows, and its panel.
     pub asking: Option<Answer>,
     pub panel: Option<Lone>,
@@ -104,18 +106,24 @@ impl App {
         let Some(root) = self.root.clone() else {
             return;
         };
-        let mut games: Vec<(Game, String, u64)> = self
+        let began = std::time::Instant::now();
+        let carts: Vec<&omega_store::Cart> = self
             .shelves
             .iter()
             .filter(|(kind, _)| matches!(kind, ShelfKind::System(_)))
             .flat_map(|(_, shelf)| shelf.carts.iter())
-            .filter_map(|cart| {
-                let game = Game::of(cart);
-                let look = save_manager::look(&root, &game);
-                (!look.is_empty())
-                    .then(|| (game, omega_ui::clean_label(&cart.stem), look.save_bytes))
-            })
             .collect();
+        let all: Vec<Game> = carts.iter().map(|c| Game::of(c)).collect();
+        // each folder read once for all the games in it, so the panel slides in on time
+        let mut games: Vec<(Game, String, u64)> = save_manager::index(&root, &all)
+            .into_iter()
+            .map(|(i, bytes)| (all[i].clone(), omega_ui::clean_label(&carts[i].stem), bytes))
+            .collect();
+        crate::log!(
+            "saves: looked over {} games in {} ms",
+            all.len(),
+            began.elapsed().as_millis()
+        );
         games.sort_by(|(a, an, _), (b, bn, _)| {
             (system_order(a.platform), an.to_lowercase())
                 .cmp(&(system_order(b.platform), bn.to_lowercase()))
@@ -183,15 +191,6 @@ impl App {
         self.go(Phase::Options(OptionsScreen::new(page)), Dir::Deeper);
     }
 
-    /// A on a backup in SAVE: BACKUP, to restore it or delete it.
-    fn open_kept(&mut self, i: u16) {
-        if self.saves_ui.look.backups.get(i as usize).is_none() {
-            return self.refuse();
-        }
-        self.saves_ui.kept = Some(i);
-        self.open_page(OptionsPage::BackupKept);
-    }
-
     /// The game GAME is open on.
     fn open_game(&self) -> Option<&Game> {
         self.saves_ui
@@ -236,17 +235,16 @@ impl App {
                 if !look.save.is_empty() {
                     rows.push(OptionRow::GameBackUp);
                 }
-                rows.extend(index(look.backups.len()).map(|i| OptionRow::GameBackup(i as u16)));
-                if !look.save.is_empty() {
-                    rows.push(OptionRow::GameDelete);
+                if !look.backups.is_empty() {
+                    rows.push(OptionRow::GameBackupsHeading);
                 }
+                rows.extend(index(look.backups.len()).map(|i| OptionRow::GameBackup(i as u16)));
                 rows
             }
             OptionsPage::StatesMenu if look.states.is_empty() => vec![OptionRow::GameNoStates],
             OptionsPage::StatesMenu => index(look.states.len())
                 .map(|i| OptionRow::GameState(i as u16))
                 .collect(),
-            OptionsPage::BackupKept => vec![OptionRow::KeptRestore, OptionRow::KeptDelete],
             _ => return None,
         })
     }
@@ -260,7 +258,7 @@ impl App {
             OptionRow::SavesSystem(p) => system(p).to_string(),
             OptionRow::SavesGame(i) => ui.games.get(*ui.shown.get(i as usize)?)?.1.clone(),
             OptionRow::GameBackup(i) => {
-                format!("Backup, {}", when(ui.look.backups.get(i as usize)?))
+                made_at(ui.look.backups.get(i as usize)?, self.state.clock_24h)
             }
             OptionRow::GameState(i) => match &ui.look.states.get(i as usize)?.kind {
                 StateKind::Resume => "Resume Point".to_string(),
@@ -296,6 +294,7 @@ impl App {
                 size(look.save_bytes)
             }
             OptionRow::GameSave => "NO SAVE".to_string(),
+            OptionRow::GameBackupsHeading => look.backups.len().to_string(),
             OptionRow::GameStatesMenu => match look.states.len() {
                 0 => "NONE".to_string(),
                 n => n.to_string(),
@@ -333,23 +332,44 @@ impl App {
                     let secs = at
                         .duration_since(std::time::UNIX_EPOCH)
                         .map_or(0, |d| d.as_secs());
-                    format!("Saved {}", crate::backup_settings::ago(secs))
+                    format!("Saved {}: X deletes it", crate::backup_settings::ago(secs))
                 }
-                None => "Its save on the handheld".to_string(),
+                None => "X deletes it".to_string(),
             },
+            OptionRow::GameBackup(_) => "Y restores it, X deletes it".to_string(),
             OptionRow::GameState(i) => match look.states.get(i as usize) {
                 Some(s) if s.kind == StateKind::Resume => {
-                    format!("Where it stopped, on {}: A deletes it", s.core.name())
+                    format!("Where it stopped, on {}: X deletes it", s.core.name())
                 }
-                Some(s) => format!("On {}: A deletes it", s.core.name()),
+                Some(s) => format!("On {}: Y resumes from it, X deletes it", s.core.name()),
                 None => return None,
             },
             _ => return None,
         })
     }
 
-    /// A on a SAVES panel's row.
-    pub(crate) fn saves_press(&mut self, row: OptionRow) {
+    /// A, X or Y on a SAVES panel's row: A opens and backs up, X deletes and Y restores.
+    pub(crate) fn saves_press(&mut self, row: OptionRow, btn: Btn) {
+        let look = &self.saves_ui.look;
+        match (btn, row) {
+            (Btn::X, OptionRow::GameSave) if !look.save.is_empty() => {
+                return self.ask(Answer::DeleteSave)
+            }
+            (Btn::X, OptionRow::GameBackup(i)) => return self.ask(Answer::DeleteBackup(i)),
+            (Btn::Y, OptionRow::GameBackup(i)) => return self.ask(Answer::RestoreBackup(i)),
+            (Btn::X, OptionRow::GameState(i)) => return self.ask(Answer::DeleteState(i)),
+            // the resume point is already where the game picks up
+            (Btn::Y, OptionRow::GameState(i))
+                if look
+                    .states
+                    .get(i as usize)
+                    .is_some_and(|s| s.kind != StateKind::Resume) =>
+            {
+                return self.ask(Answer::ResumeFrom(i))
+            }
+            (Btn::A, _) => {}
+            _ => return self.refuse(),
+        }
         match row {
             OptionRow::SavesNas => {
                 // a look at where it stands is a reason to try the NAS again now
@@ -362,17 +382,6 @@ impl App {
             OptionRow::GameSaveMenu => self.open_page(OptionsPage::SaveMenu),
             OptionRow::GameStatesMenu => self.open_page(OptionsPage::StatesMenu),
             OptionRow::GameBackUp => self.back_up_open_game(),
-            OptionRow::GameBackup(i) => self.open_kept(i),
-            OptionRow::GameState(i) => self.ask(Answer::DeleteState(i)),
-            OptionRow::GameDelete => self.ask(Answer::DeleteSave),
-            OptionRow::KeptRestore => match self.saves_ui.kept {
-                Some(i) => self.ask(Answer::RestoreBackup(i)),
-                None => self.refuse(),
-            },
-            OptionRow::KeptDelete => match self.saves_ui.kept {
-                Some(i) => self.ask(Answer::DeleteBackup(i)),
-                None => self.refuse(),
-            },
             _ => self.refuse(),
         }
     }
@@ -459,6 +468,13 @@ impl App {
                 ),
                 None => return self.refuse(),
             },
+            Answer::ResumeFrom(i) => match look.states.get(i as usize) {
+                Some(state) => (
+                    save_manager::resume_from(&root, &game, state, &now),
+                    "The game resumes from it",
+                ),
+                None => return self.refuse(),
+            },
             Answer::DeleteSave => (
                 save_manager::delete_save(&root, &game, &now),
                 "Save deleted",
@@ -472,14 +488,6 @@ impl App {
             }
         }
         self.look_again();
-        // the backup BACKUP was open on is done with: back to SAVE, on the save
-        if matches!(answer, Answer::RestoreBackup(_) | Answer::DeleteBackup(_)) {
-            self.saves_ui.kept = None;
-            self.go(
-                Phase::Options(OptionsScreen::new(OptionsPage::SaveMenu)),
-                Dir::Back,
-            );
-        }
     }
 
     fn saves_toast(&mut self, said: &'static str) {
@@ -506,6 +514,37 @@ fn system(p: Platform) -> &'static str {
         Platform::Ps1 => "PlayStation",
         Platform::Psp => "PSP",
     }
+}
+
+/// When a backup stamped `stamp` was made, as its row names it: `12 Nov 2026, 16:40`, or
+/// `4:40 PM` on a 12-hour clock.
+pub fn made_at(stamp: &str, clock_24h: bool) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let part = |from: usize, to: usize| stamp.get(from..to).and_then(|p| p.parse::<u32>().ok());
+    let (Some(year), Some(month), Some(day), Some(hour), Some(min)) = (
+        part(0, 4),
+        part(5, 7),
+        part(8, 10),
+        part(11, 13),
+        part(14, 16),
+    ) else {
+        return stamp.to_string();
+    };
+    let month = MONTHS.get(month.wrapping_sub(1) as usize).unwrap_or(&"");
+    let time = match clock_24h {
+        true => format!("{hour:02}:{min:02}"),
+        false => {
+            let half = if hour < 12 { "AM" } else { "PM" };
+            let h = match hour % 12 {
+                0 => 12,
+                h => h,
+            };
+            format!("{h}:{min:02} {half}")
+        }
+    };
+    format!("{day} {month} {year}, {time}")
 }
 
 /// A size as the panel prints it: bytes, KB or MB.

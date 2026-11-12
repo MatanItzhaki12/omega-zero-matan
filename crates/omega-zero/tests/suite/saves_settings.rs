@@ -160,15 +160,12 @@ fn a_game_has_its_save_and_its_states_each_in_a_panel_of_its_own() {
 
     press(&mut a, Btn::A);
     assert_eq!(title(&a), "SAVE");
-    let shown: Vec<OptionRow> = rows(&a).iter().map(|r| r.0).collect();
     assert_eq!(
-        shown,
-        [
-            OptionRow::GameSave,
-            OptionRow::GameBackUp,
-            OptionRow::GameDelete
-        ]
+        rows(&a).iter().map(|r| r.0).collect::<Vec<_>>(),
+        [OptionRow::GameSave, OptionRow::GameBackUp]
     );
+    assert_eq!(rows(&a)[0].1, "Current Save");
+    assert!(note(&a).contains("X deletes it"), "{}", note(&a));
 
     press(&mut a, Btn::B);
     down_to(&mut a, OptionRow::GameStatesMenu);
@@ -178,7 +175,7 @@ fn a_game_has_its_save_and_its_states_each_in_a_panel_of_its_own() {
 }
 
 #[test]
-fn a_backup_is_kept_restored_after_asking_and_the_save_it_replaced_kept_too() {
+fn backups_stand_under_their_heading_named_for_when_they_were_made() {
     let d = card();
     let mut a = boot(d.path());
     open_emerald(&mut a);
@@ -186,57 +183,129 @@ fn a_backup_is_kept_restored_after_asking_and_the_save_it_replaced_kept_too() {
     down_to(&mut a, OptionRow::GameBackUp);
     press(&mut a, Btn::A);
     assert_eq!(save_manager::backups(d.path(), &emerald()).len(), 1);
+    assert_eq!(
+        rows(&a).iter().map(|r| r.0).collect::<Vec<_>>(),
+        [
+            OptionRow::GameSave,
+            OptionRow::GameBackUp,
+            OptionRow::GameBackupsHeading,
+            OptionRow::GameBackup(0),
+        ]
+    );
+    assert_eq!(rows(&a)[2].1, "Backups");
+    assert!(rows(&a)[3].1.contains(", "), "{:?}", rows(&a)[3]);
+    // the cursor passes over the heading
+    press(&mut a, Btn::Down);
+    assert_eq!(
+        lit(&a),
+        OptionRow::GameBackup(0),
+        "the cursor stood on the heading"
+    );
+    assert_eq!(note(&a), "Y restores it, X deletes it");
+}
 
+#[test]
+fn y_restores_a_backup_after_asking_and_keeps_the_save_it_replaced() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_emerald(&mut a);
+    press(&mut a, Btn::A);
+    down_to(&mut a, OptionRow::GameBackUp);
+    press(&mut a, Btn::A);
     let sav = d.path().join("Saves/GBA/Emerald.sav");
     std::fs::write(&sav, b"lost the rival fight").unwrap();
     down_to(&mut a, OptionRow::GameBackup(0));
-    press(&mut a, Btn::A);
-    assert_eq!(title(&a), "BACKUP");
-    press(&mut a, Btn::A);
+
+    press(&mut a, Btn::Y);
     // asked first, over the rows, the bar's actions B NO and A YES
     assert_eq!(a.bar_place().map(|b| b.actions), Some(Actions::YesNo));
     assert!(a.saves_asking().is_some());
     assert_eq!(std::fs::read(&sav).unwrap(), b"lost the rival fight");
-    // B lets it go
     press(&mut a, Btn::B);
-    assert!(a.saves_asking().is_none());
-    assert_eq!(title(&a), "BACKUP", "B on the question left the panel");
-    // asked again, A restores it, and SAVE shows again
-    press(&mut a, Btn::A);
+    assert!(a.saves_asking().is_none(), "B left the question up");
+    assert_eq!(std::fs::read(&sav).unwrap(), b"lost the rival fight");
+
+    press(&mut a, Btn::Y);
     press(&mut a, Btn::A);
     assert_eq!(std::fs::read(&sav).unwrap(), b"badge eight");
-    assert_eq!(title(&a), "SAVE");
     assert_eq!(save_manager::backups(d.path(), &emerald()).len(), 2);
     let ring = StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald");
     assert!(!ring.has_resume(), "the resume state was not set aside");
 }
 
 #[test]
-fn a_state_is_deleted_after_asking() {
+fn x_deletes_a_backup_after_asking() {
     let d = card();
+    let mut a = boot(d.path());
+    open_emerald(&mut a);
+    press(&mut a, Btn::A);
+    down_to(&mut a, OptionRow::GameBackUp);
+    press(&mut a, Btn::A);
+    down_to(&mut a, OptionRow::GameBackup(0));
+    press(&mut a, Btn::X);
+    assert!(a.saves_asking().is_some(), "X deleted it without asking");
+    press(&mut a, Btn::A);
+    assert!(save_manager::backups(d.path(), &emerald()).is_empty());
+    assert!(
+        d.path().join("Saves/GBA/Emerald.sav").exists(),
+        "the save went too"
+    );
+}
+
+#[test]
+fn x_deletes_a_state_and_y_makes_one_the_game_resumes_from() {
+    let d = card();
+    StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald")
+        .push(b"before the elite four", b"png", "2026-11-12_10-00-00")
+        .unwrap();
     let mut a = boot(d.path());
     open_emerald(&mut a);
     down_to(&mut a, OptionRow::GameStatesMenu);
     press(&mut a, Btn::A);
-    press(&mut a, Btn::A);
-    assert!(a.saves_asking().is_some(), "A deleted it without asking");
-    press(&mut a, Btn::A);
     let ring = StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald");
+
+    // the saved state, made the resume point; the one before is set aside
+    down_to(&mut a, OptionRow::GameState(1));
+    press(&mut a, Btn::Y);
+    assert!(a.saves_asking().is_some(), "Y did it without asking");
+    press(&mut a, Btn::A);
+    assert_eq!(
+        ring.read_resume().unwrap().as_deref(),
+        Some(&b"before the elite four"[..])
+    );
+    assert_eq!(ring.set_aside().len(), 1);
+
+    // the resume point is deleted with X, asked first
+    down_to(&mut a, OptionRow::GameState(0));
+    press(&mut a, Btn::X);
+    press(&mut a, Btn::A);
     assert!(!ring.has_resume(), "the state stayed");
-    assert_eq!(lit(&a), OptionRow::GameNoStates);
 }
 
 #[test]
-fn deleting_the_save_asks_and_keeps_it_as_a_backup() {
+fn x_on_the_current_save_deletes_it_after_asking_and_keeps_it_as_a_backup() {
     let d = card();
     let mut a = boot(d.path());
     open_emerald(&mut a);
     press(&mut a, Btn::A);
-    down_to(&mut a, OptionRow::GameDelete);
-    press(&mut a, Btn::A);
+    press(&mut a, Btn::X);
     assert!(d.path().join("Saves/GBA/Emerald.sav").exists());
     press(&mut a, Btn::A);
     assert!(!d.path().join("Saves/GBA/Emerald.sav").exists());
     assert_eq!(save_manager::backups(d.path(), &emerald()).len(), 1);
     assert_eq!(rows(&a)[0].2, "NO SAVE");
+}
+
+#[test]
+fn a_backup_is_named_for_when_it_was_made_on_either_clock() {
+    use omega_zero::saves_settings::made_at;
+    assert_eq!(made_at("2026-11-12_16-40-05", true), "12 Nov 2026, 16:40");
+    assert_eq!(
+        made_at("2026-11-12_16-40-05", false),
+        "12 Nov 2026, 4:40 PM"
+    );
+    assert_eq!(
+        made_at("2026-01-03_00-05-00", false),
+        "3 Jan 2026, 12:05 AM"
+    );
 }

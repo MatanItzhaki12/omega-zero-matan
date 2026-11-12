@@ -53,8 +53,6 @@ pub enum OptionsPage {
     GameSaves,
     /// A game's save, Back Up Now, its backups and Delete Save.
     SaveMenu,
-    /// A backup kept: Restore This Backup and Delete This Backup.
-    BackupKept,
     /// A game's save states, the resume point among them.
     StatesMenu,
     /// Save Backup, opened from SAVES' NAS Backup: saves copied to a NAS.
@@ -83,7 +81,6 @@ impl OptionsPage {
                 | OptionsPage::SavesGames
                 | OptionsPage::GameSaves
                 | OptionsPage::SaveMenu
-                | OptionsPage::BackupKept
                 | OptionsPage::StatesMenu
         )
     }
@@ -99,7 +96,6 @@ impl OptionsPage {
             OptionsPage::SavesGames => "GAMES",
             OptionsPage::GameSaves => "GAME",
             OptionsPage::SaveMenu => "SAVE",
-            OptionsPage::BackupKept => "BACKUP",
             OptionsPage::StatesMenu => "STATES",
             OptionsPage::Backup => "SAVE BACKUP",
             OptionsPage::Nas => "FIND NAS",
@@ -142,7 +138,6 @@ impl OptionsPage {
             OptionsPage::SavesGames => &[OptionRow::SavesNoMatch],
             OptionsPage::GameSaves => &[OptionRow::GameSaveMenu],
             OptionsPage::SaveMenu => &[OptionRow::GameSave],
-            OptionsPage::BackupKept => &[OptionRow::KeptRestore],
             OptionsPage::StatesMenu => &[OptionRow::GameNoStates],
             // what the NAS has: `App::page_rows`
             OptionsPage::Nas => &[OptionRow::NasAddress],
@@ -188,7 +183,6 @@ impl OptionsPage {
             | OptionsPage::SavesGames
             | OptionsPage::GameSaves
             | OptionsPage::SaveMenu
-            | OptionsPage::BackupKept
             | OptionsPage::StatesMenu
             | OptionsPage::Backup
             | OptionsPage::Nas
@@ -209,7 +203,6 @@ impl OptionsPage {
             OptionsPage::GameSaves => Some((OptionsPage::SavesGames, OptionRow::SavesGame(0))),
             OptionsPage::SaveMenu => Some((OptionsPage::GameSaves, OptionRow::GameSaveMenu)),
             OptionsPage::StatesMenu => Some((OptionsPage::GameSaves, OptionRow::GameStatesMenu)),
-            OptionsPage::BackupKept => Some((OptionsPage::SaveMenu, OptionRow::GameSave)),
             OptionsPage::Backup => Some((OptionsPage::Saves, OptionRow::SavesNas)),
             OptionsPage::Nas => Some((OptionsPage::Backup, OptionRow::BackupNas)),
             OptionsPage::Folder => Some((OptionsPage::Backup, OptionRow::BackupFolder)),
@@ -275,17 +268,16 @@ pub enum OptionRow {
     /// GAME's ways into SAVE and STATES.
     GameSaveMenu,
     GameStatesMenu,
-    /// SAVE: the save, Back Up Now, a backup kept by its place, and Delete Save.
+    /// SAVE: the save and Back Up Now, then under the Backups heading each backup kept by its
+    /// place. X deletes the save or a backup, and Y restores a backup.
     GameSave,
     GameBackUp,
+    GameBackupsHeading,
     GameBackup(u16),
-    GameDelete,
-    /// STATES: a state by its place, and the row of a game with none.
+    /// STATES: a state by its place, and the row of a game with none. X deletes a state, and Y
+    /// makes it the one the game resumes from.
     GameState(u16),
     GameNoStates,
-    /// BACKUP: Restore This Backup and Delete This Backup.
-    KeptRestore,
-    KeptDelete,
     /// Save Backup, on or off.
     BackupOn,
     /// The NAS: A opens FIND NAS.
@@ -314,6 +306,11 @@ pub enum OptionRow {
 }
 
 impl OptionRow {
+    /// A heading over the rows under it, drawn dim and passed over by the cursor.
+    pub fn heading(self) -> bool {
+        matches!(self, OptionRow::GameBackupsHeading)
+    }
+
     /// A opens the keyboard or a panel on the row rather than stepping it: the row ends in a ›.
     pub fn opens(self) -> bool {
         matches!(
@@ -334,7 +331,6 @@ impl OptionRow {
                 | OptionRow::SavesGame(_)
                 | OptionRow::GameSaveMenu
                 | OptionRow::GameStatesMenu
-                | OptionRow::GameBackup(_)
                 | OptionRow::NasAddress
                 | OptionRow::FolderNew
                 | OptionRow::FolderItem(_)
@@ -354,11 +350,10 @@ impl OptionRow {
                     | OptionRow::SavesNoMatch
                     | OptionRow::GameSave
                     | OptionRow::GameBackUp
-                    | OptionRow::GameDelete
+                    | OptionRow::GameBackup(_)
                     | OptionRow::GameState(_)
                     | OptionRow::GameNoStates
-                    | OptionRow::KeptRestore
-                    | OptionRow::KeptDelete
+                    | OptionRow::GameBackupsHeading
             )
             && !matches!(self, OptionRow::Hp(row) if !row.steps())
     }
@@ -402,12 +397,10 @@ impl OptionRow {
             OptionRow::SavesNoMatch => "No Games Found",
             OptionRow::GameSaveMenu => "Save",
             OptionRow::GameStatesMenu => "Save States",
-            OptionRow::GameSave => "This Save",
+            OptionRow::GameSave => "Current Save",
             OptionRow::GameBackUp => "Back Up Now",
-            OptionRow::GameDelete => "Delete Save",
             OptionRow::GameNoStates => "No Save States",
-            OptionRow::KeptRestore => "Restore This Backup",
-            OptionRow::KeptDelete => "Delete This Backup",
+            OptionRow::GameBackupsHeading => "Backups",
             // a system's, a game's, a backup's or a state's own: `App::option_label`
             OptionRow::SavesSystem(_)
             | OptionRow::SavesGame(_)
@@ -469,14 +462,12 @@ impl OptionRow {
             OptionRow::SavesNoMatch => "No games here",
             OptionRow::GameSaveMenu => "Its save and backups",
             OptionRow::GameStatesMenu => "Its save states",
-            OptionRow::GameSave => "Its save on the handheld",
+            OptionRow::GameSave => "X deletes it",
             OptionRow::GameBackUp => "Keeps a copy of the save on the handheld",
-            OptionRow::GameBackup(_) => "Restore it, or delete it",
-            OptionRow::GameDelete => "The game starts over; a backup is kept first",
-            OptionRow::GameState(_) => "A deletes it",
+            OptionRow::GameBackup(_) => "Y restores it, X deletes it",
+            OptionRow::GameState(_) => "X deletes it",
             OptionRow::GameNoStates => "Saved states and the resume point show here",
-            OptionRow::KeptRestore => "Puts it back; the save now is kept first",
-            OptionRow::KeptDelete => "Deletes this copy for good",
+            OptionRow::GameBackupsHeading => "Copies of the save, kept on the handheld",
             OptionRow::BackupOn => "Saves copy to a NAS as they're made",
             OptionRow::BackupNas => "A Samba share on this Wi-Fi",
             OptionRow::BackupUser => "None signs in as a guest",
@@ -592,7 +583,7 @@ pub fn options_panel_face(view: &OptionsView, pal: &Palette) -> UndoFace {
                 lit: i == view.lit,
                 carets: row.carets(),
                 opens: row.opens(),
-                dim: false,
+                dim: row.heading(),
                 caret_room: false,
             },
             pal,
@@ -709,11 +700,9 @@ impl App {
             | OptionRow::GameSave
             | OptionRow::GameBackUp
             | OptionRow::GameBackup(_)
-            | OptionRow::GameDelete
             | OptionRow::GameState(_)
             | OptionRow::GameNoStates
-            | OptionRow::KeptRestore
-            | OptionRow::KeptDelete => self.saves_text(row),
+            | OptionRow::GameBackupsHeading => self.saves_text(row),
             OptionRow::Hp(row) => self.headphones_value(row),
         }
     }
@@ -826,11 +815,9 @@ impl App {
             | OptionRow::GameSave
             | OptionRow::GameBackUp
             | OptionRow::GameBackup(_)
-            | OptionRow::GameDelete
             | OptionRow::GameState(_)
             | OptionRow::GameNoStates
-            | OptionRow::KeptRestore
-            | OptionRow::KeptDelete
+            | OptionRow::GameBackupsHeading
             | OptionRow::Hp(_) => return,
             OptionRow::Relay => {
                 let n = crate::netplay_lobby::RELAYS.len() as u8;
@@ -907,7 +894,12 @@ impl App {
             return;
         };
         let page = screen.page;
-        let rows = self.page_rows(page);
+        // a heading is passed over: the cursor stands only on rows that do something
+        let rows: Vec<OptionRow> = self
+            .page_rows(page)
+            .into_iter()
+            .filter(|r| !r.heading())
+            .collect();
         let Phase::Options(screen) = &mut self.phase else {
             return;
         };
@@ -919,7 +911,9 @@ impl App {
         match action {
             Action::GbaDown(Btn::Up) if !rows.is_empty() => screen.row = step(&rows, row, false),
             Action::GbaDown(Btn::Down) if !rows.is_empty() => screen.row = step(&rows, row, true),
-            Action::GbaDown(Btn::A) if page.is_saves() => self.saves_press(row),
+            Action::GbaDown(btn @ (Btn::A | Btn::X | Btn::Y)) if page.is_saves() => {
+                self.saves_press(row, btn)
+            }
             Action::GbaDown(Btn::A) if row == OptionRow::BackupUser => {
                 self.open_typing(Step::BackupUser, self.state.backup_user.clone())
             }

@@ -348,15 +348,16 @@ whose name holds it, in any case. A game opens GAME, with two panels of its own:
 
 | Panel | Rows |
 |---|---|
-| **Save ›** | This Save (its size, and when it was saved), **Back Up Now** (a copy kept on the handheld, under `Backups/<system>/<game>/<time>/`), each backup kept, and **Delete Save** |
+| **Save ›** | Current Save (its size, and when it was saved), **Back Up Now** (a copy kept on the handheld, under `Backups/<system>/<game>/<time>/`), and under the Backups heading each backup, named for the date and time it was made |
 | **Save States ›** | The Resume Point written as the game stops, any Old Resume Point set aside, and each Saved State, with its size and the core it is for |
 
-Everything is done with A. A backup opens BACKUP, with **Restore This Backup** and **Delete This
-Backup**; a state, or Delete Save, asks straight away. Whatever can lose something asks first,
-in a panel over the rows with B NO and A YES on the bar, its note saying what yes means.
-Restoring a backup, or deleting the save, first keeps the save as it was as a backup of its own,
-and sets the game's resume state aside (it holds the save the game had, and would bring it back).
-A PSP game's save is every `SAVEDATA` folder its ID starts.
+A opens a panel and backs up. On the current save, a backup or a state, **X deletes it** and
+**Y restores it**: a backup is put back as the save, and a state is made the one the game resumes
+from as it next goes in (the resume point it had is set aside, and listed). Each asks first, in a
+panel over the rows with B NO and A YES on the bar, its note saying what yes means. Restoring a
+backup, or deleting the save, first keeps the save as it was as a backup of its own, and sets the
+game's resume state aside (it holds the save the game had, and would bring it back). A PSP game's
+save is every `SAVEDATA` folder its ID starts.
 
 **NAS Backup** opens SAVE BACKUP, which copies every save on the card to a folder on a NAS, over
 Samba

@@ -118,6 +118,100 @@ pub fn has_any(root: &Path, game: &Game) -> bool {
     !look(root, game).is_empty()
 }
 
+/// Which of `games` have anything on the card at `root`, by their places, each with how big its
+/// save is. As [`has_any`] and [`look`] would say, but each folder read once for every game in
+/// it rather than once a game: Settings › Saves opens on it, and a card of many games read a
+/// game at a time held the screen for a moment.
+pub fn index(root: &Path, games: &[Game]) -> Vec<(usize, u64)> {
+    use std::collections::{HashMap, HashSet};
+    let saves = crate::root::saves_dir(root);
+    let mut platforms: Vec<Platform> = games.iter().map(|g| g.platform).collect();
+    platforms.sort_by_key(|p| p.dir_name());
+    platforms.dedup();
+
+    // each system's saves by game, and a PSP's by the ID its folders start
+    let mut save_bytes: HashMap<(&'static str, String), u64> = HashMap::new();
+    let mut psp_bytes: HashMap<String, u64> = HashMap::new();
+    // the games with a state on any core, and with a backup
+    let mut with_states: HashSet<(&'static str, String)> = HashSet::new();
+    let mut with_backups: HashSet<(&'static str, String)> = HashSet::new();
+    let entries = |dir: PathBuf| {
+        std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.ok())
+            .collect::<Vec<_>>()
+    };
+    for &p in &platforms {
+        let system = p.dir_name();
+        if p == Platform::Psp {
+            for folder in entries(saves.join(PSP_SAVES)) {
+                let name = folder.file_name().to_string_lossy().into_owned();
+                let Some(id) = omega_store::psp::save_id(&name) else {
+                    continue;
+                };
+                let mut files = Vec::new();
+                files_under(&saves, &format!("{PSP_SAVES}/{name}"), &mut files);
+                let bytes: u64 = files
+                    .iter()
+                    .filter_map(|f| std::fs::metadata(saves.join(f)).ok())
+                    .map(|m| m.len())
+                    .sum();
+                // a folder with nothing in it is no save
+                if !files.is_empty() {
+                    *psp_bytes.entry(id).or_default() += bytes.max(1);
+                }
+            }
+        } else {
+            for file in entries(saves.join(system)) {
+                let name = file.file_name().to_string_lossy().into_owned();
+                let Some((stem, ext)) = name.rsplit_once('.') else {
+                    continue;
+                };
+                if ext == "disc" || !file.path().is_file() {
+                    continue;
+                }
+                let bytes = file.metadata().map_or(0, |m| m.len());
+                *save_bytes.entry((system, stem.to_string())).or_default() += bytes.max(1);
+            }
+        }
+        for core in Core::for_platform(p) {
+            let dir = root.join("States").join(system).join(core.as_str());
+            for game in entries(dir) {
+                let has_state = entries(game.path())
+                    .iter()
+                    .any(|e| e.path().extension().and_then(|x| x.to_str()) == Some("state"));
+                if has_state {
+                    with_states.insert((system, game.file_name().to_string_lossy().into_owned()));
+                }
+            }
+        }
+        for game in entries(root.join(BACKUPS).join(system)) {
+            let kept = entries(game.path())
+                .iter()
+                .any(|e| omega_store::parse_stamp(&e.file_name().to_string_lossy()).is_some());
+            if kept {
+                with_backups.insert((system, game.file_name().to_string_lossy().into_owned()));
+            }
+        }
+    }
+
+    games
+        .iter()
+        .enumerate()
+        .filter_map(|(i, g)| {
+            let key = (g.platform.dir_name(), g.stem.clone());
+            let bytes = match g.platform {
+                Platform::Psp if g.code.is_empty() => None,
+                Platform::Psp => psp_bytes.get(&g.code).copied(),
+                _ => save_bytes.get(&key).copied(),
+            };
+            let any = bytes.is_some() || with_states.contains(&key) || with_backups.contains(&key);
+            any.then_some((i, bytes.unwrap_or(0)))
+        })
+        .collect()
+}
+
 /// The files of `game`'s save, by their paths in Saves, sorted.
 pub fn save_files(root: &Path, game: &Game) -> Vec<String> {
     let saves = crate::root::saves_dir(root);
@@ -333,6 +427,26 @@ pub fn delete_state(root: &Path, game: &Game, state: &State) -> std::io::Result<
         state.name(),
         game.platform.dir_name(),
         game.stem
+    );
+    Ok(())
+}
+
+/// Makes `state` the one `game` resumes from as it next goes in, on its core: the resume state
+/// it had is set aside first, stamped `now`, and listed with the states, to delete or go back to.
+pub fn resume_from(root: &Path, game: &Game, state: &State, now: &str) -> std::io::Result<()> {
+    let ring = StateRing::new(root, game.platform, state.core, &game.stem);
+    let bytes = match &state.kind {
+        StateKind::Resume => return Ok(()),
+        StateKind::SetAside(name) => ring.read_set_aside(name)?,
+        StateKind::Saved(stamp) => ring.read(stamp)?.0,
+    };
+    ring.retire_resume(now)?;
+    ring.write_resume(&bytes)?;
+    crate::log!(
+        "saves: {} {} resumes from its {} state",
+        game.platform.dir_name(),
+        game.stem,
+        state.name()
     );
     Ok(())
 }
