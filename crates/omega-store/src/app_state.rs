@@ -126,9 +126,9 @@ pub struct AppState {
 
 /// The top of the menu sounds' and the tune's volumes.
 pub const MENU_VOLUME_MAX: u8 = 10;
-/// Where each starts: the loudness each was tuned to on the handheld.
-pub const MENU_SOUNDS_VOLUME: u8 = 7;
-pub const MENU_MUSIC_VOLUME: u8 = 6;
+/// Where each starts, halfway: the loudness each was tuned to on the handheld, with as much
+/// again above it.
+pub const MENU_VOLUME_DEFAULT: u8 = 5;
 
 impl Default for AppState {
     fn default() -> Self {
@@ -188,8 +188,8 @@ impl Default for AppState {
             psp_screen: "fit".to_string(),
             menu_sounds: true,
             menu_music: true,
-            menu_sounds_volume: MENU_SOUNDS_VOLUME,
-            menu_music_volume: MENU_MUSIC_VOLUME,
+            menu_sounds_volume: MENU_VOLUME_DEFAULT,
+            menu_music_volume: MENU_VOLUME_DEFAULT,
         }
     }
 }

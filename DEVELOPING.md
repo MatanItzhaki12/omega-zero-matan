@@ -27,9 +27,9 @@ there. gpSP is built as libretro ships it; what it needs is done from omega-zero
 
 - **`app.rs`** and **`app/`**: `App`, the state of the screen. `App::apply` takes each press and
   `App::update` steps time. Topics with many functions have their own file under `app/`
-  (`link.rs` for link play, `saves.rs` for saves and states). Other `impl App` blocks live
-  beside the screen they serve: `options.rs`, `pause_menu.rs`, `favorites.rs`,
-  `screens/*.rs`.
+  (`link.rs` for link play, `saves.rs` for saves and states, `sound.rs` for where the sound
+  goes and how loud). Other `impl App` blocks live beside the screen they serve: `options.rs`,
+  `pause_menu.rs`, `favorites.rs`, `screens/*.rs`.
 - **`session.rs`**: `Session` owns the `App`, the core (`emu.rs`, on its own thread), and the
   sound. Each frame it hands presses to the app, opens or closes cores as the app's phase
   says, and plays what the app asks to be heard.

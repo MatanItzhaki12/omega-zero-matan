@@ -11,7 +11,7 @@ mod sink;
 mod stub;
 pub mod volume;
 
-pub use alsa::{bluetooth_pcm, on_bluetooth, route_bluetooth, AlsaSink};
+pub use alsa::{bluetooth_pcm, hush, on_bluetooth, route_bluetooth, AlsaSink};
 #[cfg(feature = "host")]
 pub use host::HostAudio;
 pub use music::Music;
