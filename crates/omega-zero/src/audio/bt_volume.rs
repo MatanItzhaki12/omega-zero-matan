@@ -138,6 +138,8 @@ fn run() {
             "string:Volume",
         ]);
         match got.as_deref().and_then(uint16_in) {
+            // a volume asked for while this was read makes it out of date: it is set first
+            Some(_) if WANT.load(Ordering::Relaxed) >= 0 => {}
             Some(v) => SEEN.store(i16::from(percent(v)), Ordering::Relaxed),
             // the transport went, as it does when the headphones reconnect: found again
             None => path = None,

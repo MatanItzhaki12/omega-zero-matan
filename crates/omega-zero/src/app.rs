@@ -92,6 +92,10 @@ const BATTERY_POLL_MS: Millis = 10_000;
 const CHARGE_POLL_MS: Millis = 1_000;
 const HEADPHONES_POLL_MS: Millis = 500;
 
+/// How long Bluetooth headphones are given to take a volume sent them before what they say is
+/// taken for a change made on them.
+const BT_VOLUME_ANSWER_MS: Millis = 2_500;
+
 const BATTERY_LOW: u8 = 20;
 
 pub const LINK_LOST_MS: Millis = 2000;
@@ -400,6 +404,9 @@ pub struct App {
     /// Bluetooth headphones' own volume as last set from here, and as last read from them.
     pub(crate) bt_volume_sent: Option<u8>,
     pub(crate) bt_volume_seen: Option<u8>,
+    /// When a volume was last sent to Bluetooth headphones and they have not yet said they
+    /// took it: what they say until then is the volume they had, coming in late.
+    pub(crate) bt_volume_sent_at: Option<Millis>,
     /// Bluetooth headphones connected without their sound, since when, and when they were last
     /// asked to connect it.
     pub(crate) bt_audio_wait: Option<(String, Millis, Option<Millis>)>,
@@ -463,6 +470,9 @@ pub struct App {
     pub(crate) battery_at: Millis,
     pub(crate) charge_at: Millis,
     pub(crate) headphones: bool,
+    /// What the jack read last: the headphones are taken for in or out once it reads the same
+    /// twice running, so one odd read never moves the volume between theirs and the speaker's.
+    pub(crate) headphones_read: bool,
     pub(crate) headphones_at: Millis,
     pub(crate) battery: Option<Battery>,
     pub(crate) last_led: Option<LedState>,
@@ -653,6 +663,7 @@ impl App {
             vol_before: Vec::new(),
             bt_volume_sent: None,
             bt_volume_seen: None,
+            bt_volume_sent_at: None,
             bt_audio_wait: None,
             bt_audio_asks: 0,
             bt_volume_wait: None,
@@ -697,6 +708,7 @@ impl App {
             battery_at: BATTERY_POLL_MS,
             charge_at: CHARGE_POLL_MS,
             headphones: false,
+            headphones_read: false,
             headphones_at: 0,
             battery: None,
             last_led: None,
@@ -1396,7 +1408,8 @@ impl App {
     pub fn set_power(&mut self, mut power: Power) {
         power.set_backlight(self.state.brightness);
         self.headphones = power.headphones();
-        self.hud.set_headphones(self.headphones);
+        self.headphones_read = self.headphones;
+        self.hud.set_headphones(self.on_headphones());
         let secs = power.now();
         if matches!(self.phase, Phase::SetClock { .. }) || secs < CLOCK_FLOOR {
             self.phase = clock_screen(secs, 0, false);
@@ -2240,14 +2253,23 @@ impl App {
         if !crate::audio::on_bluetooth() {
             self.bt_volume_sent = None;
             self.bt_volume_seen = None;
+            self.bt_volume_sent_at = None;
             return;
         }
         let level = self.state.volume_hp;
         if let Some(read) = bt_volume::level() {
             if self.bt_volume_seen != Some(read) {
                 self.bt_volume_seen = Some(read);
+                // the headphones answer a volume sent them late, first with the one they had:
+                // taken for a step of their own, it was sent back and forth between the two
+                let answering = self
+                    .bt_volume_sent_at
+                    .is_some_and(|at| now.saturating_sub(at) < BT_VOLUME_ANSWER_MS);
+                if read.abs_diff(level) <= 1 {
+                    self.bt_volume_sent_at = None;
+                }
                 // changed on the headphones: a step of their own, not the rounding of ours
-                if self.bt_volume_sent.is_some() && read.abs_diff(level) > 1 {
+                if !answering && self.bt_volume_sent.is_some() && read.abs_diff(level) > 1 {
                     self.state.volume_hp = read;
                     self.bt_volume_sent = Some(read);
                     self.hud
@@ -2261,6 +2283,7 @@ impl App {
             bt_volume::set(level);
             self.bt_volume_sent = Some(level);
             self.bt_volume_seen = Some(level);
+            self.bt_volume_sent_at = Some(now);
         }
     }
 
@@ -2476,13 +2499,15 @@ impl App {
         if self.now() >= self.headphones_at {
             self.headphones_at = self.now() + HEADPHONES_POLL_MS;
             let on = self.power.as_ref().is_some_and(|p| p.headphones());
-            if on != self.headphones {
+            let steady = std::mem::replace(&mut self.headphones_read, on) == on;
+            if steady && on != self.headphones {
                 self.headphones = on;
-                self.hud.set_headphones(on);
                 let now = self.now();
                 self.hud
                     .show(HudKind::Volume, self.output_volume(), self.muted(), now);
             }
+            // the gauge's headphones, wired or Bluetooth: either has its own volume
+            self.hud.set_headphones(self.on_headphones());
         }
         if self.now() >= self.charge_at {
             self.charge_at = self.now() + CHARGE_POLL_MS;
