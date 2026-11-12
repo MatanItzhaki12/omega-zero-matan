@@ -7,9 +7,9 @@ use omega_input::Action;
 use omega_store::read_app_state;
 use omega_ui::GaugeIcon;
 
-/// Gives the jack time to be read twice over, as a plug or unplug takes to be believed.
+/// Gives the jack time to be read over and over, as a plug or unplug takes to be believed.
 fn settle(a: &mut omega_zero::app::App) {
-    for _ in 0..2 {
+    for _ in 0..5 {
         let at = a.now() + 600;
         a.tick_ms(at);
     }

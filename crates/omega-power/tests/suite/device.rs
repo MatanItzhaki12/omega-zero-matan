@@ -369,3 +369,26 @@ fn headphones_follow_the_detection_pin() {
     with_jack(&d, "lo");
     assert!(!platform(&d).headphones());
 }
+
+#[test]
+fn a_jack_that_cannot_be_read_stays_as_it_last_read() {
+    let d = sysfs("255", "87");
+    with_jack(&d, "hi");
+    let p = platform(&d);
+    assert!(p.headphones());
+    // the list with no line for the jack, as while its driver takes the pin back
+    fs::write(
+        d.path().join("kernel/debug/gpio"),
+        "gpiochip0: GPIOs 0-31, parent: platform/pio, pio:
+",
+    )
+    .unwrap();
+    assert!(
+        p.headphones(),
+        "a list without the jack took the headphones out"
+    );
+    fs::remove_file(d.path().join("kernel/debug/gpio")).unwrap();
+    assert!(p.headphones(), "a read that failed took the headphones out");
+    with_jack(&d, "lo");
+    assert!(!p.headphones(), "the pin going low was not read");
+}

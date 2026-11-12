@@ -6,6 +6,10 @@
   it held the game's reads of its disc for some seconds: it is now written in slices, the
   game's reads going between them, and every five minutes rather than every minute. A state is
   still written as the cart comes out and as the console sleeps.
+- Wired headphones well in no longer move the volume to the speaker's, mute the speaker or cut
+  the sound for a second, as at boot. The jack's pin reads empty for most of a second at times
+  with the headphones in: they are now believed out only after 0.6 s of empty reads, a read of
+  the jack that fails changes nothing, and the sound plays on while a read is in doubt.
 - AirPods hearing their wearer talk turn down only the sound going to them, never the speaker
   or wired headphones while the AirPods are only in reach.
 - The log says each time the sound moves between the speaker and headphones, and each read of

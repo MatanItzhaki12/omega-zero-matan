@@ -80,6 +80,9 @@ pub struct DevicePlatform {
     rtc: Option<PathBuf>,
     motor: Option<Motor>,
     led: Option<Led>,
+    /// The jack as last read where it could be: a read that fails, or finds no line for it,
+    /// says what was last known rather than that the headphones came out.
+    jack: std::sync::atomic::AtomicBool,
 }
 
 impl DevicePlatform {
@@ -127,6 +130,7 @@ impl DevicePlatform {
             rtc,
             motor,
             led,
+            jack: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -434,11 +438,18 @@ fn charge_at(dir: &Path) -> Charge {
     }
 }
 
-fn headphones_in(gpio: &str) -> bool {
-    gpio.lines()
-        .find(|l| l.contains("|Headphone detection"))
-        .and_then(|l| l.rsplit_once(')'))
-        .is_some_and(|(_, state)| state.split_whitespace().nth(1) == Some("hi"))
+/// Whether the jack's pin is high, headphones in, by debugfs's list of GPIOs: none for a list
+/// with no line for it, as while its driver takes it back.
+fn headphones_in(gpio: &str) -> Option<bool> {
+    let (_, state) = gpio
+        .lines()
+        .find(|l| l.contains("|Headphone detection"))?
+        .rsplit_once(')')?;
+    match state.split_whitespace().nth(1)? {
+        "hi" => Some(true),
+        "lo" => Some(false),
+        _ => None,
+    }
 }
 
 /// Takes Wi-Fi and Bluetooth down before the machine is taken down. The RTL8821CS's driver hangs
@@ -524,7 +535,22 @@ fn processes(names: &[&str]) -> Vec<u32> {
 
 impl Platform for DevicePlatform {
     fn headphones(&self) -> bool {
-        fs::read_to_string(self.sysfs.join("kernel/debug/gpio")).is_ok_and(|g| headphones_in(&g))
+        use std::sync::atomic::Ordering;
+        let read = fs::read_to_string(self.sysfs.join("kernel/debug/gpio"));
+        match read.as_deref().ok().and_then(headphones_in) {
+            Some(on) => {
+                self.jack.store(on, Ordering::Relaxed);
+                on
+            }
+            None => {
+                let why = match &read {
+                    Err(e) => e.to_string(),
+                    Ok(_) => "no line for it".into(),
+                };
+                eprintln!("omega-zero: jack: not read ({why}), kept as it was");
+                self.jack.load(Ordering::Relaxed)
+            }
+        }
     }
 
     fn set_backlight(&mut self, step: u8) {
