@@ -108,6 +108,7 @@ mod thumb;
 mod toast;
 mod top_bar;
 mod umd_spin;
+mod update_channel;
 mod volume;
 mod wallpaper;
 mod wifi;

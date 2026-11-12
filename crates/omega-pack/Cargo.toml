@@ -1,6 +1,6 @@
 [package]
 name = "omega-pack"
-version = "2.7.1"
+version = "2.7.2"
 description = "Packs the card's System folder into the manifest and data files Settings' Update fetches"
 edition.workspace = true
 rust-version.workspace = true

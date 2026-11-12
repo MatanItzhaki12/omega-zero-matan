@@ -33,8 +33,55 @@ pub const REPO: &str = "MatanItzhaki12/omega-zero-matan";
 pub const ASSET: &str = "omega-zero-aarch64";
 pub const ASSET_SUM: &str = "omega-zero-aarch64.sha256";
 
-/// What the running build is: the version it was released as.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// What the running build is: the version it was released as. A test build is named by the
+/// release workflow, as `2.7.3-test.12`, the twelfth run that built `test`.
+pub const VERSION: &str = match option_env!("OMEGA_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
+/// Where updates come from: the releases, or the test builds of the `test` branch, each a
+/// prerelease of its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Channel {
+    Stable,
+    Test,
+}
+
+impl Channel {
+    /// The channel Settings has picked: test builds, or the releases.
+    pub fn of(test: bool) -> Channel {
+        match test {
+            true => Channel::Test,
+            false => Channel::Stable,
+        }
+    }
+
+    /// The channel a build of `version` came from.
+    pub fn of_version(version: &str) -> Channel {
+        Channel::of(version.contains(TEST_TAG))
+    }
+
+    /// Where GitHub lists what the channel has: the latest release, or the newest releases,
+    /// the test builds among them.
+    fn url(self) -> String {
+        match self {
+            Channel::Stable => format!("https://api.github.com/repos/{REPO}/releases/latest"),
+            Channel::Test => format!("https://api.github.com/repos/{REPO}/releases?per_page=30"),
+        }
+    }
+
+    /// The channel's newest, from what GitHub answered for `url`.
+    fn newest(self, body: &str) -> Option<Release> {
+        match self {
+            Channel::Stable => latest(body),
+            Channel::Test => newest_test(body),
+        }
+    }
+}
+
+/// What names a test build's version: `2.7.3-test.12`.
+pub const TEST_TAG: &str = "-test.";
 
 /// Where omega-zero is on the card, from its root: what an update replaces. Not the running
 /// program's own path, which is the loader `launch_frontend.sh` starts it through,
@@ -71,10 +118,10 @@ impl Update {
     /// What the Update row says on its right.
     pub fn text(&self) -> String {
         match self {
-            Update::Idle => format!("V{VERSION}"),
+            Update::Idle => format!("V{}", shown(VERSION)),
             Update::Checking => "CHECKING…".to_string(),
             Update::Latest => "UP TO DATE".to_string(),
-            Update::Available { .. } => "INSTALL".to_string(),
+            Update::Available { release, .. } => format!("INSTALL V{}", shown(&release.version)),
             Update::Downloading(_) => "DOWNLOADING…".to_string(),
             Update::Installed(_) => "RESTART".to_string(),
             Update::Failed(why) => why.to_string(),
@@ -157,6 +204,17 @@ impl Updater {
         }
     }
 
+    /// Forgets an update found, as Settings switches channel and the other's is looked for.
+    /// A check or a download under way, or an update put in place, stays.
+    pub fn forget(&self) {
+        if matches!(
+            self.state(),
+            Update::Available { .. } | Update::Latest | Update::Failed(_)
+        ) {
+            self.set(Update::Idle);
+        }
+    }
+
     /// Settings closing: UP TO DATE or what went wrong goes, and the version running shows
     /// again. An update found stays, for INSTALL; a check or a download under way goes on, and
     /// an update put in place still asks for its restart.
@@ -168,9 +226,10 @@ impl Updater {
         }
     }
 
-    /// Checks without saying so: an update found shows as INSTALL, and nothing else shows,
-    /// neither UP TO DATE nor what went wrong. For the check as Wi-Fi first joins a network.
-    pub fn check_quietly(&self, root: Option<PathBuf>) {
+    /// Checks `channel` without saying so: an update found shows as INSTALL, and nothing else
+    /// shows, neither UP TO DATE nor what went wrong. For the check as Wi-Fi first joins a
+    /// network, and as Settings switches channel.
+    pub fn check_quietly(&self, root: Option<PathBuf>, channel: Channel) {
         if !matches!(self.state(), Update::Idle) {
             return;
         }
@@ -179,14 +238,14 @@ impl Updater {
             .name("omega-update".into())
             .spawn(move || {
                 crate::spawn::stand_back();
-                let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
-                let Fetched::Body(body) = fetch(&url) else {
+                let Fetched::Body(body) = fetch(&channel.url()) else {
                     return;
                 };
-                let Some(release) = latest(&String::from_utf8_lossy(&body)) else {
+                let Some(release) = channel.newest(&String::from_utf8_lossy(&body)) else {
                     return;
                 };
-                if !newer(&release.version, VERSION) {
+                crate::log!("update: {channel:?} has {}", release.version);
+                if !offered(channel, &release.version, VERSION) {
                     return;
                 }
                 let system = root.and_then(|root| lacking(&root, &release));
@@ -197,9 +256,9 @@ impl Updater {
             });
     }
 
-    /// Asks GitHub for the latest release, on a thread of its own, and, for one with a
+    /// Asks GitHub for `channel`'s newest, on a thread of its own, and, for one with a
     /// manifest, what of it the card rooted at `root` lacks.
-    pub fn check(&self, root: Option<PathBuf>) {
+    pub fn check(&self, root: Option<PathBuf>, channel: Channel) {
         if self.state().busy() {
             return;
         }
@@ -209,10 +268,9 @@ impl Updater {
             .name("omega-update".into())
             .spawn(move || {
                 crate::spawn::stand_back();
-                let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
-                let found = match fetch(&url) {
-                    Fetched::Body(body) => match latest(&String::from_utf8_lossy(&body)) {
-                        Some(release) if newer(&release.version, VERSION) => {
+                let found = match fetch(&channel.url()) {
+                    Fetched::Body(body) => match channel.newest(&String::from_utf8_lossy(&body)) {
+                        Some(release) if offered(channel, &release.version, VERSION) => {
                             let system = root.and_then(|root| lacking(&root, &release));
                             Update::Available { release, system }
                         }
@@ -293,7 +351,11 @@ pub fn size_text(bytes: u64) -> String {
 /// The latest release, from GitHub's answer for it: none where it has no omega-zero for the
 /// handheld.
 pub fn latest(body: &str) -> Option<Release> {
-    let release = Json::parse(body)?;
+    release_of(&Json::parse(body)?)
+}
+
+/// A release, from GitHub's object for it: none where it has no omega-zero for the handheld.
+fn release_of(release: &Json) -> Option<Release> {
     let tag = release.get("tag_name")?.text()?;
     let version = tag.trim_start_matches('v').to_string();
     let asset = |name: &str| {
@@ -321,9 +383,58 @@ pub fn latest(body: &str) -> Option<Release> {
     })
 }
 
+/// Whether `found`, the newest on `channel`, is offered over the running build: a newer one on
+/// the build's own channel, and on the other, its newest whatever it is, as switching channel
+/// is asking to be on it.
+pub fn offered(channel: Channel, found: &str, running: &str) -> bool {
+    match Channel::of_version(running) == channel {
+        true => newer(found, running),
+        false => found != running,
+    }
+}
+
+/// The newest test build in GitHub's list of releases.
+pub fn newest_test(body: &str) -> Option<Release> {
+    let list = Json::parse(body)?;
+    list.list()
+        .iter()
+        .filter(|r| {
+            r.get("tag_name")
+                .and_then(Json::text)
+                .is_some_and(|t| t.contains(TEST_TAG))
+        })
+        .filter_map(release_of)
+        .max_by(
+            |a, b| match (newer(&a.version, &b.version), a.version == b.version) {
+                (true, _) => std::cmp::Ordering::Greater,
+                (false, true) => std::cmp::Ordering::Equal,
+                (false, false) => std::cmp::Ordering::Less,
+            },
+        )
+}
+
+/// A version as the Update row says it: in capitals, a test build's run after a T, as
+/// `2.7.3-T12`, so INSTALL fits beside it.
+pub fn shown(version: &str) -> String {
+    version.replace(TEST_TAG, "-T").to_uppercase()
+}
+
 /// Whether version `a` is newer than `b`, each as dotted numbers: `1.10.0` is newer than
-/// `1.9.2`. A part that is not a number counts as none.
+/// `1.9.2`. A part that is not a number counts as none. A test build comes before the release
+/// of its version, `2.7.3-test.4` before `2.7.3`, and after the one before it.
 pub fn newer(a: &str, b: &str) -> bool {
+    let test = |v: &str| {
+        v.split_once(TEST_TAG)
+            .map_or(u64::MAX, |(_, n)| n.parse().unwrap_or(0))
+    };
+    let base = |v: &str| v.split(['-', '+']).next().unwrap_or("").to_string();
+    if base(a) == base(b) {
+        return test(a) > test(b);
+    }
+    newer_numbers(&base(a), &base(b))
+}
+
+fn newer_numbers(a: &str, b: &str) -> bool {
     let parts = |v: &str| -> Vec<u64> {
         v.split(['.', '-', '+'])
             .take(3)
@@ -671,6 +782,68 @@ mod tests {
         assert!(newer("2.0.0", "1.99.99"));
         assert!(!newer("1.2.0", "1.2.0"));
         assert!(!newer("1.1.9", "1.2.0"));
+    }
+
+    #[test]
+    fn a_test_build_comes_between_the_release_before_and_its_own() {
+        assert!(newer("2.7.3-test.4", "2.7.2"));
+        assert!(newer("2.7.3", "2.7.3-test.4"));
+        assert!(newer("2.7.3-test.10", "2.7.3-test.9"));
+        assert!(!newer("2.7.3-test.4", "2.7.3-test.4"));
+        assert!(!newer("2.7.2", "2.7.3-test.1"));
+    }
+
+    #[test]
+    fn a_channel_offers_newer_and_switching_offers_its_newest_whatever_it_is() {
+        // on its own channel, only what is newer
+        assert!(offered(Channel::Stable, "2.7.3", "2.7.2"));
+        assert!(!offered(Channel::Stable, "2.7.2", "2.7.2"));
+        assert!(!offered(Channel::Stable, "2.7.1", "2.7.2"));
+        assert!(offered(Channel::Test, "2.7.3-test.5", "2.7.3-test.4"));
+        assert!(!offered(Channel::Test, "2.7.3-test.4", "2.7.3-test.4"));
+        // switched: the other channel's newest, older or not
+        assert!(offered(Channel::Test, "2.7.3-test.1", "2.7.2"));
+        assert!(offered(Channel::Stable, "2.7.2", "2.7.3-test.6"));
+        assert_eq!(Channel::of_version("2.7.3-test.6"), Channel::Test);
+        assert_eq!(Channel::of_version("2.7.2"), Channel::Stable);
+    }
+
+    #[test]
+    fn the_newest_test_build_is_found_among_the_releases() {
+        let asset = |v: &str| {
+            format!(
+                r#"{{"tag_name":"v{v}","prerelease":true,"assets":[
+                {{"name":"omega-zero-aarch64","browser_download_url":"https://x/{v}/bin"}},
+                {{"name":"omega-zero-aarch64.sha256","browser_download_url":"https://x/{v}/sum"}}]}}"#
+            )
+        };
+        let body = format!(
+            "[{},{},{},{}]",
+            asset("2.7.3-test.9"),
+            asset("2.7.2"),
+            asset("2.7.3-test.10"),
+            asset("2.7.3-test.2")
+        );
+        let found = newest_test(&body).expect("a test build");
+        assert_eq!(found.version, "2.7.3-test.10");
+        assert_eq!(found.program, "https://x/2.7.3-test.10/bin");
+        assert_eq!(newest_test(&format!("[{}]", asset("2.7.2"))), None);
+    }
+
+    #[test]
+    fn the_row_names_the_version_it_installs() {
+        let release = Release {
+            version: "2.7.3-test.12".into(),
+            program: String::new(),
+            sum: String::new(),
+            system: None,
+        };
+        let found = Update::Available {
+            release,
+            system: None,
+        };
+        assert_eq!(found.text(), "INSTALL V2.7.3-T12");
+        assert_eq!(shown("2.7.2"), "2.7.2");
     }
 
     #[test]

@@ -2076,6 +2076,11 @@ impl App {
         self.state.brightness
     }
 
+    /// Where Settings' Update takes updates from.
+    pub fn update_channel(&self) -> crate::update::Channel {
+        crate::update::Channel::of(self.state.test_updates)
+    }
+
     /// Checks for an update once a boot, quietly, once Wi-Fi has been joined to a network for
     /// 5 s, at boot or after; and says when one is found.
     fn check_for_update(&mut self, now: Millis) {
@@ -2087,7 +2092,8 @@ impl App {
                 let since = *self.update_online_since.get_or_insert(now);
                 if now.saturating_sub(since) >= SETTLE_MS {
                     self.update_checked = true;
-                    self.updater.check_quietly(self.root.clone());
+                    self.updater
+                        .check_quietly(self.root.clone(), self.update_channel());
                 }
             }
         }

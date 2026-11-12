@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## omega-zero 2.7.2
+
+- **Saves** in Settings, in place of Save Backup: every game with a save, a backup or a state on
+  the handheld, by system and name, and NAS Backup, which opens what was Save Backup. A game's
+  panel shows its save, with its size and when it was saved; **Back Up Save** keeps a copy on the
+  handheld, under `Backups/`; each backup kept is put back with A, or deleted with Y; each save
+  state, the resume state written as the game stops among them, is deleted with Y; and **Delete
+  Save** starts the game anew. Each asks first, its note saying so, and acts on the same button
+  again. Putting a backup back or deleting the save keeps the save as it was as a backup of its
+  own, and sets the game's resume state aside, as it holds the save the game had.
+- **Test builds**: a push to the `test` branch puts out a prerelease named for the version and
+  the run, `v2.7.3-test.12`. Left or Right on Settings' Update switches between releases and test
+  builds; the channel switched to is looked at quietly, and its newest shows as INSTALL as any
+  update found does. Switched back, the latest release is offered, so a test build is left for it.
+- Update names the version it installs: INSTALL V2.7.3, and a test build's run, INSTALL V2.7.3-T12.
 - Taking a game's star off asks first: Y on a starred game puts up a FAVORITES panel, "Remove
   from favorites?" in a panel as small as the question, with B NO and A YES on the bar.
   Starring a game asks nothing.
