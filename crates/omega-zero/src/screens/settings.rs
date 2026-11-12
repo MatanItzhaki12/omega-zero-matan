@@ -149,11 +149,7 @@ impl App {
             SettingsRow::Achievements => {
                 Phase::Options(OptionsScreen::new(OptionsPage::Achievements))
             }
-            SettingsRow::Backup => {
-                // a look at where it stands is a reason to try the NAS again now
-                self.backup_pass();
-                Phase::Options(OptionsScreen::new(OptionsPage::Backup))
-            }
+            SettingsRow::Backup => return self.open_saves(),
             SettingsRow::DateTime => clock_screen(self.utc_secs(), self.state.utc_offset_min, true),
             SettingsRow::Network => Phase::Network(WifiScreen::default()),
             SettingsRow::Bluetooth => Phase::Bluetooth(BluetoothScreen::default()),

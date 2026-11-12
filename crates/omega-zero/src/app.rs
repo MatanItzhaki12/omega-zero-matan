@@ -378,6 +378,8 @@ pub struct App {
     /// the last frame, for a pass once one is.
     pub(crate) save_backup: Option<crate::save_backup::SaveBackup>,
     pub(crate) backup_ui: crate::backup_settings::BackupUi,
+    /// What the SAVES panels show.
+    pub(crate) saves_ui: crate::saves_settings::SavesUi,
     pub(crate) backup_joined: bool,
     /// The passes that copied and failed, as last toasted, and whether a failure was told of
     /// since the last copy: a failure is told once, until saves copy again.
@@ -646,6 +648,7 @@ impl App {
             link_typing: None,
             save_backup: None,
             backup_ui: Default::default(),
+            saves_ui: Default::default(),
             backup_joined: false,
             backup_seen: (0, 0),
             backup_fail_told: false,

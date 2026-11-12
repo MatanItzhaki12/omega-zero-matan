@@ -64,7 +64,7 @@ pub enum SettingsRow {
     Labels,
     /// The ACHIEVEMENTS panel: RetroAchievements, the account and Hardcore.
     Achievements,
-    /// The SAVE BACKUP panel: saves copied to a NAS as they are made.
+    /// The SAVES panel: each game's save, backups and states, and the NAS they are copied to.
     Backup,
     DateTime,
     Network,
@@ -106,7 +106,7 @@ impl SettingsRow {
             SettingsRow::Shelf => "Shelf",
             SettingsRow::Labels => "Labels",
             SettingsRow::Achievements => "RetroAchievements",
-            SettingsRow::Backup => "Save Backup",
+            SettingsRow::Backup => "Saves",
             SettingsRow::DateTime => "Date & Time",
             SettingsRow::Network => "Network",
             SettingsRow::Bluetooth => "Bluetooth",

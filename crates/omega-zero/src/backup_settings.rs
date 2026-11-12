@@ -351,7 +351,7 @@ impl App {
     }
 
     /// Back Up Now's value: off, waiting to be set up, copying, or where it stands.
-    fn backup_word(&self) -> String {
+    pub(crate) fn backup_word(&self) -> String {
         if !self.state.backup {
             return "OFF".to_string();
         }
@@ -697,7 +697,7 @@ impl App {
 }
 
 /// How long ago `at`, in seconds since 1970, was, as a note says it.
-fn ago(at: u64) -> String {
+pub(crate) fn ago(at: u64) -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(at, |d| d.as_secs());
