@@ -1585,6 +1585,13 @@ impl App {
     /// Acts on a press, and makes the menus' sound for what it changed.
     pub fn apply(&mut self, action: Action) {
         let before = self.sound_mark();
+        // the volume moved by itself, where it was heard to: what the buttons said, and when
+        if matches!(
+            action,
+            Action::VolumeUp | Action::VolumeDown | Action::MuteToggle
+        ) {
+            crate::log!("sound: {action:?} on {:?}", self.output());
+        }
         self.press(action);
         self.sound_for_press(&before, action);
     }
