@@ -32,7 +32,7 @@ pub use app_state::{
     LID_OFF_MINUTES, MENU_VOLUME_DEFAULT, MENU_VOLUME_MAX, UTC_OFFSET_MAX, UTC_OFFSET_MIN,
     VOLUME_MAX,
 };
-pub use atomic::{atomic_write, atomic_write_dated};
+pub use atomic::{atomic_write, atomic_write_dated, atomic_write_paced};
 pub use backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};
 pub use blending::Blending;
 pub use cart_shell::{

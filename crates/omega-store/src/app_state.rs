@@ -122,6 +122,8 @@ pub struct AppState {
     /// How loud the menus' sounds and the tune are, each 1 to `MENU_VOLUME_MAX`.
     pub menu_sounds_volume: u8,
     pub menu_music_volume: u8,
+    /// Settings' Update takes the test builds of the `test` branch, not the releases.
+    pub test_updates: bool,
 }
 
 /// The top of the menu sounds' and the tune's volumes.
@@ -190,6 +192,7 @@ impl Default for AppState {
             menu_music: true,
             menu_sounds_volume: MENU_VOLUME_DEFAULT,
             menu_music_volume: MENU_VOLUME_DEFAULT,
+            test_updates: false,
         }
     }
 }
@@ -509,6 +512,7 @@ const FIELDS: &[Field] = &[
             t.menu_music_volume = n
         }
     ),
+    flag!("test_updates", test_updates),
 ];
 
 fn menu_volume(value: &str) -> Option<u8> {

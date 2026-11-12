@@ -224,6 +224,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bsdiff"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6709158fe6ca66c1f32eb27b4ae5997c67b0df350ae185831233af3e7a91213"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1682,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "omega-cheevos"
-version = "2.7.1"
+version = "2.7.2"
 dependencies = [
  "cc",
  "omega-retro",
@@ -1692,7 +1698,7 @@ dependencies = [
 
 [[package]]
 name = "omega-gfx"
-version = "2.7.1"
+version = "2.7.2"
 dependencies = [
  "gl",
  "glutin",
@@ -1704,29 +1710,38 @@ dependencies = [
 
 [[package]]
 name = "omega-input"
-version = "2.7.1"
+version = "2.7.2"
+
+[[package]]
+name = "omega-pack"
+version = "2.7.2"
+dependencies = [
+ "bsdiff",
+ "lz4_flex 0.11.6",
+ "tempfile",
+]
 
 [[package]]
 name = "omega-power"
-version = "2.7.1"
+version = "2.7.2"
 dependencies = [
  "tempfile",
 ]
 
 [[package]]
 name = "omega-retro"
-version = "2.7.1"
+version = "2.7.2"
 dependencies = [
  "libloading",
 ]
 
 [[package]]
 name = "omega-sfxcut"
-version = "2.7.1"
+version = "2.7.2"
 
 [[package]]
 name = "omega-store"
-version = "2.7.1"
+version = "2.7.2"
 dependencies = [
  "miniz_oxide",
  "tempfile",
@@ -1735,7 +1750,7 @@ dependencies = [
 
 [[package]]
 name = "omega-ui"
-version = "2.7.1"
+version = "2.7.2"
 dependencies = [
  "fontdue",
  "omega-gfx",
@@ -1749,7 +1764,7 @@ dependencies = [
 
 [[package]]
 name = "omega-zero"
-version = "2.7.1"
+version = "2.7.2"
 dependencies = [
  "cpal",
  "gilrs",
@@ -1758,6 +1773,7 @@ dependencies = [
  "omega-cheevos",
  "omega-gfx",
  "omega-input",
+ "omega-pack",
  "omega-power",
  "omega-retro",
  "omega-store",

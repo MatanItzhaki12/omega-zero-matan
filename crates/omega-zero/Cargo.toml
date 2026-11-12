@@ -1,6 +1,6 @@
 [package]
 name = "omega-zero"
-version = "2.7.1"
+version = "2.7.2"
 description = "A cartridge-shelf frontend for Anbernic H700 handhelds"
 edition.workspace = true
 rust-version.workspace = true

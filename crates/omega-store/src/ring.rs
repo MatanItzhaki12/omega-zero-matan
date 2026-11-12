@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::atomic::{atomic_write, sync_dir};
+use crate::atomic::{atomic_write, atomic_write_paced, sync_dir};
 use crate::core::Core;
 use crate::platform::Platform;
 
@@ -86,6 +86,13 @@ impl StateRing {
         atomic_write(&self.path(RESUME, STATE_EXT), state)
     }
 
+    /// As [`StateRing::write_resume`], paced so a game reading the card is not held up: for
+    /// the autosave, which can take its time.
+    pub fn write_resume_paced(&self, state: &[u8]) -> std::io::Result<()> {
+        std::fs::create_dir_all(&self.dir)?;
+        atomic_write_paced(&self.path(RESUME, STATE_EXT), state)
+    }
+
     pub fn read_resume(&self) -> std::io::Result<Option<Vec<u8>>> {
         match std::fs::read(self.path(RESUME, STATE_EXT)) {
             Ok(b) => Ok(Some(b)),
@@ -103,6 +110,56 @@ impl StateRing {
         std::fs::rename(&from, &to)?;
         sync_dir(&to);
         Ok(Some(to))
+    }
+
+    /// Whether the game has a resume state: the one written as it last stopped.
+    pub fn has_resume(&self) -> bool {
+        self.path(RESUME, STATE_EXT).is_file()
+    }
+
+    /// Deletes the resume state, as the game picks up from its save next time; none is no
+    /// error.
+    pub fn remove_resume(&self) -> std::io::Result<()> {
+        match std::fs::remove_file(self.path(RESUME, STATE_EXT)) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    }
+
+    /// The resume states set aside, as a core refused one or a save was put back under it, by
+    /// their names without the extension, the newest first.
+    pub fn set_aside(&self) -> Vec<String> {
+        let Ok(dir) = std::fs::read_dir(&self.dir) else {
+            return Vec::new();
+        };
+        let mut names: Vec<String> = dir
+            .filter_map(|e| e.ok())
+            .filter_map(|e| {
+                let path = e.path();
+                (path.extension().and_then(|x| x.to_str()) == Some(STATE_EXT))
+                    .then(|| path.file_stem()?.to_str().map(str::to_string))
+                    .flatten()
+            })
+            .filter(|name| name.starts_with(REFUSED))
+            .collect();
+        names.sort_by(|a, b| b.cmp(a));
+        names
+    }
+
+    /// Deletes the resume state set aside as `name`, one [`StateRing::set_aside`] gave.
+    pub fn remove_set_aside(&self, name: &str) -> std::io::Result<()> {
+        if !name.starts_with(REFUSED) || name.contains(['/', '\\']) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("not a state set aside: {name}"),
+            ));
+        }
+        std::fs::remove_file(self.path(name, STATE_EXT))
+    }
+
+    /// The size on the card of the state by `name`: a stamp, `resume`, or one set aside.
+    pub fn size_of(&self, name: &str) -> u64 {
+        std::fs::metadata(self.path(name, STATE_EXT)).map_or(0, |m| m.len())
     }
 
     fn free_refused(&self, stamp: &str) -> PathBuf {

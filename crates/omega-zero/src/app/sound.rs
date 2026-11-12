@@ -9,8 +9,9 @@
 
 use super::*;
 
-/// How often the headphone jack is read: a plug or unplug is believed two reads on.
-pub(super) const HEADPHONES_POLL_MS: Millis = 150;
+/// How often the headphone jack is read. A read takes a millisecond, and the first empty one
+/// silences the sound: the codec moves it to the speaker the moment the plug comes out.
+pub(super) const HEADPHONES_POLL_MS: Millis = 50;
 
 /// How long the sound stays silent after it leaves headphones: what was queued at their level
 /// plays out unheard.
@@ -36,29 +37,45 @@ impl Output {
     }
 }
 
-/// The headphone jack, believed plugged or not once it reads the same twice running: one odd
-/// read never moves the sound between the headphones and the speaker.
+/// How many reads running the jack must read empty before the headphones are believed out and
+/// the speaker muted: 0.6 s of them, so a plug wiggled in its jack never moves the volume.
+const JACK_OUT_READS: u8 = 12;
+
+/// How many reads running it must read full before headphones are believed in: 0.2 s.
+const JACK_IN_READS: u8 = 4;
+
+/// The headphone jack, believed plugged or not once it has read the same a while: a glitch of
+/// its pin never moves the sound between the headphones and the speaker.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Jack {
     plugged: bool,
-    last: bool,
+    /// Reads running that disagreed with what is believed.
+    against: u8,
 }
 
 impl Jack {
     pub(crate) fn new(plugged: bool) -> Self {
         Self {
             plugged,
-            last: plugged,
+            against: 0,
         }
     }
 
-    /// Takes a read of the jack, and says whether it disagrees with what is believed: one odd
-    /// read, or the first of a plug or unplug.
+    /// Takes a read of the jack, and says whether it disagrees with what is believed: a glitch,
+    /// or the start of a plug or unplug.
     pub(crate) fn read(&mut self, raw: bool) -> bool {
-        if std::mem::replace(&mut self.last, raw) == raw {
-            self.plugged = raw;
+        if raw == self.plugged {
+            self.against = 0;
+            return false;
         }
-        raw != self.plugged
+        self.against += 1;
+        let needed = if raw { JACK_IN_READS } else { JACK_OUT_READS };
+        if self.against >= needed {
+            self.plugged = raw;
+            self.against = 0;
+            return false;
+        }
+        true
     }
 
     pub(crate) fn plugged(&self) -> bool {
@@ -181,13 +198,17 @@ impl App {
         (100.0 * self.duck()).round() as u8
     }
 
+    /// How far AirPods hearing their wearer talk turn the sound down: only the sound going to
+    /// them, never the speaker's or wired headphones' while they are only in reach.
     fn duck(&self) -> f32 {
+        if self.output() != Output::Bluetooth {
+            return 1.0;
+        }
         self.phones.phones().map_or(1.0, |p| p.duck)
     }
 
-    /// Reads the jack, when due. A read that disagrees with what is believed of the
-    /// headphones in it holds the sound silent at once: the codec moves the sound to the
-    /// speaker by itself as they come out, before the unplug is believed and the speaker muted.
+    /// Reads the jack, when due, and says in the log when a read disagrees with what is believed
+    /// of it: a glitch of its pin, or the start of a plug or unplug.
     pub(super) fn read_jack(&mut self, now: Millis) {
         if now < self.headphones_at {
             return;
@@ -195,16 +216,22 @@ impl App {
         self.headphones_at = now + HEADPHONES_POLL_MS;
         let raw = self.power.as_ref().is_some_and(|p| p.headphones());
         let doubt = self.jack.read(raw);
-        if self.output != Output::Wired {
+        if doubt == self.jack_doubt {
             return;
         }
-        if doubt && !self.jack_doubt {
-            self.jack_doubt = true;
-            crate::audio::hush(true);
-        } else if !doubt && self.jack_doubt {
-            self.jack_doubt = false;
-            if self.hush_until.is_none() {
-                crate::audio::hush(false);
+        self.jack_doubt = doubt;
+        crate::log!(
+            "sound: the jack read {}, believed {}",
+            if raw { "in" } else { "out" },
+            if self.jack.plugged() { "in" } else { "out" }
+        );
+        // headphones coming out: silent at once, as the codec takes the sound to the speaker
+        // before the unplug is believed and the speaker muted; back in, the sound plays on
+        if self.output == Output::Wired {
+            match doubt {
+                true => crate::audio::hush(true),
+                false if self.hush_until.is_none() => crate::audio::hush(false),
+                false => {}
             }
         }
     }
@@ -218,7 +245,7 @@ impl App {
         if from == to {
             return;
         }
-        self.jack_doubt = false;
+        crate::log!("sound: {from:?} to {to:?}");
         if to == Output::Bluetooth {
             // one toast for both: connected, and the mode they connected in where it is known
             let said = self
@@ -253,9 +280,7 @@ impl App {
     pub(super) fn end_hush(&mut self, now: Millis) {
         if self.hush_until.is_some_and(|t| now >= t) {
             self.hush_until = None;
-            if !self.jack_doubt {
-                crate::audio::hush(false);
-            }
+            crate::audio::hush(false);
         }
     }
 
@@ -341,15 +366,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_jack_is_believed_once_it_reads_the_same_twice() {
+    fn headphones_are_believed_out_only_after_the_jack_reads_empty_a_while() {
         let mut jack = Jack::new(true);
-        assert!(jack.read(false), "the first empty read is not in doubt");
-        assert!(jack.plugged(), "one empty read was believed");
-        assert!(!jack.read(true), "a read back in is still in doubt");
-        assert!(jack.plugged());
-        assert!(jack.read(false));
-        assert!(!jack.read(false), "two empty reads are still in doubt");
-        assert!(!jack.plugged(), "two empty reads were not believed");
+        for n in 1..JACK_OUT_READS {
+            assert!(jack.read(false), "empty read {n} is not in doubt");
+            assert!(jack.plugged(), "{n} empty reads were believed");
+        }
+        assert!(!jack.read(false));
+        assert!(
+            !jack.plugged(),
+            "{JACK_OUT_READS} empty reads were not believed"
+        );
+        for _ in 1..JACK_IN_READS {
+            assert!(jack.read(true));
+        }
+        assert!(!jack.read(true));
+        assert!(
+            jack.plugged(),
+            "{JACK_IN_READS} full reads did not plug them back in"
+        );
+    }
+
+    /// The jack as it read at boot on the console, the headphones in all the while: empty for
+    /// 0.15 s, in for one read, then empty again as its driver came up.
+    #[test]
+    fn a_glitch_of_the_jack_s_pin_never_takes_the_headphones_out() {
+        let mut jack = Jack::new(true);
+        for raw in [false, false, true, false, false, false, true, true] {
+            jack.read(raw);
+            assert!(jack.plugged(), "the headphones were taken out on {raw}");
+        }
     }
 
     /// The headphones as they answered on the console: each volume sent them taken a second

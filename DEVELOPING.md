@@ -148,6 +148,11 @@ and not others, at a steady 60 frames a second.
 A test build of any branch is one `workflow_dispatch` of `release.yml`. It builds the same
 artifacts without publishing a release.
 
+The `test` branch is where updates are tried before they go out. Each push to it runs the checks
+and publishes a prerelease, `v<version>-test.<run>`, built with `OMEGA_VERSION` set to that name;
+consoles with Settings › Update switched to test builds (Left or Right on Update) find it there.
+Merge `test` into `main` with the version bumped to release it.
+
 CI installs its Ubuntu packages with `scripts/ci-apt.sh`: it tries the runner's mirror, then
 Canonical's and others', skipping any that do not answer, and caches what it fetched. When
 GitHub's runners reach no mirror at all, run the checks somewhere else (`cargo fmt --check`, both

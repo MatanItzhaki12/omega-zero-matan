@@ -3,7 +3,7 @@
 
 use omega_input::{Action, Btn};
 use omega_store::FF_SPEEDS;
-use omega_ui::{date_time_text_in, Draw, QuickValue, RowShown, SettingsFaces, SettingsMenu};
+use omega_ui::{date_time_text_in, Draw, QuickValue, RowShown, SettingsFaces, SettingsMenu, Toast};
 
 use crate::options::OptionRow;
 
@@ -149,11 +149,7 @@ impl App {
             SettingsRow::Achievements => {
                 Phase::Options(OptionsScreen::new(OptionsPage::Achievements))
             }
-            SettingsRow::Backup => {
-                // a look at where it stands is a reason to try the NAS again now
-                self.backup_pass();
-                Phase::Options(OptionsScreen::new(OptionsPage::Backup))
-            }
+            SettingsRow::Backup => return self.open_saves(),
             SettingsRow::DateTime => clock_screen(self.utc_secs(), self.state.utc_offset_min, true),
             SettingsRow::Network => Phase::Network(WifiScreen::default()),
             SettingsRow::Bluetooth => Phase::Bluetooth(BluetoothScreen::default()),
@@ -167,6 +163,9 @@ impl App {
     }
 
     pub(crate) fn change_setting(&mut self, row: SettingsRow, right: bool) {
+        if row == SettingsRow::Update {
+            return self.switch_update_channel();
+        }
         let s = &mut self.state;
         match row {
             SettingsRow::ColourCorrection => {
@@ -189,13 +188,39 @@ impl App {
         self.persist();
     }
 
+    /// Left or right on Update: the other channel, the releases or the test builds. What the one
+    /// before had found is forgotten, and the other's newest looked for quietly: it shows as
+    /// INSTALL, as any update found does, and nothing shows when there is none.
+    fn switch_update_channel(&mut self) {
+        if self.updater.state().busy() {
+            return self.refuse();
+        }
+        self.state.test_updates = !self.state.test_updates;
+        self.persist();
+        let channel = self.update_channel();
+        crate::log!("update: switched to {channel:?}");
+        self.updater.forget();
+        // off any network, the check as Wi-Fi joins one looks on the channel picked
+        match self.online() {
+            true => self.updater.check_quietly(self.root.clone(), channel),
+            false => self.update_checked = false,
+        }
+        self.update_told = false;
+        let said = match channel {
+            crate::update::Channel::Test => "Updates from test builds",
+            crate::update::Channel::Stable => "Updates from releases",
+        };
+        let now = self.now();
+        self.hud.toast(Toast::Update(said), now);
+    }
+
     /// A on Update: checks for a newer release, installs the one found, or restarts onto the
     /// one installed; while it is checking or downloading, A is refused.
     fn press_update(&mut self) {
         use crate::update::Update;
         match self.updater.state() {
             Update::Idle | Update::Latest | Update::Failed(_) => {
-                self.updater.check(self.root.clone())
+                self.updater.check(self.root.clone(), self.update_channel())
             }
             // the card's System folder: the running program's own path is the loader it starts
             // through

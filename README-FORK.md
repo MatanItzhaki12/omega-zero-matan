@@ -19,7 +19,7 @@ full: what it does, its defaults, and the files it keeps on the card.
 - [Labels and cart shells](#labels-and-cart-shells)
 - [Run-Ahead](#run-ahead)
 - [Link play: nearby, on the LAN and online](#link-play-nearby-on-the-lan-and-online)
-- [Save Backup](#save-backup)
+- [Saves and Save Backup](#saves-and-save-backup)
 - [RetroAchievements](#retroachievements)
 - [Files on the card](#files-on-the-card)
 - [Building and installing](#building-and-installing) (and [developing](DEVELOPING.md))
@@ -127,7 +127,7 @@ MENU on the shelf opens Settings. Because the Settings window has room for only 
 Slot's extra settings live in two panels that CONFIGS opens, like THEME.
 
 **CONFIGS:** Colour Correction, Screen Filter, Gameplay ›, Shelf ›, Labels ›, RetroAchievements ›,
-Save Backup › (see [Save Backup](#save-backup)). Fast Forward's speed moved into GAMEPLAY to make
+Saves › (see [Saves and Save Backup](#saves-and-save-backup)). Fast Forward's speed moved into GAMEPLAY to make
 room for RetroAchievements. On a 480-line screen the Settings window reaches up over the top bar
 to hold all seven.
 
@@ -339,9 +339,27 @@ it on the keyboard).
   `saves/gpSP/.netplay/`.
 - Settings › Gameplay › Online Play holds the same Name and Relay.
 
-## Save Backup
+## Saves and Save Backup
 
-Settings › **Save Backup** copies every save on the card to a folder on a NAS, over Samba
+Settings › **Saves** lists **NAS Backup ›** first, then every game with a save, a backup or a
+state on the handheld, by system and name. A on a game opens its own panel:
+
+| Row | Does |
+|---|---|
+| *The game* | Its save's size, and when it was saved; NO SAVE for none |
+| Back Up Save | A keeps a copy of the save on the handheld, under `Backups/<system>/<game>/<time>/` |
+| Backup, *when* | A backup kept: A puts it back, Y deletes it |
+| Resume State, State, *when* | A save state, on the core it is for, the resume state written as the game stops among them: Y deletes it |
+| Delete Save | A deletes the save, and the game starts anew |
+
+What can lose something asks first: its note says what pressing it again does, and the same
+button again does it; moving off the row lets the question go. Putting a backup back, or deleting
+the save, first keeps the save as it was as a backup of its own, and sets the game's resume state
+aside (it holds the save the game had, and would bring it back); a state set aside is listed as
+an Old Resume State, to delete. A PSP game's save is every `SAVEDATA` folder its ID starts.
+
+**NAS Backup** opens SAVE BACKUP, which copies every save on the card to a folder on a NAS, over
+Samba
 (SMB 2 and 3, as Synology, QNAP, TrueNAS, Unraid and Windows shares all speak it), as each save
 is made.
 
@@ -521,6 +539,7 @@ where a slow frame's time went, so a hitch can be found without a debugger:
 | `Config/retroachievements/pending.txt` | Unlocks earned offline, waiting to be sent |
 | `Config/default_core.ini` | Each system's default core, where EMULATORS changed it: `GBA = gpsp` |
 | `Config/save_backup.list` | What Save Backup's NAS has: each save's path, size and CRC, as last copied |
+| `Backups/<system>/<game>/<time>/` | Saves backed up from Settings › Saves, and each save as it was before a backup was put back or it was deleted |
 | `Config/save_backup_undo/` | The handheld's own saves as they were before Sync From Backup replaced them |
 | `System/trace-latency.on` | When it is there, each press's latency is written to the log |
 | `System/omega-zero.previous` | The omega-zero an update replaced, to go back to |
@@ -546,6 +565,7 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `shelf`, `picked`, `picked_platform` | The shelf and the game the shelf was on when the handheld went off |
 | `menu_sounds`, `menu_music` | `1`, `0` |
 | `menu_sounds_volume`, `menu_music_volume` | `1` to `10` |
+| `test_updates` | `1` for Settings' Update to take test builds, `0` for releases |
 
 `ff_speed` also takes `0` now, for OFF.
 
@@ -558,6 +578,12 @@ over `System/omega-zero`, or update from the console. The cores and scripts are 
 ### Updating on the console
 
 Settings › **Update**, with Wi-Fi on. Its value is the version running.
+
+Left or Right on it switches where updates come from: the **releases**, or the **test builds**
+of the `test` branch, each a prerelease named for its version and run (`v2.7.3-test.12`, shown
+as V2.7.3-T12). A toast says which. The channel switched to is looked at quietly, and its newest
+shows as INSTALL V… as any update found does; nothing shows where there is none. Switched back
+to releases, the latest release is offered, so a test build is left for it.
 
 1. A asks GitHub for the latest release. The row says *UP TO DATE*, or *GET V…* for a newer one.
 2. A again downloads that release's `omega-zero-aarch64`, checks it against the SHA-256 published

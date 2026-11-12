@@ -57,6 +57,8 @@ pub mod resample;
 pub mod rewind;
 pub mod root;
 pub mod save_backup;
+pub mod save_manager;
+pub mod saves_settings;
 pub mod screens;
 mod screenshot;
 pub mod session;

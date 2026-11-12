@@ -369,3 +369,60 @@ fn headphones_follow_the_detection_pin() {
     with_jack(&d, "lo");
     assert!(!platform(&d).headphones());
 }
+
+#[test]
+fn a_jack_that_cannot_be_read_stays_as_it_last_read() {
+    let d = sysfs("255", "87");
+    with_jack(&d, "hi");
+    let p = platform(&d);
+    assert!(p.headphones());
+    // the list with no line for the jack, as while its driver takes the pin back
+    fs::write(
+        d.path().join("kernel/debug/gpio"),
+        "gpiochip0: GPIOs 0-31, parent: platform/pio, pio:
+",
+    )
+    .unwrap();
+    assert!(
+        p.headphones(),
+        "a list without the jack took the headphones out"
+    );
+    fs::remove_file(d.path().join("kernel/debug/gpio")).unwrap();
+    assert!(p.headphones(), "a read that failed took the headphones out");
+    with_jack(&d, "lo");
+    assert!(!p.headphones(), "the pin going low was not read");
+}
+
+/// The list as it read on the console at times: another driver's label in it not UTF-8.
+#[test]
+fn a_list_with_a_label_that_is_not_text_still_reads_the_jack() {
+    let d = sysfs("255", "87");
+    let dir = d.path().join("kernel/debug");
+    fs::create_dir_all(&dir).unwrap();
+    let list = |level: &str| {
+        let mut l = b"gpiochip0: GPIOs 0-31, parent: platform/pio, pio:
+ gpio-12 ("
+            .to_vec();
+        l.extend_from_slice(&[0xff, 0xfe, 0x80]);
+        l.extend_from_slice(
+            b"|sysfs               ) out lo    
+",
+        );
+        l.extend_from_slice(
+            format!(
+                " gpio-259 (                    |Headphone detection ) in  {level}    
+"
+            )
+            .as_bytes(),
+        );
+        l
+    };
+    let p = platform(&d);
+    fs::write(dir.join("gpio"), list("hi")).unwrap();
+    assert!(
+        p.headphones(),
+        "the jack was not read past a label that is not text"
+    );
+    fs::write(dir.join("gpio"), list("lo")).unwrap();
+    assert!(!p.headphones());
+}

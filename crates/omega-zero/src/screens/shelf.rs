@@ -37,6 +37,7 @@ impl App {
         let bar = out.len();
         self.draw_top_bar(out);
         shift(&mut out[bar..], 0.0, off.bar_dy);
+        self.draw_unfavorite(out);
     }
 
     /// The picked cart's name, while Settings > Shelf shows Game Titles: centred under the top

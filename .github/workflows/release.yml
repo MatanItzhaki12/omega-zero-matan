@@ -2,10 +2,12 @@ name: release
 
 # A release goes out for each version of omega-zero: on a push to main whose version in
 # crates/omega-zero/Cargo.toml has no release yet, so bumping it is all a release takes, or on
-# a pushed v* tag. A run by hand builds the tree without releasing it.
+# a pushed v* tag. A push to test puts out a test build: a prerelease named for the version and
+# the run, v2.7.3-test.12, which consoles on Settings' test channel update to. A run by hand
+# builds the tree without releasing it.
 on:
   push:
-    branches: [main]
+    branches: [main, test]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -30,6 +32,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       release: ${{ steps.tag.outputs.release }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
 
@@ -40,6 +43,7 @@ jobs:
         run: |
           set -eu
           version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/omega-zero/Cargo.toml | head -1)"
+          prerelease=false
           case "$GITHUB_REF" in
           refs/tags/*)
             tag="$GITHUB_REF_NAME"
@@ -54,6 +58,12 @@ jobs:
               release=true
             fi
             ;;
+          # every push a test build of its own, after the version it leads up to
+          refs/heads/test)
+            tag="v$version-test.$GITHUB_RUN_NUMBER"
+            release=true
+            prerelease=true
+            ;;
           *)
             tag="v$version"
             release=false
@@ -61,7 +71,8 @@ jobs:
           esac
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "release=$release" >> "$GITHUB_OUTPUT"
-          echo "omega-zero $version: $tag, release $release"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "omega-zero $version: $tag, release $release, prerelease $prerelease"
 
   checks:
     name: checks
@@ -156,7 +167,10 @@ jobs:
           # screen says the build cannot reach ScreenScraper.
           OMEGA_SS_DEVID: ${{ secrets.OMEGA_SS_DEVID }}
           OMEGA_SS_DEVPASSWORD: ${{ secrets.OMEGA_SS_DEVPASSWORD }}
-        run: task dist:device OUT="$TREE"
+          TAG: ${{ needs.version.outputs.tag }}
+        # the version the build calls itself, as Settings' Update compares it: a test build's
+        # with its run
+        run: OMEGA_VERSION="${TAG#v}" task dist:device OUT="$TREE"
 
       - name: Check what is about to ship
         run: |
@@ -284,9 +298,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ZIP: ${{ needs.build.outputs.zip }}
           TAG: ${{ needs.version.outputs.tag }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
           set -eu
-          cat > notes.md <<NOTES
+          : > notes.md
+          if [ "$PRERELEASE" = true ]; then
+            cat > notes.md <<NOTES
+          **A test build** of the \`test\` branch, not a release: consoles take it with Settings > Update switched to test builds (Left or Right on Update).
+
+          NOTES
+          fi
+          cat >> notes.md <<NOTES
           omega-zero-matan, a fork of [Omega Zero](https://github.com/oauramos/omega-zero) by @oauramos, for Anbernic H700 handhelds running [BaseOS](https://github.com/pvaibhav/BaseOS): made for the RG35XX SP, and also run on the RG SP. Other BaseOS devices are untested.
 
           Unzip and copy the contents of \`omega-zero-matan-${TAG}/\` to the root of the card omega-zero-matan runs from (SD1 on its own, or SD2 beside it); Omega Zero's [wiki](https://github.com/oauramos/omega-zero/wiki/Installing) has the steps, which are the same. See the [changelog](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md).
@@ -297,8 +319,13 @@ jobs:
 
           Already on omega-zero-matan? **Settings > Update** brings the console's \`System\` folder to this release on the console itself, fetching only the files that changed, as patches where it can (\`system-manifest.txt\`, \`system-files.bin\`, \`system-patches.bin\`). Before 2.6.1 it fetched \`omega-zero-aarch64\` alone.
           NOTES
+          # a test build is a prerelease, never the latest, so a console on releases never sees it
+          kind=""
+          if [ "$PRERELEASE" = true ]; then
+            kind="--prerelease --latest=false"
+          fi
           # a tag that is not there yet is made at the commit this run built
           gh release create "$TAG" "$ZIP" omega-zero-aarch64 omega-zero-aarch64.sha256 \
             system-manifest.txt system-files.bin system-patches.bin \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "$TAG" --notes-file notes.md
+            --title "$TAG" --notes-file notes.md $kind

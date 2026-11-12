@@ -92,15 +92,18 @@ pub enum Actions {
     Switcher,
     /// The switcher asking whether to delete the save shown: B CANCEL, A DELETE.
     Delete,
+    /// A question answered yes or no, as taking a game's star off: B NO, A YES.
+    YesNo,
 }
 
 impl Actions {
-    pub const ALL: [Actions; 5] = [
+    pub const ALL: [Actions; 6] = [
         Actions::Shelf,
         Actions::Menu,
         Actions::Confirm,
         Actions::Switcher,
         Actions::Delete,
+        Actions::YesNo,
     ];
 
     pub fn index(self) -> usize {
@@ -118,6 +121,8 @@ impl Actions {
             (Actions::Switcher, Side::Right) => ("LOAD", "A"),
             (Actions::Delete, Side::Left) => ("CANCEL", "B"),
             (Actions::Delete, Side::Right) => ("DELETE", "A"),
+            (Actions::YesNo, Side::Left) => ("NO", "B"),
+            (Actions::YesNo, Side::Right) => ("YES", "A"),
         }
     }
 }
@@ -227,6 +232,10 @@ impl App {
             // the switcher asking whether to delete a save: B CANCEL and A DELETE
             (None, _) if self.delete_asked() && matches!(self.phase, Phase::Polaroids { .. }) => {
                 (Actions::Delete, 0)
+            }
+            // the shelf asking whether to take a game's star off: B NO and A YES
+            (None, _) if self.unfavorite_asked() && matches!(self.phase, Phase::Shelf) => {
+                (Actions::YesNo, 0)
             }
             (None, _) => (actions_on(&self.phase)?, 0),
         };

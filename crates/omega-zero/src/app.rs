@@ -88,6 +88,7 @@ const POWER_OFF_S: f32 = 0.5;
 const VOLUME_STEP: u8 = 5;
 
 const AUTOSAVE_MS: Millis = 60_000;
+const AUTOSAVE_PSP_MS: Millis = 300_000;
 
 const BATTERY_CRITICAL: u8 = 5;
 
@@ -377,6 +378,8 @@ pub struct App {
     /// the last frame, for a pass once one is.
     pub(crate) save_backup: Option<crate::save_backup::SaveBackup>,
     pub(crate) backup_ui: crate::backup_settings::BackupUi,
+    /// What the SAVES panels show.
+    pub(crate) saves_ui: crate::saves_settings::SavesUi,
     pub(crate) backup_joined: bool,
     /// The passes that copied and failed, as last toasted, and whether a failure was told of
     /// since the last copy: a failure is told once, until saves copy again.
@@ -436,6 +439,9 @@ pub struct App {
     /// X DELETE line between RETURN and LOAD.
     pub(crate) delete_asked: bool,
     pub(crate) delete_panel: Option<Lone>,
+    /// The shelf asking whether to take the picked game's star off, and its panel.
+    pub(crate) unfavorite_asked: bool,
+    pub(crate) unfavorite_panel: Option<Lone>,
     pub(crate) delete_hint: Option<Lone>,
     pub(crate) clock_panel: Option<Lone>,
     pub(crate) settings_faces: Option<SettingsFaces>,
@@ -642,6 +648,7 @@ impl App {
             link_typing: None,
             save_backup: None,
             backup_ui: Default::default(),
+            saves_ui: Default::default(),
             backup_joined: false,
             backup_seen: (0, 0),
             backup_fail_told: false,
@@ -679,6 +686,8 @@ impl App {
             polaroids: None,
             delete_asked: false,
             delete_panel: None,
+            unfavorite_asked: false,
+            unfavorite_panel: None,
             delete_hint: None,
             clock_panel: None,
             settings_faces: None,
@@ -1584,6 +1593,13 @@ impl App {
     /// Acts on a press, and makes the menus' sound for what it changed.
     pub fn apply(&mut self, action: Action) {
         let before = self.sound_mark();
+        // the volume moved by itself, where it was heard to: what the buttons said, and when
+        if matches!(
+            action,
+            Action::VolumeUp | Action::VolumeDown | Action::MuteToggle
+        ) {
+            crate::log!("sound: {action:?} on {:?}", self.output());
+        }
         self.press(action);
         self.sound_for_press(&before, action);
     }
@@ -1655,6 +1671,7 @@ impl App {
         }
         let now = self.now();
         match self.phase {
+            Phase::Shelf if self.unfavorite_asked => self.unfavorite_input(action),
             Phase::Shelf => match action {
                 // the shelf's buttons are Slot's: START picks the core (X too, as it always
                 // did, but on RECENTS, where X takes the game off it), MENU opens Settings and
@@ -1667,7 +1684,7 @@ impl App {
                 }
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 Action::QuickMenu => self.open_settings(),
-                Action::GbaDown(Btn::Y) => self.toggle_favorite(now),
+                Action::GbaDown(Btn::Y) => self.favorite_pressed(now),
                 Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
@@ -2059,6 +2076,11 @@ impl App {
         self.state.brightness
     }
 
+    /// Where Settings' Update takes updates from.
+    pub fn update_channel(&self) -> crate::update::Channel {
+        crate::update::Channel::of(self.state.test_updates)
+    }
+
     /// Checks for an update once a boot, quietly, once Wi-Fi has been joined to a network for
     /// 5 s, at boot or after; and says when one is found.
     fn check_for_update(&mut self, now: Millis) {
@@ -2070,7 +2092,8 @@ impl App {
                 let since = *self.update_online_since.get_or_insert(now);
                 if now.saturating_sub(since) >= SETTLE_MS {
                     self.update_checked = true;
-                    self.updater.check_quietly(self.root.clone());
+                    self.updater
+                        .check_quietly(self.root.clone(), self.update_channel());
                 }
             }
         }

@@ -44,7 +44,11 @@ pub enum OptionsPage {
     Emulators,
     /// The name and the relay of online play, opened from GAMEPLAY.
     Online,
-    /// Save Backup, opened from CONFIGS: saves copied to a NAS.
+    /// Saves, opened from CONFIGS: NAS Backup, and every game with anything on the card.
+    Saves,
+    /// A game's save, backups and states, opened from SAVES.
+    GameSaves,
+    /// Save Backup, opened from SAVES' NAS Backup: saves copied to a NAS.
     Backup,
     /// The NASes on this Wi-Fi, opened from SAVE BACKUP's NAS.
     Nas,
@@ -69,6 +73,8 @@ impl OptionsPage {
             OptionsPage::Achievements => "ACHIEVEMENTS",
             OptionsPage::Emulators => "EMULATORS",
             OptionsPage::Online => "ONLINE PLAY",
+            OptionsPage::Saves => "SAVES",
+            OptionsPage::GameSaves => "GAME",
             OptionsPage::Backup => "SAVE BACKUP",
             OptionsPage::Nas => "FIND NAS",
             OptionsPage::Folder => "FOLDER",
@@ -105,6 +111,9 @@ impl OptionsPage {
                 OptionRow::BackupNow,
                 OptionRow::BackupRestore,
             ],
+            // what the card has: `App::page_rows`
+            OptionsPage::Saves => &[OptionRow::SavesNas],
+            OptionsPage::GameSaves => &[OptionRow::GameSave],
             // what the NAS has: `App::page_rows`
             OptionsPage::Nas => &[OptionRow::NasAddress],
             OptionsPage::Folder => &[OptionRow::FolderUse],
@@ -145,9 +154,12 @@ impl OptionsPage {
             }
             OptionsPage::Shelf | OptionsPage::Sound => SettingsRow::Shelf,
             OptionsPage::Achievements => SettingsRow::Achievements,
-            OptionsPage::Backup | OptionsPage::Nas | OptionsPage::Folder | OptionsPage::Restore => {
-                SettingsRow::Backup
-            }
+            OptionsPage::Saves
+            | OptionsPage::GameSaves
+            | OptionsPage::Backup
+            | OptionsPage::Nas
+            | OptionsPage::Folder
+            | OptionsPage::Restore => SettingsRow::Backup,
             OptionsPage::Headphones => SettingsRow::Bluetooth,
         }
     }
@@ -159,13 +171,15 @@ impl OptionsPage {
             OptionsPage::Emulators => Some((OptionsPage::Gameplay, OptionRow::Emulators)),
             OptionsPage::Sound => Some((OptionsPage::Shelf, OptionRow::Sound)),
             OptionsPage::Online => Some((OptionsPage::Gameplay, OptionRow::OnlinePlay)),
+            OptionsPage::GameSaves => Some((OptionsPage::Saves, OptionRow::SavesNas)),
+            OptionsPage::Backup => Some((OptionsPage::Saves, OptionRow::SavesNas)),
             OptionsPage::Nas => Some((OptionsPage::Backup, OptionRow::BackupNas)),
             OptionsPage::Folder => Some((OptionsPage::Backup, OptionRow::BackupFolder)),
             OptionsPage::Restore => Some((OptionsPage::Backup, OptionRow::BackupRestore)),
             OptionsPage::Gameplay
             | OptionsPage::Shelf
             | OptionsPage::Achievements
-            | OptionsPage::Backup
+            | OptionsPage::Saves
             | OptionsPage::Headphones => None,
         }
     }
@@ -213,6 +227,17 @@ pub enum OptionRow {
     Relay,
     /// How a PSP game is shown unless set for itself: Fit, Actual or Stretch.
     PspScreen,
+    /// SAVES' way into SAVE BACKUP.
+    SavesNas,
+    /// A game in SAVES with anything on the card, by its place in the list: A opens GAME.
+    SavesGame(u16),
+    /// GAME: the game's save, Back Up Save, a backup kept and a state, each by its place, and
+    /// Delete Save.
+    GameSave,
+    GameBackUp,
+    GameBackup(u16),
+    GameState(u16),
+    GameDelete,
     /// Save Backup, on or off.
     BackupOn,
     /// The NAS: A opens FIND NAS.
@@ -255,6 +280,8 @@ impl OptionRow {
                 | OptionRow::BackupPassword
                 | OptionRow::BackupFolder
                 | OptionRow::BackupRestore
+                | OptionRow::SavesNas
+                | OptionRow::SavesGame(_)
                 | OptionRow::NasAddress
                 | OptionRow::FolderNew
                 | OptionRow::FolderItem(_)
@@ -271,6 +298,11 @@ impl OptionRow {
                     | OptionRow::NasFound(_)
                     | OptionRow::FolderUse
                     | OptionRow::RestoreItem(_)
+                    | OptionRow::GameSave
+                    | OptionRow::GameBackUp
+                    | OptionRow::GameBackup(_)
+                    | OptionRow::GameState(_)
+                    | OptionRow::GameDelete
             )
             && !matches!(self, OptionRow::Hp(row) if !row.steps())
     }
@@ -309,6 +341,14 @@ impl OptionRow {
             OptionRow::OnlineName => "Name",
             OptionRow::Relay => "Relay",
             OptionRow::PspScreen => "PSP Screen",
+            OptionRow::SavesNas => "NAS Backup",
+            OptionRow::GameBackUp => "Back Up Save",
+            OptionRow::GameDelete => "Delete Save",
+            // a game's, a backup's or a state's own: `App::option_label`
+            OptionRow::SavesGame(_)
+            | OptionRow::GameSave
+            | OptionRow::GameBackup(_)
+            | OptionRow::GameState(_) => "",
             OptionRow::BackupOn => "Save Backup",
             OptionRow::BackupNas => "NAS",
             OptionRow::BackupUser => "User",
@@ -358,6 +398,13 @@ impl OptionRow {
             OptionRow::OnlineName => "What the other player sees",
             OptionRow::Relay => "The nearest is the quickest",
             OptionRow::PspScreen => "Fit fills the width; each game can differ",
+            OptionRow::SavesNas => "Saves copied to a NAS, and back",
+            OptionRow::SavesGame(_) => "Its save, backups and states",
+            OptionRow::GameSave => "Its save on the handheld",
+            OptionRow::GameBackUp => "A keeps a copy on the handheld",
+            OptionRow::GameBackup(_) => "A puts it back, Y deletes it",
+            OptionRow::GameState(_) => "Y deletes it",
+            OptionRow::GameDelete => "The game starts anew",
             OptionRow::BackupOn => "Saves copy to a NAS as they're made",
             OptionRow::BackupNas => "A Samba share on this Wi-Fi",
             OptionRow::BackupUser => "None signs in as a guest",
@@ -577,6 +624,13 @@ impl App {
             | OptionRow::FolderUse
             | OptionRow::FolderNew
             | OptionRow::FolderItem(_) => self.backup_text(row),
+            OptionRow::SavesNas
+            | OptionRow::SavesGame(_)
+            | OptionRow::GameSave
+            | OptionRow::GameBackUp
+            | OptionRow::GameBackup(_)
+            | OptionRow::GameState(_)
+            | OptionRow::GameDelete => self.saves_text(row),
             OptionRow::Hp(row) => self.headphones_value(row),
         }
     }
@@ -584,6 +638,7 @@ impl App {
     /// A row's name: its own, or a NAS's or a folder's.
     pub fn option_label(&self, row: OptionRow) -> String {
         self.backup_label(row)
+            .or_else(|| self.saves_label(row))
             .unwrap_or_else(|| row.label().to_string())
     }
 
@@ -597,6 +652,7 @@ impl App {
                 .collect();
         }
         self.backup_rows(page)
+            .or_else(|| self.saves_rows(page))
             .unwrap_or_else(|| page.rows().to_vec())
     }
 
@@ -677,6 +733,13 @@ impl App {
             | OptionRow::FolderUse
             | OptionRow::FolderNew
             | OptionRow::FolderItem(_)
+            | OptionRow::SavesNas
+            | OptionRow::SavesGame(_)
+            | OptionRow::GameSave
+            | OptionRow::GameBackUp
+            | OptionRow::GameBackup(_)
+            | OptionRow::GameState(_)
+            | OptionRow::GameDelete
             | OptionRow::Hp(_) => return,
             OptionRow::Relay => {
                 let n = crate::netplay_lobby::RELAYS.len() as u8;
@@ -732,6 +795,7 @@ impl App {
                 OptionRow::Cheevos | OptionRow::Account => self.achievements_note(),
                 row => self
                     .backup_note(row)
+                    .or_else(|| self.saves_note(row))
                     .unwrap_or_else(|| row.note().to_string()),
             },
         })
@@ -755,8 +819,19 @@ impl App {
         }
         let row = screen.row;
         match action {
-            Action::GbaDown(Btn::Up) if !rows.is_empty() => screen.row = step(&rows, row, false),
-            Action::GbaDown(Btn::Down) if !rows.is_empty() => screen.row = step(&rows, row, true),
+            Action::GbaDown(Btn::Up) if !rows.is_empty() => {
+                screen.row = step(&rows, row, false);
+                self.saves_disarm();
+            }
+            Action::GbaDown(Btn::Down) if !rows.is_empty() => {
+                screen.row = step(&rows, row, true);
+                self.saves_disarm();
+            }
+            Action::GbaDown(btn @ (Btn::A | Btn::Y))
+                if matches!(page, OptionsPage::Saves | OptionsPage::GameSaves) =>
+            {
+                self.saves_press(row, btn)
+            }
             Action::GbaDown(Btn::A) if row == OptionRow::BackupUser => {
                 self.open_typing(Step::BackupUser, self.state.backup_user.clone())
             }

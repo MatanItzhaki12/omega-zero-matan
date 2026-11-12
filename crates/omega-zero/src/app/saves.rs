@@ -111,8 +111,19 @@ impl App {
         }
     }
 
+    /// How long between autosaves: a PSP state is 40 MB, which the core takes a moment to give
+    /// up and the card some seconds to take, so a PSP game, which keeps saves of its own, is
+    /// autosaved less often. A state is still written as the cart comes out and as the console
+    /// sleeps.
+    pub(super) fn autosave_every(&self) -> Millis {
+        match self.platform {
+            Platform::Psp => AUTOSAVE_PSP_MS,
+            _ => AUTOSAVE_MS,
+        }
+    }
+
     pub(super) fn autosave(&mut self) {
-        self.autosave_at = self.now() + AUTOSAVE_MS;
+        self.autosave_at = self.now() + self.autosave_every();
         self.settle_saves();
         let (Some(root), Some(snapshot), Some(cart)) = (&self.root, &self.snapshot, self.seated())
         else {
@@ -145,7 +156,7 @@ impl App {
                     trusted_write(snapshot.as_ref(), state, "autosave")
                 }
             };
-            if let Err(e) = persist::flush(
+            if let Err(e) = persist::autosave_flush(
                 &root,
                 platform,
                 core,
@@ -175,7 +186,7 @@ impl App {
 
     pub fn flush_resume(&mut self) {
         self.settle_saves();
-        self.autosave_at = self.now() + AUTOSAVE_MS;
+        self.autosave_at = self.now() + self.autosave_every();
         let (Some(root), Some(snapshot), Some(cart)) = (&self.root, &self.snapshot, self.seated())
         else {
             return;

@@ -159,7 +159,7 @@ fn press(a: &mut App, btn: Btn) {
     a.apply(Action::GbaUp(btn));
 }
 
-/// Settings > Save Backup, its panel open.
+/// Settings > Saves > NAS Backup, the SAVE BACKUP panel open.
 fn open_backup(a: &mut App) {
     a.apply(Action::QuickMenu);
     for _ in 0..12 {
@@ -169,6 +169,10 @@ fn open_backup(a: &mut App) {
         press(a, Btn::Down);
     }
     assert_eq!(a.settings_row(), Some(SettingsRow::Backup));
+    press(a, Btn::A);
+    a.finish_slide();
+    assert_eq!(a.options_view().unwrap().title, "SAVES");
+    assert_eq!(lit(a), OptionRow::SavesNas);
     press(a, Btn::A);
     a.finish_slide();
 }
@@ -285,6 +289,11 @@ fn the_save_backup_panel_is_set_up_on_the_keyboard() {
     );
     assert_eq!(read_app_state(d.path()).backup_host.chars().count(), 1);
     assert_ne!(value(&a, OptionRow::BackupNas), "FIND");
+    // B goes back to SAVES, on NAS Backup, and again to Settings, on Saves
+    press(&mut a, Btn::B);
+    a.finish_slide();
+    assert_eq!(a.options_view().unwrap().title, "SAVES");
+    assert_eq!(lit(&a), OptionRow::SavesNas);
     press(&mut a, Btn::B);
     a.finish_slide();
     assert_eq!(a.settings_row(), Some(SettingsRow::Backup));

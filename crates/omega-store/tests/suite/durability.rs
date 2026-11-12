@@ -736,6 +736,7 @@ fn the_state_file_keeps_its_keys_and_their_order() {
         "menu_music=1\n",
         "menu_sounds_volume=5\n",
         "menu_music_volume=5\n",
+        "test_updates=0\n",
     ]
     .concat();
     assert_eq!(app_state_text(&AppState::default()), default);
@@ -813,6 +814,7 @@ fn the_state_file_keeps_its_keys_and_their_order() {
         "menu_music=1\n",
         "menu_sounds_volume=5\n",
         "menu_music_volume=5\n",
+        "test_updates=0\n",
     ]
     .concat();
     assert_eq!(app_state_text(&s), sample);
@@ -831,6 +833,7 @@ fn every_setting_round_trips_through_the_file() {
         menu_music: false,
         menu_sounds_volume: 10,
         menu_music_volume: 1,
+        test_updates: true,
         psp_screen: "stretch".into(),
         backup_password: "p a=ss".into(),
         ..AppState::default()

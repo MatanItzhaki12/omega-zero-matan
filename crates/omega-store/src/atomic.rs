@@ -2,22 +2,40 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
+/// A paced write's slice, and the rest after each: the card takes a slice, and what a game
+/// reads from it, as a PSP game reads its disc, goes between slices rather than waiting behind
+/// the whole file.
+const PACED_SLICE: usize = 512 * 1024;
+const PACED_REST: Duration = Duration::from_millis(15);
+
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    write_dated(path, bytes, None)
+    write_dated(path, bytes, None, false)
 }
 
 /// As [`atomic_write`], the file dated `modified` from the moment it is there to be read.
 pub fn atomic_write_dated(path: &Path, bytes: &[u8], modified: SystemTime) -> std::io::Result<()> {
-    write_dated(path, bytes, Some(modified))
+    write_dated(path, bytes, Some(modified), false)
 }
 
-fn write_dated(path: &Path, bytes: &[u8], modified: Option<SystemTime>) -> std::io::Result<()> {
+/// As [`atomic_write`], a slice at a time, each on the card before the next: for a large file
+/// that can wait, written while a game reads the same card. A PSP state is 40 MB, and written
+/// whole it held the game's reads for seconds.
+pub fn atomic_write_paced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    write_dated(path, bytes, None, true)
+}
+
+fn write_dated(
+    path: &Path,
+    bytes: &[u8],
+    modified: Option<SystemTime>,
+    paced: bool,
+) -> std::io::Result<()> {
     let tmp = temp_path(path);
-    match write_then_rename(&tmp, path, bytes, modified) {
+    match write_then_rename(&tmp, path, bytes, modified, paced) {
         Ok(()) => {}
         Err(e) => {
             let _ = std::fs::remove_file(&tmp);
@@ -41,9 +59,18 @@ fn write_then_rename(
     path: &Path,
     bytes: &[u8],
     modified: Option<SystemTime>,
+    paced: bool,
 ) -> std::io::Result<()> {
     let mut f = File::create(tmp)?;
-    f.write_all(bytes)?;
+    if paced {
+        for slice in bytes.chunks(PACED_SLICE) {
+            f.write_all(slice)?;
+            f.sync_data()?;
+            std::thread::sleep(PACED_REST);
+        }
+    } else {
+        f.write_all(bytes)?;
+    }
     if let Some(time) = modified {
         f.set_modified(time)?;
     }

@@ -489,7 +489,7 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Shelf",
             "Labels",
             "RetroAchievements",
-            "Save Backup",
+            "Saves",
             "Date & Time",
             "Network",
             "Bluetooth",
