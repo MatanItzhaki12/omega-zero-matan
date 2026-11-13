@@ -38,6 +38,8 @@
 - Repository: LF line endings in every checkout, a Windows one included (`.gitattributes`);
   Dependabot for the crates and the Actions, weekly; a RustSec audit of `Cargo.lock` on every
   change to it and weekly; `SECURITY.md`; status badges on the README.
+- rustix 1.1.6, past RustSec's RUSTSEC-2026-0486. ttf-parser, which reads the bundled fonts, is
+  unmaintained with no version after it: the audit knows it, in `.cargo/audit.toml`, and why.
 
 ## omega-zero 2.7.2
 

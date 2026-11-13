@@ -1,0 +1,9 @@
+# cargo-audit's settings for audit.yml.
+[advisories]
+ignore = [
+    # ttf-parser is unmaintained, with no version after it (RUSTSEC-2026-0192). It reads the
+    # bundled fonts for fontdue and the SVG kit's text for resvg: fonts on the card, never from
+    # the network, so no input reaches it that the release did not ship. It goes when fontdue
+    # and resvg move off it.
+    "RUSTSEC-2026-0192",
+]
