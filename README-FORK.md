@@ -341,15 +341,25 @@ it on the keyboard).
 
 ## Saves and Save Backup
 
-Settings › **Saves** lists **NAS Backup ›**, **Search Games ›** and each system with games that
-have a save, a backup or a state on the handheld, with how many. A system opens its games, each
-with how big its save is; Search Games types part of a name on the keyboard and lists every game
-whose name holds it, in any case. A game opens GAME, with two panels of its own:
+Settings › **Saves** lists **NAS Backup ›**, **Search Games ›**, **Auto Backup**, **Back Up All
+Saves**, each system with games that have a save, a backup or a state on the handheld (with how
+many), and **Card Space**, the room left on the card. A system opens its games, each with how big
+its save is and, in its note, how long it has been played and when last; Search Games types part
+of a name on the keyboard and lists every game whose name holds it, in any case, each with its
+system. A game opens GAME, with two panels of its own:
 
 | Panel | Rows |
 |---|---|
 | **Save ›** | Current Save (its size, and when it was saved), **Back Up Now** (a copy kept on the handheld, under `Backups/<system>/<game>/<time>/`), and under the Backups heading each backup, named for the date and time it was made |
-| **Save States ›** | The Resume Point written as the game stops, any Old Resume Point set aside, and each Saved State, with its size and the core it is for |
+| **Save States ›** | The Resume Point written as the game stops, any Old Resume Point set aside, and each Saved State, with its size and the core it is for. X on the Save States row deletes them all |
+
+**Auto Backup** (on to start) backs a game's save up by itself as the game goes in, where it
+changed since the newest backup: on a thread of its own, so the cart's way in is drawn as ever.
+The newest five automatic backups are kept, named with "(Auto)"; a backup kept by hand is never
+deleted by itself. **Back Up All Saves** keeps a copy of every game's save at once.
+
+**Play time** counts while a game is on screen, not while its menu is up over it, and is kept in
+`Config/play_log.txt` as the cart comes out, as the game autosaves and as the console powers off.
 
 A opens a panel and backs up. On the current save, a backup or a state, **X deletes it** and
 **Y restores it**: a backup is put back as the save, and a state is made the one the game resumes
@@ -540,6 +550,7 @@ where a slow frame's time went, so a hitch can be found without a debugger:
 | `Config/retroachievements/pending.txt` | Unlocks earned offline, waiting to be sent |
 | `Config/default_core.ini` | Each system's default core, where EMULATORS changed it: `GBA = gpsp` |
 | `Config/save_backup.list` | What Save Backup's NAS has: each save's path, size and CRC, as last copied |
+| `Config/play_log.txt` | Each game's time played and when last, a line a game: `gba/<name>`, seconds, then seconds since 1970 |
 | `Backups/<system>/<game>/<time>/` | Saves backed up from Settings › Saves, and each save as it was before a backup was put back or it was deleted |
 | `Config/save_backup_undo/` | The handheld's own saves as they were before Sync From Backup replaced them |
 | `System/trace-latency.on` | When it is there, each press's latency is written to the log |
@@ -567,6 +578,7 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `menu_sounds`, `menu_music` | `1`, `0` |
 | `menu_sounds_volume`, `menu_music_volume` | `1` to `10` |
 | `test_updates` | `1` for Settings' Update to take test builds, `0` for releases |
+| `auto_backup` | `1` (as it starts) for Saves to back a game's save up as it goes in, `0` not to |
 
 `ff_speed` also takes `0` now, for OFF.
 

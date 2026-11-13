@@ -14,6 +14,30 @@
     over the rows with B NO and A YES, its note saying what yes means.
   - SAVES opens at once on a full card: the card is read a folder at a time for every game in
     it, rather than every folder once a game, which held the panel's slide in for a moment.
+- **Play time**: how long each game has been played, and when last, counted while it is on
+  screen (not under its menu), shown in Saves: "Played 3 h 5 min, last 2 days ago".
+- **Auto Backup** (Saves, on to start): a game's save is backed up by itself as the game goes in,
+  on a thread of its own, and only where it changed since the newest backup. The newest five
+  automatic backups are kept, each named with "(Auto)"; the ones kept by hand all stay.
+- **Back Up All Saves** in Saves keeps a copy of every game's save at once.
+- **X on Save States** deletes every one of a game's states, asked first: a PSP state is 40 MB.
+- **Card Space** at the foot of SAVES: how much room is left on the card, of how much.
+- A long list says so: small arrows at the end of the note's line show there are rows above or
+  below the panel.
+- The screen dims behind a question (Remove from favorites?, and Saves' questions), so the
+  question stands out from what it is about.
+- A search in Saves lists each game with its system, as it lists every system's games.
+- Update says TEST before the version while a release runs on test builds, so the channel is
+  never taken for the releases.
+- The headphone jack, read 20 times a second, is looked for in the bytes the kernel gives, only
+  its own line made text.
+- Code: 28 more Clippy lints are enforced across the workspace, for work done for nothing
+  (clones, defaults built and not taken, strings grown a format at a time, collections made only
+  to be walked), for what can panic or overflow at the edges (Instant arithmetic, midpoints), and
+  for the house style; every one of their hits in 98 files fixed.
+- Repository: LF line endings in every checkout, a Windows one included (`.gitattributes`);
+  Dependabot for the crates and the Actions, weekly; a RustSec audit of `Cargo.lock` on every
+  change to it and weekly; `SECURITY.md`; status badges on the README.
 
 ## omega-zero 2.7.2
 

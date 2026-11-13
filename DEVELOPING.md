@@ -165,7 +165,12 @@ with **checks_run_elsewhere** ticked: it releases without running them on GitHub
 ## Style
 
 - `cargo fmt`, and clippy with warnings denied. The workspace's own lints are in the root
-  `Cargo.toml`, `.editorconfig` covers the rest.
+  `Cargo.toml`, each group said why: work done for nothing on a handheld's four small cores,
+  what can panic or overflow at the edges, and the house style. A lint that is wrong in one
+  place is allowed there alone, with a comment saying why (two `needless_collect`s, where the
+  collect is what spawns every thread before any is joined). `.editorconfig` covers the rest.
+- Every text file is LF, in every checkout (`.gitattributes`). Dependabot opens the week's
+  updates of the crates and the Actions; `audit.yml` checks `Cargo.lock` against RustSec.
 - Comments say *why*, in plain sentences. Each module opens with a `//!` on what it is for.
 - Keep the screen's thread free: no blocking I/O in `App` or a `sync_*`.
 - When a change is tried on the handheld and does nothing, take it out again. Failed fixes are
