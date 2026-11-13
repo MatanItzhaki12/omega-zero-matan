@@ -546,7 +546,7 @@ fn parse(script: &str) -> Vec<Step> {
             ["boot"] => steps.push(Step::Boot),
             ["fail"] => steps.push(Step::Fail),
             ["lit"] => steps.push(Step::Lit),
-            ["tap", b, ..] | ["hold", b, ..] => {
+            ["tap" | "hold", b, ..] => {
                 steps.push(Step::Down(btn(b)));
                 steps.push(Step::Wait(n(2, 6)));
                 steps.push(Step::Up(btn(b)));
@@ -811,9 +811,10 @@ fn main() {
     let mut frontend = booted(root.path(), &mut compositor);
 
     // SCREENS_SCRIPT runs another script in place of the built-in one, for one-off previews.
-    let script = std::env::var("SCREENS_SCRIPT")
-        .map(|path| std::fs::read_to_string(path).expect("read SCREENS_SCRIPT"))
-        .unwrap_or_else(|_| SCRIPT.to_string());
+    let script = std::env::var("SCREENS_SCRIPT").map_or_else(
+        |_| SCRIPT.to_string(),
+        |path| std::fs::read_to_string(path).expect("read SCREENS_SCRIPT"),
+    );
     let steps = parse(&script);
     let shots: Vec<String> = steps
         .iter()

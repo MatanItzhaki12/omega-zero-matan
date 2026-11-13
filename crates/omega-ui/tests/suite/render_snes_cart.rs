@@ -106,9 +106,9 @@ fn render_snes_cart() {
     for y in 0..sheet_h {
         let floor = y == (sheet_h as f32 - BAR_H) as u32;
         let c = match () {
-            _ if floor => FLOOR,
-            _ if (y as f32) < TOP_BAR_H => PLATE,
-            _ => GROUND,
+            () if floor => FLOOR,
+            () if (y as f32) < TOP_BAR_H => PLATE,
+            () => GROUND,
         };
         for _ in 0..sheet_w {
             frame.extend_from_slice(&[c[0], c[1], c[2], 255]);

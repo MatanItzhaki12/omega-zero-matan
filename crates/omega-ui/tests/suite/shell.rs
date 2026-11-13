@@ -113,7 +113,7 @@ fn the_pokemon_shells_are_all_distinct() {
 #[test]
 fn no_two_table_entries_share_a_key() {
     let mut keys: Vec<&str> = table_keys();
-    keys.sort();
+    keys.sort_unstable();
     let before = keys.len();
     keys.dedup();
     assert_eq!(keys.len(), before, "two entries claim the same key");
@@ -329,7 +329,7 @@ fn the_presets_are_the_tables_plastics_each_once() {
         "a table row the presets name has gone missing"
     );
     let mut names: Vec<_> = presets.iter().map(|(n, _)| *n).collect();
-    names.sort();
+    names.sort_unstable();
     names.dedup();
     assert_eq!(names.len(), presets.len(), "two presets share a name");
     let find = |n: &str| presets.iter().find(|(name, _)| *name == n).unwrap().1;

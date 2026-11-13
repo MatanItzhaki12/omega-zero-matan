@@ -62,7 +62,10 @@ impl App {
             }
         };
         // the backup looks for the save once it is on the card
-        let pass = self.save_backup.as_ref().map(|b| b.passer());
+        let pass = self
+            .save_backup
+            .as_ref()
+            .map(super::super::save_backup::SaveBackup::passer);
         let written = match behind {
             true => std::thread::Builder::new()
                 .name("omega-eject-save".into())
@@ -144,7 +147,10 @@ impl App {
                 }
             },
         };
-        let pass = self.save_backup.as_ref().map(|b| b.passer());
+        let pass = self
+            .save_backup
+            .as_ref()
+            .map(super::super::save_backup::SaveBackup::passer);
         let write = move || {
             let (state, sav) = match taken {
                 Taken::Now(written) => written,
@@ -168,13 +174,15 @@ impl App {
                 return;
             }
             // the backup looks for the save once it is on the card
-            pass.iter().for_each(|pass| pass());
+            if let Some(pass) = &pass {
+                pass();
+            }
         };
         match std::thread::Builder::new()
             .name("omega-autosave".into())
             .spawn(move || {
                 crate::spawn::stand_back();
-                write()
+                write();
             }) {
             Ok(h) => {
                 self.pending_save = Some(h);

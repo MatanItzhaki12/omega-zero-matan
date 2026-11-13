@@ -39,7 +39,7 @@ impl Power {
     }
 
     pub fn set_led(&mut self, state: LedState) {
-        self.platform.set_led(state)
+        self.platform.set_led(state);
     }
 
     pub fn set_rumble(&mut self, strength: u16) {

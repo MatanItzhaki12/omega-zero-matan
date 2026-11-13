@@ -314,7 +314,7 @@ impl Opening {
     /// How far into the terminal it is, in ms from the start of its fade in: still once a
     /// press has cut it short.
     fn script_ms(&self) -> f32 {
-        self.cut.map_or(self.elapsed(), |(at, _)| at) - LEAD_MS
+        self.cut.map_or_else(|| self.elapsed(), |(at, _)| at) - LEAD_MS
     }
 
     /// How brightly the terminal is drawn over the black.

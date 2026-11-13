@@ -97,7 +97,7 @@ pub fn cache_key(fields: &[(String, String)]) -> Option<String> {
     let key = match of("r")? {
         "login2" => format!("login-{}", of("u")?.to_lowercase()),
         "gameid" => format!("gameid-{}", of("m")?),
-        "achievementsets" => format!("achievementsets-{}", of("m").or(of("g"))?),
+        "achievementsets" => format!("achievementsets-{}", of("m").or_else(|| of("g"))?),
         "patch" => format!("patch-{}", of("g")?),
         "startsession" => format!("startsession-{}", of("g")?),
         _ => return None,
@@ -316,8 +316,11 @@ fn drop_pending(dir: &Path, gone: &Pending) {
             dropped |= same;
             !same
         })
-        .map(|line| format!("{line}\n"))
-        .collect();
+        .fold(String::new(), |mut rest, line| {
+            rest.push_str(line);
+            rest.push('\n');
+            rest
+        });
     let _ = std::fs::write(dir.join(PENDING), rest);
 }
 

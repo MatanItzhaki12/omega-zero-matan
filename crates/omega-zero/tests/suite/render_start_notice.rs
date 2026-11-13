@@ -91,7 +91,7 @@ fn band(frame: &[u8], rows: std::ops::Range<u32>) -> Vec<[u8; 3]> {
     let (x, y) = origin();
     let mut px = Vec::new();
     for yy in y + rows.start * PITCH..y + rows.end * PITCH {
-        for xx in x..x + TERMINAL_W + 1 {
+        for xx in x..=(x + TERMINAL_W) {
             px.push(rgb(frame, xx, yy));
         }
     }

@@ -26,7 +26,7 @@ pub(crate) fn sync_core_picker(
         {
             builder.request(cart.clone());
         }
-        *asked = highlighted.clone();
+        asked.clone_from(&highlighted);
     }
     let Some(faces) = builder.take() else {
         return;

@@ -229,7 +229,10 @@ fn ask(base: &str, path: &str, body: Option<String>) -> std::io::Result<(u16, St
         stdout.read_to_string(&mut out)?;
     }
     child.wait()?;
-    let (said, status) = out.trim_end().rsplit_once('\n').unwrap_or(("", out.trim()));
+    let (said, status) = out
+        .trim_end()
+        .rsplit_once('\n')
+        .unwrap_or_else(|| ("", out.trim()));
     let status = status.trim().parse().unwrap_or(0);
     match status {
         200..=299 => Ok((status, said.to_string())),

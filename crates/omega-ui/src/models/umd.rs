@@ -258,7 +258,7 @@ fn corner(
     (from, to): (f32, f32),
     cuts: usize,
 ) {
-    let out_by = (1.0 + 1.0 / ((to - from) / cuts as f32 / 2.0).cos()) / 2.0;
+    let out_by = f32::midpoint(1.0, 1.0 / ((to - from) / cuts as f32 / 2.0).cos());
     for i in 0..=cuts {
         let a = from + (to - from) * i as f32 / cuts as f32;
         let r = if i == 0 || i == cuts { r } else { r * out_by };

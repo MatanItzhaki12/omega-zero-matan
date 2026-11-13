@@ -186,7 +186,7 @@ pub fn discover_at(target: SocketAddr, wait: Duration) -> io::Result<Vec<Room>> 
     socket.set_read_timeout(Some(Duration::from_millis(100)))?;
     let query = QUERY.to_be_bytes();
     let until = Instant::now() + wait;
-    let mut asked = Instant::now() - wait;
+    let mut asked = Instant::now().checked_sub(wait).unwrap();
     let mut rooms: Vec<Room> = Vec::new();
     let mut buf = vec![0u8; AD_LEN + 1];
     while Instant::now() < until {

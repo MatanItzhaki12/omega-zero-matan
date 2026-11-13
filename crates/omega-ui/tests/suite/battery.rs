@@ -41,7 +41,7 @@ fn nothing_moves_when_the_charge_state_changes() {
         &mut charging,
     );
     let idle = quads(&idle);
-    for q in idle.iter() {
+    for q in &idle {
         assert!(
             quads(&charging).contains(q),
             "{q:?} moved or vanished when charging started"

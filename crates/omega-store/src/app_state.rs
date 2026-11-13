@@ -378,7 +378,7 @@ const FIELDS: &[Field] = &[
         "ff_speed",
         |s| s.ff_speed.to_string(),
         |t, v| if let Some(n) = ff_speed_value(v) {
-            t.ff_speed = n
+            t.ff_speed = n;
         }
     ),
     flag!("ff_sound", ff_sound),
@@ -387,7 +387,7 @@ const FIELDS: &[Field] = &[
         "screen_filter",
         |s| s.screen_filter.key().to_string(),
         |t, v| if let Some(f) = ScreenFilter::from_key(v) {
-            t.screen_filter = f
+            t.screen_filter = f;
         }
     ),
     flag!("wifi", wifi),
@@ -395,14 +395,14 @@ const FIELDS: &[Field] = &[
         "ssh",
         |s| on_off_text(s.ssh),
         |t, v| if let Some(b) = on_off(v) {
-            t.ssh = b
+            t.ssh = b;
         }
     ),
     may!(
         "bluetooth",
         |s| on_off_text(s.bluetooth),
         |t, v| if let Some(b) = on_off(v) {
-            t.bluetooth = b
+            t.bluetooth = b;
         }
     ),
     may!(
@@ -416,14 +416,14 @@ const FIELDS: &[Field] = &[
         |s| BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)]
             .to_string(),
         |t, v| if let Some(c) = colour_index(v) {
-            t.backdrop_colour = c
+            t.backdrop_colour = c;
         }
     ),
     may!(
         "font",
         |s| s.font.key().to_string(),
         |t, v| if let Some(f) = Font::from_key(v) {
-            t.font = f
+            t.font = f;
         }
     ),
     flag!("auto_load", auto_load),
@@ -434,14 +434,14 @@ const FIELDS: &[Field] = &[
         "blending",
         |s| s.blending.key().to_string(),
         |t, v| if let Some(b) = Blending::from_key(v) {
-            t.blending = b
+            t.blending = b;
         }
     ),
     may!(
         "gb_palette",
         |s| s.gb_colors.key().to_string(),
         |t, v| if let Some(c) = GbColors::from_key(v) {
-            t.gb_colors = c
+            t.gb_colors = c;
         }
     ),
     flag!("show_recents", show_recents),
@@ -451,7 +451,7 @@ const FIELDS: &[Field] = &[
         "lid_off_min",
         |s| s.lid_off_min.to_string(),
         |t, v| if let Some(m) = v.parse().ok().filter(|m| LID_OFF_MINUTES.contains(m)) {
-            t.lid_off_min = m
+            t.lid_off_min = m;
         }
     ),
     flag!("cheevos", cheevos),
@@ -466,7 +466,7 @@ const FIELDS: &[Field] = &[
         "relay",
         |s| s.relay.to_string(),
         |t, v| if let Ok(r) = v.trim().parse() {
-            t.relay = r
+            t.relay = r;
         }
     ),
     may!(
@@ -492,7 +492,7 @@ const FIELDS: &[Field] = &[
         "picked_platform",
         |s| s.picked_platform.map_or(String::new(), platform_key),
         |t, v| if let Some(p) = platform_value(v) {
-            t.picked_platform = Some(p)
+            t.picked_platform = Some(p);
         }
     ),
     text!("psp_screen", psp_screen),
@@ -502,14 +502,14 @@ const FIELDS: &[Field] = &[
         "menu_sounds_volume",
         |s| s.menu_sounds_volume.to_string(),
         |t, v| if let Some(n) = menu_volume(v) {
-            t.menu_sounds_volume = n
+            t.menu_sounds_volume = n;
         }
     ),
     may!(
         "menu_music_volume",
         |s| s.menu_music_volume.to_string(),
         |t, v| if let Some(n) = menu_volume(v) {
-            t.menu_music_volume = n
+            t.menu_music_volume = n;
         }
     ),
     flag!("test_updates", test_updates),

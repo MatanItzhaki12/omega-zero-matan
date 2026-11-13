@@ -233,7 +233,7 @@ enum Way {
 
 fn clock_screen(way: Way) -> (TempDir, App, Clock) {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
-    if let Way::QuickMenu = way {
+    if matches!(way, Way::QuickMenu) {
         write_app_state(
             d.path(),
             &AppState {
@@ -245,7 +245,7 @@ fn clock_screen(way: Way) -> (TempDir, App, Clock) {
         .unwrap();
     }
     let (mut a, clock) = app_booting_at(d.path(), AT);
-    if let Way::QuickMenu = way {
+    if matches!(way, Way::QuickMenu) {
         a.apply(Action::QuickMenu);
         for _ in 0..SettingsRow::DateTime.index() {
             a.apply(Action::GbaDown(Btn::Down));

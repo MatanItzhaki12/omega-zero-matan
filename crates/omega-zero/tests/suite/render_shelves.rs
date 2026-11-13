@@ -900,7 +900,7 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
             .collect();
         let steps: Vec<f32> = ys.windows(2).map(|w| (w[1] - w[0]).round()).collect();
         println!("{name}: {steps:?}");
-        let worst = steps.iter().cloned().fold(0.0f32, f32::max);
+        let worst = steps.iter().copied().fold(0.0f32, f32::max);
         assert!(
             worst < h as f32 / 2.0,
             "{name} moves {worst} px in one frame, over half of its own {h} px: that is a \

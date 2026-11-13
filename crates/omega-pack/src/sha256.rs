@@ -1,5 +1,6 @@
 //! SHA-256, fed a piece at a time, so a file is summed without holding all of it.
 
+use std::fmt::Write as _;
 use std::io::Read;
 use std::path::Path;
 
@@ -61,7 +62,10 @@ impl Sha256 {
             self.update(&[0]);
         }
         self.update(&bits.to_be_bytes());
-        self.h.iter().map(|x| format!("{x:08x}")).collect()
+        self.h.iter().fold(String::with_capacity(64), |mut out, x| {
+            let _ = write!(out, "{x:08x}");
+            out
+        })
     }
 
     fn compress(&mut self, block: &[u8; 64]) {

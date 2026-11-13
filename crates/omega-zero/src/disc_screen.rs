@@ -214,15 +214,15 @@ impl App {
         match action {
             Action::GbaDown(Btn::Left) => screen.at = screen.at.saturating_sub(1),
             Action::GbaDown(Btn::Right) => {
-                screen.at = (screen.at + 1).min(screen.discs.len().saturating_sub(1))
+                screen.at = (screen.at + 1).min(screen.discs.len().saturating_sub(1));
             }
             Action::GbaDown(Btn::A) => {
                 let at = screen.at;
                 self.disc_screen = None;
                 self.swap_disc(at);
             }
-            Action::GbaDown(Btn::B) | Action::GbaDown(Btn::Select) | Action::GameMenu => {
-                self.disc_screen = None
+            Action::GbaDown(Btn::B | Btn::Select) | Action::GameMenu => {
+                self.disc_screen = None;
             }
             _ => {}
         }

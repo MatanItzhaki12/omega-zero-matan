@@ -99,12 +99,9 @@ impl Platform for SimPlatform {
 fn system_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_secs() as i64)
 }
 
 fn root_from_env() -> PathBuf {
-    std::env::var_os("OMEGA_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("sdcard"))
+    std::env::var_os("OMEGA_ROOT").map_or_else(|| PathBuf::from("sdcard"), PathBuf::from)
 }

@@ -288,7 +288,7 @@ fn the_lit_row_is_a_band_and_the_others_are_clear_round_their_words() {
         let mut c: Vec<[u8; 3]> = (0..f.h)
             .flat_map(|y| (0..f.w).filter_map(move |x| px(f, x, y)))
             .collect();
-        c.sort();
+        c.sort_unstable();
         c.dedup();
         c
     };
@@ -298,7 +298,7 @@ fn the_lit_row_is_a_band_and_the_others_are_clear_round_their_words() {
         "unlit: label and dim value"
     );
     let mut want = vec![pal.tab, pal.frame, pal.frame_hi, pal.cream];
-    want.sort();
+    want.sort_unstable();
     assert_eq!(colours(&lit), want, "lit: band, cream label, bright value");
 }
 

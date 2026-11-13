@@ -73,7 +73,7 @@ fn choose_canvas(panel: (u32, u32)) -> Rotation {
     let rotation = std::env::var("OMEGA_ROTATION")
         .ok()
         .and_then(|v| v.trim().parse().ok())
-        .or(release.as_ref().map(|r| r.rotation_ccw))
+        .or_else(|| release.as_ref().map(|r| r.rotation_ccw))
         .map(Rotation::from_ccw_degrees)
         .unwrap_or_default();
     let upright = rotation.upright(panel);
@@ -87,7 +87,7 @@ fn choose_canvas(panel: (u32, u32)) -> Rotation {
         "{} panel {}x{} turned {rotation:?}, canvas {}x{}",
         release
             .as_ref()
-            .and_then(|r| r.model.clone().or(r.target.clone()))
+            .and_then(|r| r.model.clone().or_else(|| r.target.clone()))
             .unwrap_or_else(|| "unknown".into()),
         panel.0,
         panel.1,
@@ -116,9 +116,7 @@ fn read_boot_logo(root: &Path, panel: (u32, u32), rotation: Rotation) -> Option<
 }
 
 pub fn run() {
-    let root = std::env::var_os("OMEGA_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(CARD));
+    let root = std::env::var_os("OMEGA_ROOT").map_or_else(|| PathBuf::from(CARD), PathBuf::from);
     // first of all, while the process is nearly empty: gpSP's code cache needs room beside it
     omega_zero::core::keep_gpsp_room(&root);
     let mut surface = match FbdevSurface::new() {
@@ -158,7 +156,7 @@ pub fn run() {
     }
     frontend.start_opening(&omega_zero::opening::Facts::read());
     let mut input = DeviceInput::open(&root);
-    let card = root.clone();
+    let card = root;
     let _ = std::thread::Builder::new()
         .name("omega-bootlogo".into())
         .spawn(move || omega_zero::bootlogo::refresh(&card));

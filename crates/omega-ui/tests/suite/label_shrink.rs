@@ -2,6 +2,7 @@
 //! face its system draws it on: no face changes, its cut stays current, and it takes a fraction
 //! of the card.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -184,7 +185,7 @@ fn two_discs(d: &TempDir) -> Cart {
     for n in 1..=2 {
         let disc = format!("Saga (USA) (Disc {n})");
         std::fs::write(games.join("Saga").join(format!("{disc}.cue")), "").unwrap();
-        list.push_str(&format!("Saga/{disc}.cue\n"));
+        let _ = writeln!(list, "Saga/{disc}.cue");
     }
     std::fs::write(games.join("Saga (USA).m3u"), list).unwrap();
     // a disc's printed face, round, its corners clear

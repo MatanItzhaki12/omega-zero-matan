@@ -331,7 +331,7 @@ impl App {
                     .collect::<Vec<_>>()
                     .join("/"),
             ),
-            OptionRow::BackupNow => self.backup_word().to_string(),
+            OptionRow::BackupNow => self.backup_word(),
             OptionRow::NasFound(i) => self
                 .backup_ui
                 .finding

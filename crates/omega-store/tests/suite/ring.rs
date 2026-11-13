@@ -266,7 +266,7 @@ fn a_paced_resume_is_the_same_state_as_one_written_whole() {
     assert_eq!(r.read_resume().unwrap().as_deref(), Some(&state[..]));
     let left: Vec<_> = std::fs::read_dir(d.path().join("States/PSP/ppsspp/Patapon"))
         .unwrap()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.file_name())
         .collect();
     assert_eq!(left.len(), 1, "the paced write left {left:?}");

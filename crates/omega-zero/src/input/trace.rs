@@ -18,7 +18,7 @@ pub fn survey(dev: &Path, sys: &Path) -> Vec<String> {
         return vec![format!("no {} to survey", dev.display())];
     };
     let mut nodes: Vec<PathBuf> = entries
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.path())
         .filter(|p| {
             p.file_name()
@@ -40,8 +40,7 @@ pub fn survey(dev: &Path, sys: &Path) -> Vec<String> {
             };
             let cap = |which: &str| {
                 std::fs::read_to_string(sys.join(&*file).join("device/capabilities").join(which))
-                    .map(|s| s.trim().to_string())
-                    .unwrap_or_else(|_| "-".to_string())
+                    .map_or_else(|_| "-".to_string(), |s| s.trim().to_string())
             };
             format!(
                 "{file} {state} name={:?} key=[{}] sw=[{}]",

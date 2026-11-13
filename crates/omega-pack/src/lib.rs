@@ -9,6 +9,7 @@
 
 pub mod sha256;
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 /// The manifest's first line, and its version: a handheld reads only what it knows.
@@ -123,14 +124,16 @@ impl Manifest {
         let mut out = format!("{MAGIC}\nversion {}\n", self.version);
         for f in &self.files {
             let x = if f.exec { "x" } else { "-" };
-            out += &format!(
-                "file {} {} {x} {} {} {}\n",
+            let _ = writeln!(
+                out,
+                "file {} {} {x} {} {} {}",
                 f.sha, f.size, f.offset, f.len, f.path
             );
         }
         for p in &self.patches {
-            out += &format!(
-                "patch {} {} {} {} {}\n",
+            let _ = writeln!(
+                out,
+                "patch {} {} {} {} {}",
                 p.from, p.to, p.offset, p.len, p.path
             );
         }
@@ -244,7 +247,7 @@ pub fn rebuild(step: &Step, piece: &[u8], old: Option<&[u8]>) -> Result<Vec<u8>,
 pub fn tree(root: &Path) -> std::io::Result<Vec<(String, PathBuf)>> {
     fn walk(dir: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>) -> std::io::Result<()> {
         let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
-        entries.sort_by_key(|e| e.file_name());
+        entries.sort_by_key(std::fs::DirEntry::file_name);
         for e in entries {
             let name = e.file_name().to_string_lossy().into_owned();
             let path = e.path();

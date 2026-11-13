@@ -123,8 +123,7 @@ impl Ring {
             i = self
                 .room
                 .wait_timeout(i, left)
-                .map(|(guard, _)| guard)
-                .unwrap_or_else(|e| e.into_inner().0);
+                .map_or_else(|e| e.into_inner().0, |(guard, _)| guard);
         }
     }
 
@@ -231,7 +230,9 @@ impl Ring {
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 

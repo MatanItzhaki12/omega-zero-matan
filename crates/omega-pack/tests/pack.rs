@@ -118,7 +118,7 @@ fn a_piece_that_is_not_the_file_named_is_refused() {
     put(new.path(), "System/wifi.sh", b"echo wifi");
     let (m, files, _) = build(new.path(), "2.6.1", &[]).unwrap();
     let steps = plan(&m, |_| None);
-    let mut piece = files.clone();
+    let mut piece = files;
     let last = piece.len() - 1;
     piece[last] ^= 1;
     assert!(rebuild(&steps[0], &piece, None).is_err());

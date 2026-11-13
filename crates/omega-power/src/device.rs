@@ -155,9 +155,10 @@ impl DevicePlatform {
 
     pub fn report(&self) -> String {
         let leaf = |p: &Path| {
-            p.file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| p.display().to_string())
+            p.file_name().map_or_else(
+                || p.display().to_string(),
+                |n| n.to_string_lossy().into_owned(),
+            )
         };
         let name = |p: &Option<PathBuf>, absent: &str| match p {
             Some(p) => leaf(p),
@@ -413,7 +414,7 @@ impl Drop for FfMotor {
 fn first_dir(parent: &Path, keep: impl Fn(&Path) -> bool) -> Option<PathBuf> {
     let mut names: Vec<PathBuf> = fs::read_dir(parent)
         .ok()?
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.path())
         .collect();
     names.sort();
@@ -653,8 +654,7 @@ impl Platform for DevicePlatform {
     fn now(&self) -> i64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0)
+            .map_or(0, |d| d.as_secs() as i64)
     }
 
     fn set_clock(&mut self, secs: i64) {

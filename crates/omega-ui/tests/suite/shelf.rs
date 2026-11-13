@@ -133,7 +133,7 @@ fn no_cart_is_drawn_twice_in_a_settled_row_of_three_or_more() {
         s.draw_row(None, 0.0, 0.0, 1.0, &mut out);
         let drawn = drawn_cart_indices(&out);
         let mut uniq = drawn.clone();
-        uniq.sort();
+        uniq.sort_unstable();
         uniq.dedup();
         assert_eq!(drawn.len(), uniq.len(), "{n} carts: one is on screen twice");
     }
@@ -207,7 +207,7 @@ fn a_press_slides_the_row_rather_than_redrawing_it() {
                 )
             })
             .collect();
-        row.sort();
+        row.sort_unstable();
         row
     };
     for n in [2usize, 3, 4, 5, 10] {

@@ -684,7 +684,7 @@ impl App {
                     let mut line = PauseLine::of(row, value.as_deref());
                     if let PauseRow::Achievement(i) = row {
                         let a = &self.cheevos.list[i];
-                        line.label = a.title.clone();
+                        line.label.clone_from(&a.title);
                         line.dim = !a.unlocked;
                     }
                     if let Some(name) = self.listed_name(row) {
@@ -714,10 +714,10 @@ impl App {
         };
         match action {
             Action::GbaDown(Btn::Up) if !rows.is_empty() => {
-                self.pause_at(menu.page, step(&rows, row, false))
+                self.pause_at(menu.page, step(&rows, row, false));
             }
             Action::GbaDown(Btn::Down) if !rows.is_empty() => {
-                self.pause_at(menu.page, step(&rows, row, true))
+                self.pause_at(menu.page, step(&rows, row, true));
             }
             Action::GbaDown(Btn::Left) => self.change_pause_row(row, false),
             Action::GbaDown(Btn::Right) => self.change_pause_row(row, true),

@@ -321,7 +321,7 @@ impl Wifi {
         self.joining
             .as_ref()
             .map(|(s, _)| s)
-            .or(self.status.ssid.as_ref().filter(|_| handshaking))
+            .or_else(|| self.status.ssid.as_ref().filter(|_| handshaking))
     }
 
     /// The networks to offer: the one joined or being joined first, then those the last scan
@@ -611,7 +611,7 @@ impl WifiScreen {
         let at = rows
             .iter()
             .position(|r| *r == self.sel)
-            .unwrap_or(self.at.min(rows.len() - 1));
+            .unwrap_or_else(|| self.at.min(rows.len() - 1));
         self.sel = rows[at].clone();
         self.at = at;
         let settings = settings_of(rows);
@@ -650,7 +650,7 @@ impl WifiScreen {
                 wifi.set_ntp(!wifi.ntp());
             }
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) if self.sel == Sel::Ssh => {
-                outcome = Outcome::SwitchSsh(!ssh_on)
+                outcome = Outcome::SwitchSsh(!ssh_on);
             }
             Action::GbaDown(Btn::A) => self.pick(wifi, now),
             // on NETWORK's rows Y opens the row's panel, on a saved network it forgets it
@@ -685,7 +685,7 @@ impl WifiScreen {
                     replace: e.saved,
                     keys: Keyboard::default(),
                     refused: false,
-                })
+                });
             }
         }
     }

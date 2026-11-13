@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use crate::CORE_LOCK;
 
 fn lock() -> std::sync::MutexGuard<'static, ()> {
-    CORE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    CORE_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn dylib() -> PathBuf {

@@ -319,8 +319,8 @@ fn every_side_of_a_cart_model_faces_out_of_the_cart() {
         for quad in walls {
             let (a, b) = (quad[0].xyz, quad[1].xyz);
             let (mx, my) = (
-                (a[0] + b[0]) / 2.0 * w as f32,
-                (a[1] + b[1]) / 2.0 * h as f32,
+                f32::midpoint(a[0], b[0]) * w as f32,
+                f32::midpoint(a[1], b[1]) * h as f32,
             );
             let [nx, ny, _] = quad[0].normal;
             assert!(

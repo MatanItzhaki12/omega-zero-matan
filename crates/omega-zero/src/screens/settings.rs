@@ -220,7 +220,7 @@ impl App {
         use crate::update::Update;
         match self.updater.state() {
             Update::Idle | Update::Latest | Update::Failed(_) => {
-                self.updater.check(self.root.clone(), self.update_channel())
+                self.updater.check(self.root.clone(), self.update_channel());
             }
             // the card's System folder: the running program's own path is the loader it starts
             // through
@@ -245,7 +245,7 @@ impl App {
             rows: &self.settings_rows(),
             faces: self.settings_faces.as_ref(),
         }
-        .draw(out)
+        .draw(out);
     }
 }
 

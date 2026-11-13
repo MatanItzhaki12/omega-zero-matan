@@ -455,7 +455,7 @@ pub fn link_panel_face(view: &LinkView, pal: &Palette) -> UndoFace {
     let lines: Vec<String> = view
         .status
         .iter()
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .chain(view.detail.clone())
         .collect();
     let content = match lines.len() {
@@ -488,7 +488,10 @@ fn rooms_panel_face(rooms: &RoomsView, status: Option<&'static str>, pal: &Palet
         })
         .collect();
     let held = rows_height(rows.len());
-    let lines: Vec<String> = status.iter().map(|s| s.to_string()).collect();
+    let lines: Vec<String> = status
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     let content = match lines.len() {
         0 => held,
         n => held + notes_height(n),

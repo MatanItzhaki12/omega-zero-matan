@@ -54,7 +54,9 @@ impl Job {
 }
 
 fn lock() -> std::sync::MutexGuard<'static, Queue> {
-    QUEUE.lock().unwrap_or_else(|e| e.into_inner())
+    QUEUE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Writes on the card's own thread from now on, or, off, at once.
@@ -110,7 +112,9 @@ fn run() {
                     queue.busy = true;
                     break job;
                 }
-                queue = CHANGED.wait(queue).unwrap_or_else(|e| e.into_inner());
+                queue = CHANGED
+                    .wait(queue)
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
             }
         };
         job.run();
@@ -123,7 +127,9 @@ fn run() {
 pub fn settle() {
     let mut queue = lock();
     while !queue.jobs.is_empty() || queue.busy {
-        queue = CHANGED.wait(queue).unwrap_or_else(|e| e.into_inner());
+        queue = CHANGED
+            .wait(queue)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
     }
 }
 

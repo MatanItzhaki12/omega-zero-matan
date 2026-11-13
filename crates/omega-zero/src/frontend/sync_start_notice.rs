@@ -17,6 +17,6 @@ pub(crate) fn sync_start_notice(
     }
     let lines = app.start_notice_lines();
     state.sync(compositor, lines, |row, tex, w, h| {
-        app.set_start_notice_face(row, tex, w, h)
+        app.set_start_notice_face(row, tex, w, h);
     });
 }

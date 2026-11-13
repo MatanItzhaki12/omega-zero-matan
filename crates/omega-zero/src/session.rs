@@ -199,12 +199,16 @@ impl Session {
     }
 
     pub fn frame(&self) -> Option<FrameRef> {
-        self.emu.as_ref().and_then(|e| e.latest_frame())
+        self.emu
+            .as_ref()
+            .and_then(super::emu::EmuHandle::latest_frame)
     }
 
     /// The last frame a core that draws on the GPU drew as a shared texture, taken.
     pub fn take_gpu_frame(&self) -> Option<omega_gfx::GpuFrame> {
-        self.emu.as_ref().and_then(|e| e.take_gpu_frame())
+        self.emu
+            .as_ref()
+            .and_then(super::emu::EmuHandle::take_gpu_frame)
     }
 
     pub fn core_settling(&self) -> bool {
@@ -360,9 +364,9 @@ impl Session {
         }
         if self.app.link_active() {
             if self.emu.as_ref().is_some_and(EmuHandle::bios_mismatch) {
-                self.bridge_link(|app| app.bios_mismatch());
+                self.bridge_link(super::app::App::bios_mismatch);
             } else if self.emu.as_ref().is_some_and(EmuHandle::peer_ended) {
-                self.bridge_link(|app| app.peer_ended());
+                self.bridge_link(super::app::App::peer_ended);
             } else if self.emu.as_ref().is_some_and(EmuHandle::link_lost) {
                 self.app.peer_lost();
             }

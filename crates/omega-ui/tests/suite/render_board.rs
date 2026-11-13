@@ -96,7 +96,7 @@ fn render_board() {
     both("board-seated", &seated);
 
     let mut hop = socketed(&board);
-    let u = (CHIP_U[0] + CHIP_U[1]) / 2.0;
+    let u = f32::midpoint(CHIP_U[0], CHIP_U[1]);
     let (sx, sy) = (u + SHADOW_AT[0], CHIP_V + SHADOW_AT[1]);
     over(&mut hop, &chip_shadow_face(), sx as i32, sy as i32);
     over(
@@ -138,7 +138,7 @@ fn render_board() {
     );
     both("board-snes-seated", &seated);
     let mut hop = snes_socketed(&snes_board);
-    let u = (snes.chip_u(0) + snes.chip_u(1)) / 2.0;
+    let u = f32::midpoint(snes.chip_u(0), snes.chip_u(1));
     over(
         &mut hop,
         &omega_ui::chip_shadow_face_in(snes),

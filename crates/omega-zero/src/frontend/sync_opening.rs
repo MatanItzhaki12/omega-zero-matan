@@ -53,6 +53,6 @@ pub(crate) fn sync_opening(app: &mut App, compositor: &mut Compositor, state: &m
     }
     let lines = app.opening_lines();
     state.sync(compositor, lines, |row, tex, w, h| {
-        app.set_opening_face(row, tex, w, h)
+        app.set_opening_face(row, tex, w, h);
     });
 }

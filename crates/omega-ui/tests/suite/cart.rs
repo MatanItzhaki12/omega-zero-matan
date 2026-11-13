@@ -1463,7 +1463,10 @@ fn the_holo_sheen_is_over_the_label_and_its_light_moves() {
     assert_eq!((first.w, first.h), (CART_W.div_ceil(2), CART_H.div_ceil(2)));
     // clear off the label, never clear on it
     assert_eq!(alpha(first, 1, 1), 0, "sheen over the plastic");
-    let (cx, cy) = ((LABEL_X + LABEL_W / 2) / 2, (LABEL_Y + LABEL_H / 2) / 2);
+    let (cx, cy) = (
+        u32::midpoint(LABEL_X, LABEL_W / 2),
+        u32::midpoint(LABEL_Y, LABEL_H / 2),
+    );
     assert!(
         frames.iter().all(|f| alpha(f, cx, cy) > 0),
         "a frame leaves the label bare"
@@ -1471,7 +1474,7 @@ fn the_holo_sheen_is_over_the_label_and_its_light_moves() {
     // where the light stands across the label's middle row, weighed by how much brighter than
     // the faintest it is there, moves along it from frame to frame
     let light = |f: &omega_ui::CartFace| {
-        let row: Vec<(f32, f32)> = (LABEL_X / 2..(LABEL_X + LABEL_W) / 2)
+        let row: Vec<(f32, f32)> = (LABEL_X / 2..u32::midpoint(LABEL_X, LABEL_W))
             .map(|x| (x as f32, alpha(f, x, cy) as f32))
             .collect();
         let floor = row.iter().map(|r| r.1).fold(f32::MAX, f32::min);

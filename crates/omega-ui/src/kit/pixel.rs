@@ -157,7 +157,7 @@ pub fn big_word(text: &str, font: Font) -> Vec<String> {
     };
     let at = |x: i32, y: i32| inked(x, y) || (bold && inked(x - 1, y));
     let w = ink[0].len() as i32;
-    (0..rows.len() as i32 + 1)
+    (0..=(rows.len() as i32))
         .map(|y| {
             (0..w)
                 .map(|x| {

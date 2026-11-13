@@ -37,7 +37,9 @@ pub(super) fn render(sfx: Sfx, rate: u32) -> Vec<f32> {
     };
     soften(&mut out, rate);
     soften(&mut out, rate);
-    out.iter_mut().for_each(|v| *v *= 32_767.0);
+    for v in &mut out {
+        *v *= 32_767.0;
+    }
     out
 }
 

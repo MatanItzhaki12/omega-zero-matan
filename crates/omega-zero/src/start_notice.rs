@@ -75,7 +75,7 @@ fn script(fell: &Fell, model: &str) -> (Vec<Row>, Vec<(f32, Sfx)>) {
             row,
             at,
             line: Line::Shown(text),
-        })
+        });
     };
     shown(0, 0.0, "OMEGA ZERO MATAN HANDHELD".into());
     let model: String = model.chars().take(COLS as usize - 6).collect();
@@ -199,7 +199,7 @@ impl Up {
     /// How far into the terminal it is, in ms from the start of its fade in: still once a
     /// press has put it away.
     fn script_ms(&self) -> f32 {
-        self.gone.map_or(self.elapsed(), |(at, _)| at) - self.lead
+        self.gone.map_or_else(|| self.elapsed(), |(at, _)| at) - self.lead
     }
 
     /// How brightly the terminal is drawn over the black.
@@ -350,7 +350,7 @@ impl App {
     /// Names the handheld in the notice as `facts` do.
     pub(crate) fn tell_start_notice(&mut self, facts: &Facts) {
         if let Some(n) = &mut self.start_notice {
-            n.model = facts.model.clone();
+            n.model.clone_from(&facts.model);
         }
     }
 

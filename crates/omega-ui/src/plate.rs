@@ -16,8 +16,6 @@ pub struct UndoFace {
 pub fn word_cap_top() -> f32 {
     static TOP: OnceLock<f32> = OnceLock::new();
     *TOP.get_or_init(|| {
-        text::label_font()
-            .map(|font| text::cap_top(font, HINT_H, LABEL_PX))
-            .unwrap_or(0.0)
+        text::label_font().map_or(0.0, |font| text::cap_top(font, HINT_H, LABEL_PX))
     })
 }

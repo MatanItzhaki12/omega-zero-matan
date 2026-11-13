@@ -4,6 +4,7 @@
 //! loop: every job runs on one worker thread, and what it learns comes back as news the app
 //! takes each tick.
 
+use std::fmt::Write as _;
 #[cfg(feature = "device")]
 use std::path::{Path, PathBuf};
 #[cfg(feature = "device")]
@@ -157,7 +158,11 @@ pub fn decode(text: &str) -> Vec<u8> {
 }
 
 pub fn hex(ssid: &[u8]) -> String {
-    ssid.iter().map(|b| format!("{b:02x}")).collect()
+    ssid.iter()
+        .fold(String::with_capacity(ssid.len() * 2), |mut out, b| {
+            let _ = write!(out, "{b:02x}");
+            out
+        })
 }
 
 /// An SSID as it is shown: its bytes as UTF-8, with anything that is not printed as a

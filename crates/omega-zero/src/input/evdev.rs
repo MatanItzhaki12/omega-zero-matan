@@ -104,7 +104,7 @@ pub fn pick_devices(dev: &Path, sys: &Path) -> Vec<PathBuf> {
         return Vec::new();
     };
     let mut nodes: Vec<PathBuf> = entries
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.path())
         .filter(|p| {
             p.file_name()
@@ -131,6 +131,5 @@ fn wanted_node(device: &Path) -> bool {
 pub fn device_name(sys: &Path, node: &Path) -> String {
     node.file_name()
         .and_then(|n| std::fs::read_to_string(sys.join(n).join("device/name")).ok())
-        .map(|n| n.trim().to_string())
-        .unwrap_or_else(|| node.display().to_string())
+        .map_or_else(|| node.display().to_string(), |n| n.trim().to_string())
 }

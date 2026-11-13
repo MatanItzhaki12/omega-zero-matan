@@ -22,7 +22,7 @@
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -527,7 +527,7 @@ pub fn join_with(
             CMD_MODE
                 if word(&f.payload, 4) & (MODE_YOU | MODE_PLAYING) == MODE_YOU | MODE_PLAYING =>
             {
-                let client = client.unwrap_or(word(&f.payload, 4) & 0xffff);
+                let client = client.unwrap_or_else(|| word(&f.payload, 4) & 0xffff);
                 let link = NetplayLink::wrap(stream, Role::Joiner, protocol)?;
                 return Ok(Joined {
                     link,
@@ -794,10 +794,7 @@ impl LinkChannel for NetplayLink {
     }
 
     fn try_recv(&mut self) -> Option<Vec<u8>> {
-        match self.inbox.try_recv() {
-            Ok(p) => Some(p),
-            Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => None,
-        }
+        self.inbox.try_recv().ok()
     }
 
     fn is_closed(&self) -> bool {

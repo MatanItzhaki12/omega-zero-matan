@@ -794,7 +794,7 @@ fn a_cart_going_in_rises_then_dives_out_of_the_bottom_of_the_screen() {
         }
         ys.push(cart_y(&frame(&a)).expect("the cart vanished on its way in"));
     }
-    let top = ys.iter().cloned().fold(f32::MAX, f32::min);
+    let top = ys.iter().copied().fold(f32::MAX, f32::min);
     assert!(
         top < rest - 4.0 && top >= rest - 8.5,
         "the cart rose to {top} from {rest}, not the few pixels a hand letting go lifts it"

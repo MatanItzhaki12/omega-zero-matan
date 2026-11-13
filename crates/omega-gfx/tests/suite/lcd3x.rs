@@ -73,7 +73,7 @@ fn mask_matches_reference_shader_exactly() {
 fn mask_phase_puts_one_rgb_triad_per_source_pixel() {
     for row in lcd3x_mask() {
         let reds: Vec<f32> = row.iter().map(|cell| cell[0]).collect();
-        let brightest = reds.iter().cloned().fold(f32::MIN, f32::max);
+        let brightest = reds.iter().copied().fold(f32::MIN, f32::max);
         assert_eq!(
             reds.iter().filter(|v| **v == brightest).count(),
             1,

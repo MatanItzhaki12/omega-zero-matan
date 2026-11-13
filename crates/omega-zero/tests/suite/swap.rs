@@ -53,7 +53,10 @@ fn the_game_layer_stays_hidden_until_the_new_core_has_published() {
         !p.session.game_visible(),
         "the game layer must not draw on the frame the core was spawned"
     );
-    p.until("the first frame", |s| s.game_visible());
+    p.until(
+        "the first frame",
+        omega_zero::session::Session::game_visible,
+    );
     p.until("the cart to seat", |s| {
         matches!(s.app().phase(), Phase::Playing { .. })
     });
@@ -74,7 +77,10 @@ fn the_game_layer_stays_hidden_until_the_new_core_has_published() {
         !p.session.game_visible(),
         "the second cart must not show the first cart's last frame"
     );
-    p.until("the second core", |s| s.game_visible());
+    p.until(
+        "the second core",
+        omega_zero::session::Session::game_visible,
+    );
 }
 
 #[test]
@@ -86,12 +92,18 @@ fn nothing_but_the_renderer_takes_a_frame() {
         now: 0,
     };
     p.tap(Btn::A);
-    p.until("the first frame", |s| s.game_visible());
+    p.until(
+        "the first frame",
+        omega_zero::session::Session::game_visible,
+    );
 
     p.now += FRAME_MS;
     p.session.feed([RawEvent::Down(Btn::Lid)], p.now);
     p.session.update(0.016);
-    p.until("a frame waiting on a paused core", |s| s.frame_ready());
+    p.until(
+        "a frame waiting on a paused core",
+        omega_zero::session::Session::frame_ready,
+    );
     let before = p.session.frames_taken();
 
     for _ in 0..30 {
@@ -120,7 +132,7 @@ fn the_core_does_not_run_while_the_cart_is_going_in() {
         now: 0,
     };
     p.tap(Btn::A);
-    p.until("the core to load", |s| s.has_core());
+    p.until("the core to load", omega_zero::session::Session::has_core);
 
     let mut ran = 0;
     for _ in 0..40 {

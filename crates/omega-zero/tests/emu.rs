@@ -667,7 +667,7 @@ impl RetroCore for SpyLinkCore {
         self.inner.load(rom)
     }
     fn run_frame(&mut self, input: ButtonMask) {
-        self.inner.run_frame(input)
+        self.inner.run_frame(input);
     }
     fn video_xrgb8888(&self) -> &[u8] {
         self.inner.video_xrgb8888()
@@ -774,7 +774,7 @@ fn end_link_drops_the_transport_not_just_marks_it_inactive() {
     }
     impl LinkChannel for DropSignal {
         fn send(&mut self, flags: i32, buf: &[u8]) {
-            self.inner.send(flags, buf)
+            self.inner.send(flags, buf);
         }
         fn try_recv(&mut self) -> Option<Vec<u8>> {
             self.inner.try_recv()

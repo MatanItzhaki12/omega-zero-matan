@@ -824,7 +824,7 @@ fn write_ppm(path: &Path, xrgb: &[u8]) {
 }
 
 #[test]
-#[ignore]
+#[ignore = "drives two mGBA cores through a whole race: run with --ignored"]
 fn mario_kart_super_circuit_is_the_same_race_on_both_devices() {
     let _g = common::core_lock();
     let dylib = common::vendored_core().expect("no vendored mGBA core: run `task core`");
@@ -860,7 +860,7 @@ fn mario_kart_super_circuit_is_the_same_race_on_both_devices() {
 }
 
 #[test]
-#[ignore]
+#[ignore = "drives two mGBA cores through a whole race: run with --ignored"]
 fn mario_kart_super_circuit_races_linked_after_a_restore() {
     let _g = common::core_lock();
     let dylib = common::vendored_core().expect("no vendored mGBA core: run `task core`");

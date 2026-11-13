@@ -60,7 +60,9 @@ impl Bmp {
         b[42..46].copy_from_slice(&3780u32.to_le_bytes());
         for row in self.rows.iter().rev() {
             let start = b.len();
-            row.iter().for_each(|px| b.extend_from_slice(px));
+            for px in row {
+                b.extend_from_slice(px);
+            }
             b.resize(start + stride, 0);
         }
         std::fs::write(path, b).expect("write the logo");

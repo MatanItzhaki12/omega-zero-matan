@@ -639,7 +639,7 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
                     shown(&out).is_empty(),
                     "the actions stayed without the hints"
                 );
-                gone_at.get_or_insert(a.seat());
+                gone_at.get_or_insert_with(|| a.seat());
             }
         }
         a.update(SEATED_AT / 40.0);

@@ -111,8 +111,9 @@ impl Screen {
         b[42..46].copy_from_slice(&3780u32.to_le_bytes());
         for row in self.rgb.chunks_exact(self.w as usize).rev() {
             let start = b.len();
-            row.iter()
-                .for_each(|[r, g, bl]| b.extend_from_slice(&[*bl, *g, *r]));
+            for [r, g, bl] in row {
+                b.extend_from_slice(&[*bl, *g, *r]);
+            }
             b.resize(start + stride, 0);
         }
         b

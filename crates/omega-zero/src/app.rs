@@ -965,7 +965,9 @@ impl App {
     }
 
     pub(crate) fn utc_secs(&self) -> i64 {
-        self.power.as_ref().map_or_else(system_secs, |p| p.now())
+        self.power
+            .as_ref()
+            .map_or_else(system_secs, omega_power::Power::now)
     }
 
     pub fn set_cart_shadow(&mut self, face: TexId) {
@@ -1677,10 +1679,10 @@ impl App {
                 // did, but on RECENTS, where X takes the game off it), MENU opens Settings and
                 // Y stars the cart
                 Action::GbaDown(Btn::X) if self.core_picker.is_none() && self.on_recents() => {
-                    self.remove_recent(now)
+                    self.remove_recent(now);
                 }
                 Action::GbaDown(Btn::Start | Btn::X) if self.core_picker.is_none() => {
-                    self.open_core_picker()
+                    self.open_core_picker();
                 }
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 Action::QuickMenu => self.open_settings(),
@@ -1690,7 +1692,7 @@ impl App {
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
                 Action::ShelfRight | Action::GbaDown(Btn::Right) => {
-                    self.shelf_mut().hold_right(now)
+                    self.shelf_mut().hold_right(now);
                 }
                 Action::GbaDown(Btn::A) => self.play_held = Some(now),
                 Action::GbaUp(Btn::A) => {
@@ -1709,10 +1711,10 @@ impl App {
             Phase::Inserting { .. } if action == Action::Eject => self.eject(),
             Phase::Playing { .. } => match action {
                 Action::GbaDown(Btn::L1) if self.frontend_owns_the_shoulders() => {
-                    self.set_picture(VideoMode::Stretch)
+                    self.set_picture(VideoMode::Stretch);
                 }
                 Action::GbaDown(Btn::R1) if self.frontend_owns_the_shoulders() => {
-                    self.set_picture(VideoMode::Actual)
+                    self.set_picture(VideoMode::Actual);
                 }
                 Action::Eject => self.eject(),
                 Action::QuickMenu => self.open_pause_menu(),
@@ -2323,7 +2325,7 @@ impl App {
         }
         if self.now() >= self.battery_at {
             self.battery_at = self.now() + BATTERY_POLL_MS;
-            self.battery = self.power.as_ref().and_then(|p| p.battery());
+            self.battery = self.power.as_ref().and_then(omega_power::Power::battery);
             if let Some(b) = self.battery {
                 self.on_battery(b);
             }
@@ -2529,7 +2531,7 @@ impl App {
             Phase::Polaroids { .. } => {
                 let bar = omega_ui::kit::action::TALL * omega_ui::SPRITE_PX;
                 self.hud
-                    .draw_above(self.now(), out_h().saturating_sub(bar) as f32, out)
+                    .draw_above(self.now(), out_h().saturating_sub(bar) as f32, out);
             }
             _ => self.hud.draw_at(self.now(), self.top_bar_reach(), out),
         }
@@ -3365,8 +3367,7 @@ pub(crate) fn backdrop_under(phase: &Phase) -> bool {
 fn system_secs() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_secs() as i64)
 }
 
 fn free_stamp(ring: &StateRing, now: i64) -> String {

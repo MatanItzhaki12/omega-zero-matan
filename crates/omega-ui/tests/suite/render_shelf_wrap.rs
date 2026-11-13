@@ -53,7 +53,7 @@ fn frame(s: &Shelf) -> Vec<u8> {
         }
     }
     for yy in cell_h() - 3..cell_h() {
-        for xx in cell_w() / 2 - 1..cell_w() / 2 + 1 {
+        for xx in (cell_w() / 2 - 1)..=(cell_w() / 2) {
             px[(yy * cell_w() + xx) * 3..][..3].copy_from_slice(&[255, 255, 255]);
         }
     }
@@ -127,9 +127,9 @@ fn double_tap(n: usize, start: usize, way: i32, gap: usize, frames: usize) -> Ru
     s.select(start);
     let press = |s: &mut Shelf| {
         if way > 0 {
-            s.right()
+            s.right();
         } else {
-            s.left()
+            s.left();
         }
     };
     press(&mut s);

@@ -16,7 +16,7 @@ fn atomic_write_leaves_no_partial_file_and_no_temp_behind() {
     assert_eq!(std::fs::read(&p).unwrap().len(), 4_000_000);
     let strays: Vec<_> = std::fs::read_dir(d.path())
         .unwrap()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|e| e.file_name() != "x.bin")
         .collect();
     assert!(strays.is_empty(), "temp files left behind: {strays:?}");

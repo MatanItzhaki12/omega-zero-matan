@@ -263,7 +263,7 @@ fn a_deletes_the_save_shown_and_the_switcher_shows_the_next() {
         .exists());
     assert_eq!(a.toast(), Some(omega_ui::Toast::StateDeleted));
     assert!(matches!(a.phase(), Phase::Polaroids { .. }));
-    assert_eq!(a.polaroids().map(|p| p.dots()), Some((1, 0)));
+    assert_eq!(a.polaroids().map(omega_ui::Polaroids::dots), Some((1, 0)));
 
     // the last one gone, the game is back
     a.apply(Action::GbaDown(Btn::X));

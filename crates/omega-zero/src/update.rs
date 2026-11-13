@@ -17,6 +17,7 @@
 //! The work runs on a thread of its own, through `curl`, as the label downloads do; the row
 //! reads where it stands each frame.
 
+use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -634,7 +635,7 @@ pub fn write_installed(root: &Path, manifest: &Manifest) -> std::io::Result<()> 
     let mut record = String::new();
     for f in &manifest.files {
         if let Some((size, mtime)) = stamp(&root.join(&f.path)) {
-            record += &format!("{} {size} {mtime} {}\n", f.sha, f.path);
+            let _ = writeln!(record, "{} {size} {mtime} {}", f.sha, f.path);
         }
     }
     let fresh = root.join(format!("{INSTALLED}.download"));
@@ -935,7 +936,7 @@ mod tests {
         for (said, kept) in [
             (Update::Failed("CARD FULL"), Update::Idle),
             (Update::Latest, Update::Idle),
-            (found.clone(), found.clone()),
+            (found.clone(), found),
             (
                 Update::Downloading("2.2.0".into()),
                 Update::Downloading("2.2.0".into()),

@@ -140,7 +140,7 @@ impl CartDive<'_> {
         match (self.face, self.stack, self.mesh) {
             (Some(_), Some(stack), _) => match STACK_DIVE {
                 StackDive::Whole => {
-                    disc::push_stack(out, (x, y, cw, ch), &stack, [1.0; 4], 0.0, pose.yaw)
+                    disc::push_stack(out, (x, y, cw, ch), &stack, [1.0; 4], 0.0, pose.yaw);
                 }
                 // the discs behind the first stay where the stack came to, at the top of its
                 // rise, and go dark with the shelf behind them

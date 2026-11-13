@@ -145,7 +145,7 @@ pub fn refresh(card: &Path) {
     let mount = Path::new(MOUNT);
     match panel_size(mount) {
         None => {
-            crate::log!("bootlogo: no logo on {device} to size ours by, leaving it alone")
+            crate::log!("bootlogo: no logo on {device} to size ours by, leaving it alone");
         }
         Some(size) => match choose(&system, size).map(|p| (fs::read(&p), p)) {
             None => crate::log!(
@@ -156,7 +156,7 @@ pub fn refresh(card: &Path) {
             Some((Err(e), p)) => crate::log!("bootlogo: {}: {e}", p.display()),
             Some((Ok(logo), p)) => match install(&logo, mount) {
                 Ok(Outcome::Installed) => {
-                    crate::log!("bootlogo: installed {}", p.display())
+                    crate::log!("bootlogo: installed {}", p.display());
                 }
                 Ok(Outcome::Same) => {}
                 Ok(other) => crate::log!("bootlogo: {}: {other:?}", p.display()),

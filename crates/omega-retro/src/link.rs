@@ -44,7 +44,9 @@ struct LinkState {
 }
 
 fn lock(queue: &Mutex<VecDeque<Vec<u8>>>) -> MutexGuard<'_, VecDeque<Vec<u8>>> {
-    queue.lock().unwrap_or_else(|e| e.into_inner())
+    queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 impl Link {
@@ -106,7 +108,7 @@ mod tests {
         poison(&link, |s| &s.inbound);
         poison(&link, |s| &s.outbound);
 
-        let worker = link.clone();
+        let worker = link;
         let frame = std::thread::spawn(move || {
             let got = worker.take_inbound();
             worker.push_outbound(b"this frame's traffic".to_vec());

@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -157,7 +157,7 @@ impl TcpLink {
         });
 
         std::thread::spawn(move || {
-            for out in wrx.iter() {
+            for out in &wrx {
                 match out {
                     Out::Packet(buf) => {
                         let Ok(len) = u16::try_from(buf.len()) else {
@@ -217,10 +217,7 @@ impl LinkChannel for TcpLink {
     }
 
     fn try_recv(&mut self) -> Option<Vec<u8>> {
-        match self.inbox.try_recv() {
-            Ok(p) => Some(p),
-            Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => None,
-        }
+        self.inbox.try_recv().ok()
     }
 
     fn is_closed(&self) -> bool {

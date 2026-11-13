@@ -60,7 +60,8 @@ struct Kept {
 static KEPT: Mutex<Option<Kept>> = Mutex::new(None);
 
 fn kept() -> std::sync::MutexGuard<'static, Option<Kept>> {
-    KEPT.lock().unwrap_or_else(|e| e.into_inner())
+    KEPT.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Loads gpSP at `path` for good and keeps room beside it for its cache: best done as early as
@@ -339,7 +340,9 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn room_is_kept_beside_the_code_and_let_go_for_the_cache() {
-        let _turn = MAPPING.lock().unwrap_or_else(|e| e.into_inner());
+        let _turn = MAPPING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let near = room_is_kept_beside_the_code_and_let_go_for_the_cache as fn() as usize;
         let room = reserve(near).expect("no room beside the test's code");
         assert!(room.abs_diff(near) <= ROOM_TRIES / 2 * STEP + STEP);
@@ -364,7 +367,9 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn with_the_gaps_filled_a_hint_near_the_code_lands_in_the_room_or_far_off() {
-        let _turn = MAPPING.lock().unwrap_or_else(|e| e.into_inner());
+        let _turn = MAPPING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let near =
             with_the_gaps_filled_a_hint_near_the_code_lands_in_the_room_or_far_off as fn() as usize;
         let room = reserve(near).expect("no room beside the test's code");

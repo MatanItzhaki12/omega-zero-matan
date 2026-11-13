@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
@@ -415,13 +416,14 @@ fn the_key_build_rs_masks_reads_back() {
     let masked: String = "devid"
         .bytes()
         .enumerate()
-        .map(|(i, b)| {
-            format!(
+        .fold(String::new(), |mut out, (i, b)| {
+            let _ = write!(
+                out,
                 "{:02x}",
                 b ^ 0x5a_u8.wrapping_add((i as u8).wrapping_mul(31))
-            )
-        })
-        .collect();
+            );
+            out
+        });
     assert_eq!(
         omega_zero::label_sync::unmask(&masked).as_deref(),
         Some("devid")
@@ -482,7 +484,7 @@ fn every_disc_with_no_label_of_its_own_is_wanted() {
     let labelled_lone = cart(
         Platform::Ps1,
         "Vagrant Story (USA)",
-        lone.clone(),
+        lone,
         Some(root.join("Labels/PS1/Vagrant Story (USA).png")),
     );
     touch(&root.join("Labels/PS1/Vagrant Story (USA).png"), b"png");
@@ -535,7 +537,7 @@ fn every_disc_with_no_label_of_its_own_is_wanted() {
     touch(&disc_label(root, &discs[0]), b"png");
     let again = wants(Some(root), std::slice::from_ref(&game));
     assert_eq!(again.iter().map(|w| w.disc).collect::<Vec<_>>(), [0, 2]);
-    let mut shelved = game.clone();
+    let mut shelved = game;
     shelved.label = Some(disc_label(root, &discs[0]));
     let again = wants(Some(root), std::slice::from_ref(&shelved));
     assert_eq!(again.iter().map(|w| w.disc).collect::<Vec<_>>(), [2]);
@@ -658,7 +660,7 @@ fn a_disc_is_asked_about_by_its_cue_sheet_then_its_serial_then_its_name_never_re
         [Lookup {
             file_name: "Ape Escape (USA).chd".into(),
             size: 200 * 1024,
-            ..named.clone()
+            ..named
         }]
     );
 

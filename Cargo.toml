@@ -15,6 +15,35 @@ license = "GPL-3.0-or-later"
 dbg_macro = "warn"
 todo = "warn"
 unimplemented = "warn"
+# Work done for nothing on a handheld's four small cores: a copy never used, a default built
+# when it is not taken, a collection made only to be walked, a string grown a format at a time.
+redundant_clone = "warn"
+or_fun_call = "warn"
+needless_collect = "warn"
+format_push_string = "warn"
+format_collect = "warn"
+assigning_clones = "warn"
+cloned_instead_of_copied = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+stable_sort_primitive = "warn"
+# What can go wrong at the edges: an Instant taken from another that can panic, a midpoint
+# that can overflow, a test left ignored with no word why.
+unchecked_time_subtraction = "warn"
+manual_midpoint = "warn"
+ignore_without_reason = "warn"
+# Read the way the rest is written.
+semicolon_if_nothing_returned = "warn"
+redundant_closure_for_method_calls = "warn"
+map_unwrap_or = "warn"
+unnested_or_patterns = "warn"
+explicit_iter_loop = "warn"
+ignored_unit_patterns = "warn"
+needless_raw_string_hashes = "warn"
+range_plus_one = "warn"
+equatable_if_let = "warn"
+flat_map_option = "warn"
+needless_for_each = "warn"
 
 [workspace.dependencies]
 lz4_flex = { version = "0.11", default-features = false, features = ["std"] }

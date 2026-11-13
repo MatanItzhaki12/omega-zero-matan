@@ -159,9 +159,11 @@ pub struct Frontend {
 /// whether the cart wears a label scan, which the label workers draw it in after.
 fn boot_faces(carts: &[&Cart]) -> Vec<(CartFace, bool)> {
     let face = |c: &Cart| (generated_face(c), wears_label(c));
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
     let chunk = carts.len().div_ceil(threads).max(1);
     std::thread::scope(|s| {
+        // every part spawned before any is joined, so they run side by side
+        #[allow(clippy::needless_collect)]
         let parts: Vec<_> = carts
             .chunks(chunk)
             .map(|part| s.spawn(move || part.iter().map(|c| face(c)).collect::<Vec<_>>()))
@@ -557,7 +559,7 @@ impl Frontend {
                 self.overlays.len() - 1
             }
         };
-        let root = self.session.app().root().map(|r| r.to_path_buf());
+        let root = self.session.app().root().map(std::path::Path::to_path_buf);
         let o = &mut self.overlays[at];
         let face = o.face.as_ref()?;
         let key = picture.map(|v| v.round() as i32);

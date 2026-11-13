@@ -99,7 +99,7 @@ fn the_ring_holds_enough_to_ride_out_a_late_frame() {
 fn a_muted_or_paused_core_does_not_block_on_audio() {
     let r = std::sync::Arc::new(Ring::new(64));
     r.set_muted(true);
-    let w = r.clone();
+    let w = r;
     let h = std::thread::spawn(move || w.push_blocking(&[7i16; 4096]));
     std::thread::sleep(std::time::Duration::from_millis(50));
     assert!(h.is_finished(), "a muted sink blocked the emulator thread");

@@ -203,7 +203,7 @@ impl ClockPicker {
             Field::Minute => self.minute = wrap(self.minute + by, 0, 59),
             Field::Offset => {
                 self.offset_min = (self.offset_min + by * OFFSET_STEP)
-                    .clamp(i64::from(UTC_OFFSET_MIN), i64::from(UTC_OFFSET_MAX))
+                    .clamp(i64::from(UTC_OFFSET_MIN), i64::from(UTC_OFFSET_MAX));
             }
         }
         self.day = self.day.min(days_in_month(self.year, self.month));

@@ -438,7 +438,7 @@ impl EmuHandle {
         self.shared
             .swapped
             .lock()
-            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
     }
 
@@ -455,14 +455,22 @@ impl EmuHandle {
         self.shared
             .present_ns
             .store(present.as_nanos() as u64, Ordering::Relaxed);
-        let mut clock = self.shared.clock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut clock = self
+            .shared
+            .clock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         clock.tick += 1;
         self.shared.clocked.notify_all();
     }
 
     pub fn wait_frame(&self, timeout: Duration) -> bool {
         let until = Instant::now() + timeout;
-        let mut clock = self.shared.clock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut clock = self
+            .shared
+            .clock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         loop {
             if !self.locked() {
                 return false;
@@ -653,7 +661,10 @@ fn request(cmds: &Sender<Cmd>, shared: &Shared, cmd: Cmd) -> bool {
         return false;
     }
     shared.requested.store(true, Ordering::Release);
-    let _clock = shared.clock.lock().unwrap_or_else(|e| e.into_inner());
+    let _clock = shared
+        .clock
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     shared.clocked.notify_all();
     true
 }
@@ -671,7 +682,10 @@ impl Drop for EmuHandle {
     fn drop(&mut self) {
         self.shared.stop.store(true, Ordering::Relaxed);
         if let Some(join) = self.join.take() {
-            CLOSING.lock().unwrap_or_else(|e| e.into_inner()).push(join);
+            CLOSING
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(join);
         }
     }
 }
@@ -682,7 +696,11 @@ static CLOSING: Mutex<Vec<JoinHandle<()>>> = Mutex::new(Vec::new());
 /// Waits for every core an emulator's thread is closing to be closed: before another opens,
 /// and before the handheld powers off or restarts.
 pub fn wait_closed() {
-    let closing = std::mem::take(&mut *CLOSING.lock().unwrap_or_else(|e| e.into_inner()));
+    let closing = std::mem::take(
+        &mut *CLOSING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    );
     for join in closing {
         let _ = join.join();
     }
@@ -805,7 +823,7 @@ impl Worker {
             .then(|| RewindThread::spawn(REWIND_BYTES));
         let mut since_snapshot = 0;
         let mut cost = FrameCost::seed();
-        let mut post_cost = PRESENT - FAST_TARGET;
+        let mut post_cost = PRESENT.checked_sub(FAST_TARGET).unwrap();
         let mut fast_span: Option<(Instant, Duration)> = None;
         let mut deadline = Instant::now();
         let mut served = 0u64;
@@ -852,7 +870,7 @@ impl Worker {
                                         t.send(NETPACKET_RELIABLE, &cable::ready_packet());
                                     }
                                     Err(e) => {
-                                        crate::log!("cable: the state was refused: {e}")
+                                        crate::log!("cable: the state was refused: {e}");
                                     }
                                 }
                             }
@@ -1265,7 +1283,11 @@ impl Worker {
                 let _ = reply.send(core.save_ram());
             }
             Cmd::Thumb(reply) => {
-                let gpu = self.gpu.borrow_mut().as_mut().and_then(|g| g.last_pixels());
+                let gpu = self
+                    .gpu
+                    .borrow_mut()
+                    .as_mut()
+                    .and_then(super::gpu_core::GpuCore::last_pixels);
                 let _ = reply.send(match gpu {
                     Some((px, size)) => crate::thumb::png(&px, size),
                     None => crate::thumb::png(core.video_xrgb8888(), core.video_size()),
@@ -1315,7 +1337,7 @@ impl Worker {
                         .shared
                         .swapped
                         .lock()
-                        .unwrap_or_else(|e| e.into_inner()) = Some((index, path));
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((index, path));
                 }
             }
             Cmd::EndLink => {
@@ -1335,7 +1357,11 @@ impl Worker {
     }
 
     fn frame_done(&self, served: u64) {
-        let mut clock = self.shared.clock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut clock = self
+            .shared
+            .clock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if clock.done < served {
             clock.done = served;
             self.shared.clocked.notify_all();
@@ -1346,12 +1372,16 @@ impl Worker {
         self.shared
             .clock
             .lock()
-            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .tick
     }
 
     fn next_tick(&self, served: u64, until: Instant) -> Wait {
-        let mut clock = self.shared.clock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut clock = self
+            .shared
+            .clock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         loop {
             if clock.tick > served {
                 return Wait::Tick(clock.tick);

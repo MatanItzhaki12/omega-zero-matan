@@ -693,9 +693,9 @@ fn the_alert_is_a_sprite_in_the_palettes_bright_frame_colour() {
                 inks.push([p[0], p[1], p[2]]);
             }
         }
-        inks.sort();
+        inks.sort_unstable();
         let mut want = vec![pal.frame_hi, pal.dark];
-        want.sort();
+        want.sort_unstable();
         assert_eq!(
             inks, want,
             "{name}: the alert is not in the frame's colours"

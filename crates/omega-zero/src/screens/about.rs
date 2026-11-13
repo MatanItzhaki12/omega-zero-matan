@@ -158,7 +158,7 @@ impl App {
                     row: SettingsRow::About,
                 },
                 Dir::Back,
-            )
+            );
         }
     }
 

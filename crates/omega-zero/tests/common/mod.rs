@@ -18,7 +18,9 @@ pub type Loaded = Arc<Mutex<Option<Vec<u8>>>>;
 static CORE_LOCK: Mutex<()> = Mutex::new(());
 
 pub fn core_lock() -> MutexGuard<'static, ()> {
-    CORE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    CORE_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 pub fn free_port() -> u16 {
@@ -61,10 +63,12 @@ pub fn hold_link_port() {
 }
 
 pub fn link_port_lock() -> LinkPort {
-    if HOLDS_LINK_PORT.with(|h| h.get()) {
+    if HOLDS_LINK_PORT.with(std::cell::Cell::get) {
         return LinkPort(None);
     }
-    let guard = LINK_PORT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let guard = LINK_PORT_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     wait_for_the_port_to_close();
     HOLDS_LINK_PORT.with(|h| h.set(true));
     LinkPort(Some(guard))
@@ -302,7 +306,7 @@ impl Snapshot for CoreSnapshot {
     }
 
     fn reset(&self) {
-        self.with(|c| c.reset());
+        self.with(omega_retro::RetroCore::reset);
     }
 }
 

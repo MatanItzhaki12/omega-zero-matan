@@ -769,7 +769,7 @@ impl App {
             OptionRow::BootAnimation => s.boot_animation = !s.boot_animation,
             OptionRow::MenuSounds => s.menu_sounds = !s.menu_sounds,
             OptionRow::SoundsVolume => {
-                s.menu_sounds_volume = volume_step(s.menu_sounds_volume, right)
+                s.menu_sounds_volume = volume_step(s.menu_sounds_volume, right);
             }
             OptionRow::MenuMusic => s.menu_music = !s.menu_music,
             OptionRow::MusicVolume => s.menu_music_volume = volume_step(s.menu_music_volume, right),
@@ -912,19 +912,19 @@ impl App {
             Action::GbaDown(Btn::Up) if !rows.is_empty() => screen.row = step(&rows, row, false),
             Action::GbaDown(Btn::Down) if !rows.is_empty() => screen.row = step(&rows, row, true),
             Action::GbaDown(btn @ (Btn::A | Btn::X | Btn::Y)) if page.is_saves() => {
-                self.saves_press(row, btn)
+                self.saves_press(row, btn);
             }
             Action::GbaDown(Btn::A) if row == OptionRow::BackupUser => {
-                self.open_typing(Step::BackupUser, self.state.backup_user.clone())
+                self.open_typing(Step::BackupUser, self.state.backup_user.clone());
             }
             Action::GbaDown(Btn::A) if row == OptionRow::BackupPassword => {
-                self.open_typing(Step::BackupPassword, self.state.backup_password.clone())
+                self.open_typing(Step::BackupPassword, self.state.backup_password.clone());
             }
             Action::GbaDown(Btn::A) if row == OptionRow::NasAddress => {
-                self.open_typing(Step::NasAddress, self.state.backup_host.clone())
+                self.open_typing(Step::NasAddress, self.state.backup_host.clone());
             }
             Action::GbaDown(Btn::A) if row == OptionRow::FolderNew => {
-                self.open_typing(Step::NewFolder, String::new())
+                self.open_typing(Step::NewFolder, String::new());
             }
             Action::GbaDown(Btn::A)
                 if matches!(
@@ -940,7 +940,7 @@ impl App {
                         | OptionRow::FolderItem(_)
                 ) =>
             {
-                self.backup_press(row)
+                self.backup_press(row);
             }
             Action::GbaDown(Btn::B) if page == OptionsPage::Folder && self.folder_back() => {}
             Action::GbaDown(Btn::A) if row == OptionRow::Account => self.open_sign_in(),
@@ -958,7 +958,7 @@ impl App {
                 self.go(
                     Phase::Options(OptionsScreen::new(OptionsPage::Emulators)),
                     Dir::Deeper,
-                )
+                );
             }
             Action::GbaDown(Btn::A) => match row {
                 OptionRow::Switched(platform) => self.unswitch_games(platform),
@@ -973,7 +973,7 @@ impl App {
                     Some(link) => crate::bluetooth_screen::BluetoothScreen::on(&link.mac),
                     None => crate::bluetooth_screen::BluetoothScreen::default(),
                 };
-                self.go(Phase::Bluetooth(screen), Dir::Back)
+                self.go(Phase::Bluetooth(screen), Dir::Back);
             }
             Action::GbaDown(Btn::B) | Action::QuickMenu => match page.parent() {
                 Some((parent, row)) => self.go(

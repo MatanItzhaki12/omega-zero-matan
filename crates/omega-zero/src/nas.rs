@@ -293,6 +293,8 @@ pub fn answering(hosts: &[Ipv4Addr], wait: Duration) -> Vec<Ipv4Addr> {
 }
 
 fn answering_on(hosts: &[Ipv4Addr], port: u16, wait: Duration) -> Vec<Ipv4Addr> {
+    // every host asked before any answer is waited on, so they are asked side by side
+    #[allow(clippy::needless_collect)]
     let asks: Vec<_> = hosts
         .iter()
         .map(|&host| {

@@ -133,7 +133,7 @@ impl StateRing {
             return Vec::new();
         };
         let mut names: Vec<String> = dir
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter_map(|e| {
                 let path = e.path();
                 (path.extension().and_then(|x| x.to_str()) == Some(STATE_EXT))

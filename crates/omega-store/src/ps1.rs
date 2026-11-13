@@ -44,7 +44,7 @@ pub fn discs(path: &Path) -> Vec<PathBuf> {
     let Ok(text) = std::fs::read_to_string(path) else {
         return Vec::new();
     };
-    let dir = path.parent().unwrap_or(Path::new(""));
+    let dir = path.parent().unwrap_or_else(|| Path::new(""));
     text.lines()
         .map(|line| line.trim().trim_start_matches('\u{feff}'))
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
@@ -101,7 +101,7 @@ pub fn games(root: &Path, dir: &Path) -> std::io::Result<Vec<Game>> {
         match disc_tag(&stem) {
             None => out.push(Game { stem, rom: disc }),
             Some((base, n)) => {
-                let folder = disc.parent().unwrap_or(Path::new("")).to_path_buf();
+                let folder = disc.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
                 let kind = ext_of(&disc);
                 sets.entry((folder, base.to_lowercase(), kind))
                     .or_insert_with(|| (base, Vec::new()))
@@ -344,7 +344,7 @@ fn cue_serial(cue: &Path) -> Option<String> {
         .read_to_string(&mut text)
         .ok()?;
     let (file, track) = first_data_track(&text)?;
-    let image = cue.parent().unwrap_or(Path::new("")).join(file);
+    let image = cue.parent().unwrap_or_else(|| Path::new("")).join(file);
     image_serial(&image, track)
 }
 

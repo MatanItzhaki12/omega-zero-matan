@@ -105,7 +105,7 @@ fn parse(script: &str) -> Vec<Step> {
         match words.as_slice() {
             [] => {}
             ["wait", ..] => steps.push(Step::Wait(n(1, 1))),
-            ["tap", b, ..] | ["hold", b, ..] => {
+            ["tap" | "hold", b, ..] => {
                 steps.push(Step::Down(btn(b)));
                 steps.push(Step::Wait(n(2, 6)));
                 steps.push(Step::Up(btn(b)));

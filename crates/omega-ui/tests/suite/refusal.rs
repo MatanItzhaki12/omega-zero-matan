@@ -35,7 +35,7 @@ fn the_shake_moves_a_whole_art_pixel_at_a_time() {
             seen.push(x as i32);
         }
     }
-    seen.sort();
+    seen.sort_unstable();
     assert_eq!(
         seen,
         [-6, -4, -2, 0, 2, 4, 6],

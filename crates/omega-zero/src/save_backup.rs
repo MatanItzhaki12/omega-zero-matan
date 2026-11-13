@@ -16,6 +16,7 @@
 //! pass that cannot reach the NAS leaves the list as it was, and the next one tries again.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
@@ -137,7 +138,7 @@ impl List {
         let mut text = format!("target\t{}\n", self.target);
         for path in paths {
             let k = self.files[path];
-            text.push_str(&format!("{path}\t{}\t{:08x}\n", k.size, k.crc));
+            let _ = writeln!(text, "{path}\t{}\t{:08x}", k.size, k.crc);
         }
         let at = root.join(LIST);
         if let Some(dir) = at.parent() {
@@ -235,7 +236,7 @@ impl SaveBackup {
             .name("omega-backup".into())
             .spawn(move || {
                 crate::spawn::stand_back();
-                run(&root, target, &rx, &shared)
+                run(&root, target, &rx, &shared);
             });
         SaveBackup { tx, status }
     }
@@ -351,7 +352,7 @@ pub fn pass_on(
         set(&|s| {
             s.fail = None;
             s.offline = false;
-            s.done_at.get_or_insert(now_secs());
+            s.done_at.get_or_insert_with(now_secs);
         });
         return 0;
     }
@@ -727,7 +728,7 @@ mod tests {
         let d = psp_save("Monster Hunter Freedom Unite", b"");
         assert_eq!(d.name(), "Monster Hunter Freedom Unite");
         assert_eq!(d.system(), "PSP");
-        let mut bare = d.clone();
+        let mut bare = d;
         bare.files.retain(|(rel, _)| rel.ends_with("DATA.BIN"));
         assert_eq!(bare.name(), "ULUS10391DATA00");
     }

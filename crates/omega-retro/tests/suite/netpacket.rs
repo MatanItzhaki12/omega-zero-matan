@@ -103,7 +103,9 @@ fn a_core_that_never_registers_netpacket_hands_back_an_inert_link() {
 }
 
 fn lock() -> std::sync::MutexGuard<'static, ()> {
-    CORE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    CORE_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn mgba() -> Option<LibretroCore> {

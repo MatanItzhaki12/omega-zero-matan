@@ -179,7 +179,7 @@ impl Drop for Active<'_> {
 }
 
 unsafe fn with_host<R>(f: impl FnOnce(&mut Host) -> R) -> Option<R> {
-    let p = ACTIVE.with(|a| a.get());
+    let p = ACTIVE.with(std::cell::Cell::get);
     if p.is_null() {
         return None;
     }
@@ -563,7 +563,7 @@ unsafe extern "C" fn audio_batch(data: *const i16, frames: usize) -> usize {
     if !data.is_null() {
         with_host(|h| {
             h.audio
-                .extend_from_slice(std::slice::from_raw_parts(data, frames * 2))
+                .extend_from_slice(std::slice::from_raw_parts(data, frames * 2));
         });
     }
     frames
@@ -704,7 +704,10 @@ unsafe fn disc_file(disk: Option<DiskControlExtCallback>, index: usize) -> Optio
 
 impl LibretroCore {
     pub fn open(dylib: &Path) -> Result<Self, CoreError> {
-        let dir = dylib.parent().unwrap_or(Path::new(".")).to_path_buf();
+        let dir = dylib
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf();
         Self::open_with(dylib, &dir, &dir)
     }
 
@@ -743,10 +746,10 @@ impl LibretroCore {
         if !self.host.declared.is_empty() {
             match self.host.declared.get(key) {
                 None => {
-                    eprintln!("omega-retro: core declares no option {key:?}, setting it anyway")
+                    eprintln!("omega-retro: core declares no option {key:?}, setting it anyway");
                 }
                 Some(values) if !values.is_empty() && !values.iter().any(|v| v == value) => {
-                    eprintln!("omega-retro: core declares {key:?} as {values:?}, not {value:?}")
+                    eprintln!("omega-retro: core declares {key:?} as {values:?}, not {value:?}");
                 }
                 Some(_) => {}
             }
@@ -775,7 +778,7 @@ impl LibretroCore {
             .options
             .get(key)
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
     }
 
     fn system_info(&self) -> SystemInfo {
@@ -1161,7 +1164,7 @@ impl RetroCore for LibretroCore {
                 if let Some(serial) = serial {
                     serial.reset();
                 }
-            })
+            });
         };
     }
 
@@ -1740,7 +1743,7 @@ mod tests {
                     packet.as_ptr() as *const c_void,
                     packet.len(),
                     0,
-                )
+                );
             };
         }
 
@@ -1842,7 +1845,7 @@ mod tests {
             assert!(
                 r.borrow().is_empty(),
                 "a packet must not be delivered with no peer to tag it"
-            )
+            );
         });
         assert_eq!(
             host.net.take_inbound().as_deref(),
@@ -1986,14 +1989,14 @@ mod tests {
             assert!(
                 r.borrow().is_empty(),
                 "a packet must not be delivered with no peer to tag it"
-            )
+            );
         });
         TEST_POLLS.with(|p| {
             assert_eq!(
                 p.get(),
                 0,
                 "must not even poll with no peer to tag a receive"
-            )
+            );
         });
         assert_eq!(
             host.net.take_inbound().as_deref(),
@@ -2139,7 +2142,7 @@ mod tests {
                 c.get(),
                 Some(1),
                 "connected was not called with the peer's id"
-            )
+            );
         });
     }
 
@@ -2212,7 +2215,7 @@ mod tests {
                 c.get(),
                 Some(0),
                 "disconnected was not called with the peer's id"
-            )
+            );
         });
     }
 
@@ -2317,7 +2320,7 @@ mod tests {
                 GBA_W,
                 GBA_H,
                 GBA_W as usize * 4,
-            )
+            );
         };
 
         assert_eq!(unsafe { with_host(|h| h.video.clone()) }.unwrap(), frame);
@@ -2420,7 +2423,7 @@ mod tests {
                     w as c_uint,
                     h as c_uint,
                     w * 4,
-                )
+                );
             };
             let (sw, sh, px) = unsafe { with_host(|h| shown(h)) }.unwrap();
             assert_eq!((sw as usize, sh as usize), (w, h));
@@ -2457,7 +2460,7 @@ mod tests {
                     w as c_uint,
                     h as c_uint,
                     w * 4,
-                )
+                );
             };
         }
         assert_eq!(host.video_size, (MAX_FRAME_W, MAX_FRAME_H));

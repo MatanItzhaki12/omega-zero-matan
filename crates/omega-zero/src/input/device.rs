@@ -80,10 +80,10 @@ fn quicken_poll(sys: &Path, node: &Path) {
 }
 
 fn read_node(node: &Path, queue: &Mutex<Vec<RawEvent>>, trace: Option<&Trace>) {
-    let label = node
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| node.display().to_string());
+    let label = node.file_name().map_or_else(
+        || node.display().to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
     let mut hat = Hat::default();
     let mut file = match File::open(node) {
         Ok(f) => f,
@@ -121,7 +121,7 @@ fn read_node(node: &Path, queue: &Mutex<Vec<RawEvent>>, trace: Option<&Trace>) {
         }
         queue
             .lock()
-            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .extend(events);
     }
 }
@@ -157,7 +157,10 @@ impl Trace {
             return;
         }
         let line = trace::event_line(node, self.began.elapsed().as_millis(), ev);
-        let mut out = self.out.lock().unwrap_or_else(|e| e.into_inner());
+        let mut out = self
+            .out
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = writeln!(out, "{line}");
         let _ = out.flush();
     }
@@ -176,7 +179,12 @@ impl DeviceInput {
 
 impl InputSource for DeviceInput {
     fn poll(&mut self, now: Millis) -> Vec<RawEvent> {
-        let mut out = std::mem::take(&mut *self.pending.lock().unwrap_or_else(|e| e.into_inner()));
+        let mut out = std::mem::take(
+            &mut *self
+                .pending
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         if self.hall.is_some() && now >= self.next_lid_poll {
             self.next_lid_poll = now + LID_POLL_MS;
             if let Some(shut) = self.read_lid() {
@@ -197,7 +205,7 @@ impl InputSource for DeviceInput {
 fn find_hall(psy: &Path) -> Option<PathBuf> {
     let mut supplies: Vec<PathBuf> = std::fs::read_dir(psy)
         .ok()?
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.path())
         .collect();
     supplies.sort();

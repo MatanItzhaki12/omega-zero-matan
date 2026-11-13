@@ -29,7 +29,7 @@ impl App {
             keys: t.keys,
             faces: self.keyboard_faces.as_ref(),
         }
-        .draw(out)
+        .draw(out);
     }
 }
 

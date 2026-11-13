@@ -423,7 +423,10 @@ fn walls(
             continue;
         }
         let normal = [dy / len, -dx / len, 0.0];
-        let (mx, my) = ((a.0 + b.0) / 2.0 - half, (a.1 + b.1) / 2.0 - half);
+        let (mx, my) = (
+            f32::midpoint(a.0, b.0) - half,
+            f32::midpoint(a.1, b.1) - half,
+        );
         let out_to = sample / R * half / (mx * mx + my * my).sqrt();
         let uv = [
             cell((half + mx * out_to) / UNITS),
@@ -463,11 +466,19 @@ fn layer_at(disc: usize, discs: usize, z: f32, up: f32) -> Vec<MeshVertex> {
         &outline().0,
         z,
         up,
-        (EDGE + R) / 2.0,
+        f32::midpoint(EDGE, R),
         &cell,
         shade,
     );
-    walls(&mut out, &hole(), z, up, (HOLE + LIP) / 2.0, &cell, shade);
+    walls(
+        &mut out,
+        &hole(),
+        z,
+        up,
+        f32::midpoint(HOLE, LIP),
+        &cell,
+        shade,
+    );
     let at = |c: usize, r: usize| {
         let (u, v) = (c as f32 / FACE_CELLS as f32, r as f32 / FACE_CELLS as f32);
         MeshVertex {

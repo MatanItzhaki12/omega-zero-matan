@@ -124,7 +124,7 @@ static RESOLVED: Mutex<Option<(String, String)>> = Mutex::new(None);
 static AGENT: Mutex<String> = Mutex::new(String::new());
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(|e| e.into_inner())
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Writes `what` to the log, with the time since omega-zero started.
@@ -172,7 +172,9 @@ fn answer(id: u32, status: c_int, body: Vec<u8>) {
                 {
                     let mut answers = lock(&ANSWERS);
                     while answers.is_empty() {
-                        answers = WAKE.wait(answers).unwrap_or_else(|e| e.into_inner());
+                        answers = WAKE
+                            .wait(answers)
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                     }
                 }
                 with_client(deliver);

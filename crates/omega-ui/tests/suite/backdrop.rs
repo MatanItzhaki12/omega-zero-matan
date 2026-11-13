@@ -131,7 +131,7 @@ fn every_colour_has_a_name_and_stays_dark_enough_for_a_label() {
         .map(backdrop_colour_name)
         .collect();
     assert_eq!(names[0], "Night");
-    names.sort();
+    names.sort_unstable();
     names.dedup();
     assert_eq!(
         names.len(),

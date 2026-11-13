@@ -25,7 +25,7 @@ fn when_listening<T>(mut connect: impl FnMut() -> std::io::Result<T>) -> std::io
                 if e.kind() == std::io::ErrorKind::ConnectionRefused
                     && std::time::Instant::now() < deadline =>
             {
-                std::thread::sleep(std::time::Duration::from_millis(20))
+                std::thread::sleep(std::time::Duration::from_millis(20));
             }
             other => return other,
         }

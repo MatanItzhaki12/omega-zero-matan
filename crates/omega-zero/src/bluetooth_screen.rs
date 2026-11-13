@@ -599,7 +599,7 @@ impl BluetoothScreen {
         let at = rows
             .iter()
             .position(|r| *r == self.sel)
-            .unwrap_or(self.at.min(rows.len() - 1));
+            .unwrap_or_else(|| self.at.min(rows.len() - 1));
         self.sel = rows[at].clone();
         self.at = at;
         let in_view = networks_shown(1, bt.notes().len());

@@ -214,7 +214,10 @@ impl App {
             return;
         }
         self.headphones_at = now + HEADPHONES_POLL_MS;
-        let raw = self.power.as_ref().is_some_and(|p| p.headphones());
+        let raw = self
+            .power
+            .as_ref()
+            .is_some_and(omega_power::Power::headphones);
         let doubt = self.jack.read(raw);
         if doubt == self.jack_doubt {
             return;

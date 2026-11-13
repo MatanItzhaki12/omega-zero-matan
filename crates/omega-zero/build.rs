@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::process::Command;
 
 fn git(args: &[&str]) -> Option<String> {
@@ -39,8 +40,7 @@ fn main() {
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "unknown".into());
+        .map_or_else(|| "unknown".into(), |s| s.trim().to_string());
 
     println!("cargo:rustc-env=OMEGA_GIT_HASH={hash}");
     println!("cargo:rustc-env=OMEGA_GIT_DIRTY={}", u8::from(dirty));
@@ -53,13 +53,14 @@ fn main() {
 fn mask(text: &str) -> String {
     text.bytes()
         .enumerate()
-        .map(|(i, b)| {
-            format!(
+        .fold(String::new(), |mut out, (i, b)| {
+            let _ = write!(
+                out,
                 "{:02x}",
                 b ^ (0x5a_u8.wrapping_add((i as u8).wrapping_mul(31)))
-            )
+            );
+            out
         })
-        .collect()
 }
 
 /// ScreenScraper's key for omega-zero, from the environment of whoever builds it, masked so it is

@@ -139,7 +139,7 @@ pub fn index(root: &Path, games: &[Game]) -> Vec<(usize, u64)> {
         std::fs::read_dir(dir)
             .into_iter()
             .flatten()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .collect::<Vec<_>>()
     };
     for &p in &platforms {
@@ -220,7 +220,7 @@ pub fn save_files(root: &Path, game: &Game) -> Vec<String> {
         let Ok(dir) = std::fs::read_dir(saves.join(PSP_SAVES)) else {
             return out;
         };
-        for entry in dir.filter_map(|e| e.ok()) {
+        for entry in dir.filter_map(std::result::Result::ok) {
             let folder = entry.file_name().to_string_lossy().into_owned();
             let ours = !game.code.is_empty()
                 && omega_store::psp::save_id(&folder).as_deref() == Some(game.code.as_str());
@@ -233,7 +233,7 @@ pub fn save_files(root: &Path, game: &Game) -> Vec<String> {
         let Ok(dir) = std::fs::read_dir(saves.join(system)) else {
             return out;
         };
-        for entry in dir.filter_map(|e| e.ok()) {
+        for entry in dir.filter_map(std::result::Result::ok) {
             let name = entry.file_name().to_string_lossy().into_owned();
             let Some((stem, ext)) = name.rsplit_once('.') else {
                 continue;
@@ -252,7 +252,7 @@ fn files_under(base: &Path, rel: &str, out: &mut Vec<String>) {
     let Ok(dir) = std::fs::read_dir(base.join(rel)) else {
         return;
     };
-    for entry in dir.filter_map(|e| e.ok()) {
+    for entry in dir.filter_map(std::result::Result::ok) {
         let name = entry.file_name().to_string_lossy().into_owned();
         let child = match rel {
             "" => name,
@@ -278,7 +278,7 @@ pub fn backups(root: &Path, game: &Game) -> Vec<String> {
         return Vec::new();
     };
     let mut stamps: Vec<String> = dir
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|e| e.path().is_dir())
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .filter(|s| omega_store::parse_stamp(s).is_some())

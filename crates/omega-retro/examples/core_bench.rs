@@ -82,7 +82,7 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 fn median(sorted: &[f64]) -> f64 {
     let mid = sorted.len() / 2;
     if sorted.len().is_multiple_of(2) {
-        (sorted[mid - 1] + sorted[mid]) / 2.0
+        f64::midpoint(sorted[mid - 1], sorted[mid])
     } else {
         sorted[mid]
     }
@@ -130,7 +130,7 @@ fn run(a: &Args) -> Result<(), Box<dyn Error>> {
         a.rom.display(),
         a.state
             .as_ref()
-            .map_or("none".into(), |p| p.display().to_string()),
+            .map_or_else(|| "none".into(), |p| p.display().to_string()),
         a.steps,
         if a.frameskip { "on" } else { "off" },
         a.warmup,

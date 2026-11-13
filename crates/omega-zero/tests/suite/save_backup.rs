@@ -184,11 +184,10 @@ fn lit(a: &App) -> OptionRow {
 
 fn value(a: &App, row: OptionRow) -> String {
     let v = a.options_view().expect("a panel");
-    v.lines
-        .iter()
-        .find(|(r, ..)| *r == row)
-        .map(|(_, _, v)| v.clone())
-        .unwrap_or_else(|| panic!("no {row:?} in {:?}", v.lines))
+    v.lines.iter().find(|(r, ..)| *r == row).map_or_else(
+        || panic!("no {row:?} in {:?}", v.lines),
+        |(_, _, v)| v.clone(),
+    )
 }
 
 fn down_to(a: &mut App, row: OptionRow) {
@@ -211,7 +210,7 @@ fn the_save_backup_panel_is_set_up_on_the_keyboard() {
     open_backup(&mut a);
     let v = a.options_view().unwrap();
     assert_eq!(v.title, "SAVE BACKUP");
-    let shown: Vec<(OptionRow, String, String)> = v.lines.clone();
+    let shown: Vec<(OptionRow, String, String)> = v.lines;
     assert_eq!(
         shown,
         [
@@ -314,7 +313,7 @@ fn a_folder_is_picked_on_the_nas_and_the_saves_go_there() {
     s.backup = true;
     s.backup_host = login.host.clone();
     s.backup_user = login.user.clone();
-    s.backup_password = login.password.clone();
+    s.backup_password = login.password;
     omega_store::write_app_state(d.path(), &s).unwrap();
     let mut a = boot(d.path());
     open_backup(&mut a);

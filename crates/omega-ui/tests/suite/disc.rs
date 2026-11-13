@@ -10,6 +10,7 @@ use omega_ui::{
     CartModel, DiscStack, Draw, MeshId, Pose, Shelf, StackDive, StackMeshes, TexId, BAR_H, DISC_PX,
     MOCKUP_H, STACK_DIVE, TOP_BAR_H,
 };
+use std::fmt::Write as _;
 use tempfile::TempDir;
 
 /// The selected cart sways this far either way and floats this many pixels up and down.
@@ -32,7 +33,7 @@ fn card(games: &[(&str, usize)]) -> TempDir {
         for n in 1..=*discs {
             let disc = format!("{stem} (Disc {n})");
             std::fs::write(dir.join(stem).join(format!("{disc}.cue")), "").unwrap();
-            list.push_str(&format!("{stem}/{disc}.cue\n"));
+            let _ = writeln!(list, "{stem}/{disc}.cue");
         }
         std::fs::write(dir.join(format!("{stem}.m3u")), list).unwrap();
     }
@@ -89,7 +90,10 @@ fn walls(mesh: &[MeshVertex]) -> Vec<&[MeshVertex]> {
 /// from the middle it faces: positive out, negative in.
 fn wall_place(quad: &[MeshVertex]) -> (f32, f32) {
     let (a, b) = (quad[0].xyz, quad[1].xyz);
-    let (mx, my) = ((a[0] + b[0]) / 2.0 - 0.5, (a[1] + b[1]) / 2.0 - 0.5);
+    let (mx, my) = (
+        f32::midpoint(a[0], b[0]) - 0.5,
+        f32::midpoint(a[1], b[1]) - 0.5,
+    );
     let r = (mx * mx + my * my).sqrt();
     let [nx, ny, _] = quad[0].normal;
     (r, (nx * mx + ny * my) / r)
@@ -336,7 +340,10 @@ fn each_disc_finds_its_label_wherever_its_game_is_kept() {
     let discs: Vec<_> = (1..=2)
         .map(|n| folder.join(format!("Chrono Cross (USA) (Disc {n}).cue")))
         .collect();
-    let list: String = discs.iter().map(|p| format!("{}\n", p.display())).collect();
+    let list: String = discs.iter().fold(String::new(), |mut list, p| {
+        let _ = writeln!(list, "{}", p.display());
+        list
+    });
     let playlists = d.path().join("Config/playlists/PS1");
     std::fs::create_dir_all(&playlists).unwrap();
     std::fs::write(playlists.join("Chrono Cross (USA).m3u"), list).unwrap();

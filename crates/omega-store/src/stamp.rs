@@ -5,8 +5,7 @@ const DAY: i64 = 86_400;
 pub fn stamp_now() -> String {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs() as i64);
     format_stamp(secs)
 }
 

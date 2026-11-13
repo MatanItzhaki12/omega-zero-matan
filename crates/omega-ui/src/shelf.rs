@@ -727,7 +727,7 @@ impl Shelf {
                 match self.stack_at(i) {
                     // a game on several discs is each of them, one behind the other
                     Some(stack) => {
-                        disc::push_stack(out, (x, y, w, h), &stack, colour, self.spin, pose.yaw)
+                        disc::push_stack(out, (x, y, w, h), &stack, colour, self.spin, pose.yaw);
                     }
                     None => {
                         out.push(spin::posed_cart(

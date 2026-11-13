@@ -105,13 +105,13 @@ impl Words {
 /// A list's rows in `panel`'s well, one under the other from its top, as omega-panel lays them
 /// out, the one at `lit` under the cursor.
 pub fn hold(panel: &mut PanelFace, rows: &[ViewRow], lit: Option<usize>, pal: &Palette) {
-    hold_rows(panel, rows, lit, false, pal)
+    hold_rows(panel, rows, lit, false, pal);
 }
 
 /// As [`hold`], every value kept clear of the carets' room, so those without carets line up
 /// with those that have them.
 pub fn hold_aligned(panel: &mut PanelFace, rows: &[ViewRow], lit: Option<usize>, pal: &Palette) {
-    hold_rows(panel, rows, lit, true, pal)
+    hold_rows(panel, rows, lit, true, pal);
 }
 
 fn hold_rows(

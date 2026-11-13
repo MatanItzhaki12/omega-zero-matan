@@ -449,10 +449,7 @@ fn the_screen_draws_the_panel_the_discs_and_the_bar_over_the_backdrop() {
     let (out, _) = shown.pixels(&a, "picking");
 
     assert!(
-        matches!(
-            out.first(),
-            Some(Draw::Rect { .. }) | Some(Draw::Tex { .. })
-        ),
+        matches!(out.first(), Some(Draw::Rect { .. } | Draw::Tex { .. })),
         "the backdrop is not under the screen"
     );
     assert!(

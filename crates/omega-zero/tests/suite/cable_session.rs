@@ -64,13 +64,7 @@ fn a_cable_session_steps_both_consoles() {
             first: true,
         }),
     );
-    join.begin_cable(
-        1,
-        Box::new(End {
-            wire: wire.clone(),
-            first: false,
-        }),
-    );
+    join.begin_cable(1, Box::new(End { wire, first: false }));
     host.set_speed(Speed::Normal);
     join.set_speed(Speed::Normal);
 
@@ -107,13 +101,7 @@ fn a_joiner_runs_the_hosts_machine_and_not_its_own() {
             first: true,
         }),
     );
-    join.begin_cable(
-        1,
-        Box::new(End {
-            wire: wire.clone(),
-            first: false,
-        }),
-    );
+    join.begin_cable(1, Box::new(End { wire, first: false }));
     host.set_speed(Speed::Normal);
     join.set_speed(Speed::Normal);
 
@@ -132,13 +120,7 @@ fn a_joiner_runs_the_hosts_machine_and_not_its_own() {
 fn a_peer_that_never_speaks_stalls_rather_than_guessing() {
     let wire = Arc::new(Mutex::new(Wire::default()));
     let lonely = spawn(Arc::new(Ring::new(4096)));
-    lonely.begin_cable(
-        0,
-        Box::new(End {
-            wire: wire.clone(),
-            first: true,
-        }),
-    );
+    lonely.begin_cable(0, Box::new(End { wire, first: true }));
     lonely.set_speed(Speed::Normal);
 
     let deadline = Instant::now() + Duration::from_secs(5);

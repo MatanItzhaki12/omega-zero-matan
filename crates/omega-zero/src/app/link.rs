@@ -98,7 +98,7 @@ impl App {
         match menu {
             // the keyboard over the link screen, for a row or a room's password
             GameMenu::Pick(_) | GameMenu::Rooms { .. } if self.link_typing.is_some() => {
-                self.link_typing_input(action)
+                self.link_typing_input(action);
             }
             GameMenu::Pick(role) => {
                 use crate::link_screen::LinkField;
@@ -134,7 +134,7 @@ impl App {
                     Action::GbaDown(Btn::Select) if self.via_netplay() => self.refuse(),
                     Action::GbaDown(Btn::Select) => self.switch_hardware(),
                     Action::GbaDown(Btn::Y) if self.online_possible() => {
-                        self.set_link_online(!self.going_online())
+                        self.set_link_online(!self.going_online());
                     }
                     Action::GbaDown(Btn::Y) => self.refuse(),
                     Action::GbaDown(Btn::A) if self.via_netplay() => self.pick_netplay(role),
@@ -147,13 +147,13 @@ impl App {
                 Action::GbaDown(Btn::Up) => {
                     self.game_menu = Some(GameMenu::Rooms {
                         lit: lit.saturating_sub(1),
-                    })
+                    });
                 }
                 Action::GbaDown(Btn::Down) => {
                     let last = self.online_rooms.len().saturating_sub(1);
                     self.game_menu = Some(GameMenu::Rooms {
                         lit: (lit + 1).min(last),
-                    })
+                    });
                 }
                 Action::GbaDown(Btn::Y) => self.list_rooms(),
                 Action::GbaDown(Btn::A) => match self.online_rooms.get(lit).cloned() {
@@ -186,10 +186,7 @@ impl App {
             },
             GameMenu::Linked { .. } => {}
             GameMenu::Failed { .. } => {
-                if matches!(
-                    action,
-                    Action::GbaDown(Btn::A) | Action::GbaDown(Btn::B) | Action::GameMenu
-                ) {
+                if matches!(action, Action::GbaDown(Btn::A | Btn::B) | Action::GameMenu) {
                     self.close_game_menu();
                 }
             }
@@ -344,7 +341,7 @@ impl App {
         match field {
             LinkField::Name => self.state.online_name = omega_store::online_name(&keys.text),
             LinkField::Address => {
-                self.state.online_address = omega_store::online_password(&keys.text)
+                self.state.online_address = omega_store::online_password(&keys.text);
             }
             LinkField::RoomPassword => {
                 self.join_password = keys.text;
@@ -374,7 +371,7 @@ impl App {
         match role {
             LinkRow::Host => {
                 self.online_room = None;
-                self.pick_link(role)
+                self.pick_link(role);
             }
             LinkRow::Join => match self.typed_address() {
                 Some(room) => {
@@ -454,7 +451,7 @@ impl App {
                             r.has_password,
                         )
                     });
-                    self.online_rooms = rooms
+                    self.online_rooms = rooms;
                 }
                 Err(()) => self.rooms_failed = true,
             }

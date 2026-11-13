@@ -211,7 +211,7 @@ fn fit(lightness: f64, chroma: f64, hue: f64) -> [u8; 3] {
         lo = chroma;
     } else {
         for _ in 0..30 {
-            let mid = (lo + hi) / 2.0;
+            let mid = f64::midpoint(lo, hi);
             if fits(mid) {
                 lo = mid;
             } else {

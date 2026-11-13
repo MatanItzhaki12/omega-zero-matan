@@ -314,7 +314,7 @@ impl LabelsScreen {
                 });
             }
             Action::GbaDown(Btn::Y) if self.sel == Sel::Account && !labels.working() => {
-                labels.sign_out(root)
+                labels.sign_out(root);
             }
             // A on Fetch Labels, or START on either row, starts a fetch or stops the one going
             Action::GbaDown(Btn::A) if self.sel == Sel::Sync => return fetch(labels),
