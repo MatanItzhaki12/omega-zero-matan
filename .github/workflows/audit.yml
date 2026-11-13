@@ -1,0 +1,34 @@
+name: audit
+
+# The crates in Cargo.lock checked against RustSec's advisories: on a change to the lock file,
+# and once a week for advisories published since. An advisory for a crate omega-zero-matan uses
+# fails the run, and the run's page says which and what to move to.
+on:
+  push:
+    paths: [Cargo.lock, .github/workflows/audit.yml]
+  pull_request:
+    paths: [Cargo.lock]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # cargo-audit at a version named here, built once and cached by its version
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-0.21.2
+
+      - name: Install cargo-audit
+        run: command -v cargo-audit || cargo install cargo-audit --version 0.21.2 --locked
+
+      - name: Audit the lock file
+        run: cargo audit --deny warnings

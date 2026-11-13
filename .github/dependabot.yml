@@ -1,0 +1,25 @@
+# Weekly pull requests for what the build stands on: the Rust crates (Cargo.lock) and the
+# GitHub Actions the workflows run. Minor and patch updates of the crates come together in one
+# pull request, so the week's updates are one review and one CI run.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      crates:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

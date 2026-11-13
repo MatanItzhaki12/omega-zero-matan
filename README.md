@@ -13,6 +13,13 @@ that go down into the handheld when you play them.</p>
 <a href="https://github.com/slot-cfw/slot"><b>Slot</b></a>
 </p>
 
+<p align="center">
+<a href="https://github.com/MatanItzhaki12/omega-zero-matan/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/MatanItzhaki12/omega-zero-matan?label=release"></a>
+<a href="https://github.com/MatanItzhaki12/omega-zero-matan/releases"><img alt="Latest test build" src="https://img.shields.io/github/v/release/MatanItzhaki12/omega-zero-matan?include_prereleases&amp;label=test%20build"></a>
+<a href="https://github.com/MatanItzhaki12/omega-zero-matan/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MatanItzhaki12/omega-zero-matan/actions/workflows/ci.yml/badge.svg"></a>
+<a href="https://github.com/MatanItzhaki12/omega-zero-matan/actions/workflows/audit.yml"><img alt="Audit" src="https://github.com/MatanItzhaki12/omega-zero-matan/actions/workflows/audit.yml/badge.svg"></a>
+</p>
+
 omega-zero-matan runs on [BaseOS](https://github.com/pvaibhav/BaseOS) and replaces its menu with
 a 3D shelf of your games, drawn the way a PlayStation drew 3D. Pick a cart and it slides down into
 the handheld; take it out and the game is saved where you left it. Around the shelf are the
