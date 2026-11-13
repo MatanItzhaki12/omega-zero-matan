@@ -21,14 +21,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # cargo-audit at a version named here, built once and cached by its version
+      # the newest cargo-audit, cached a week at a time: an older one cannot read the advisories
+      # RustSec writes in a newer form, and fails on the database rather than on the crates
+      - id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cargo-audit
-          key: cargo-audit-0.21.2
+          key: cargo-audit-${{ steps.week.outputs.week }}
 
       - name: Install cargo-audit
-        run: command -v cargo-audit || cargo install cargo-audit --version 0.21.2 --locked
+        run: command -v cargo-audit || cargo install cargo-audit --locked
 
       - name: Audit the lock file
         run: cargo audit --deny warnings
