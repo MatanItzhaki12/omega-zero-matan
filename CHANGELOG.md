@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Settings, set out as the games' menu is**: CONFIGS opens with **Display ›**, which holds how
+  games are drawn: Screen Filter, Game Boy Palette, Colour Correction, Frame Blending, and now
+  **Brightness** and **Blue Light Filter** as well, which were only in a game's menu or on
+  SELECT before. GAMEPLAY keeps how games play, in the games' menu's order: Fast Forward, Fast
+  Forward Sound, Rewind, Turbo Buttons, Run-Ahead, Rumble, Load State on Insert, Save State on
+  Eject, then Online Play and Emulators. The games' menu calls its page DISPLAY, and its
+  rows have the same names, notes and values as Settings'.
+- **Auto Backup keeps a set number**: OFF, KEEP 1, 3, 5 (as it starts) or 10 automatic backups
+  for each game, the oldest deleted as each new one is made, so they never pile up on the card.
+- **An update can be stopped**: X on Update puts off an update offered, until the next look for
+  one, and stops one downloading before its next file, leaving the card as it was. The row's
+  note says so.
+- Tests: the headless OpenGL surface is one at a time in a test run. Mesa drawing on many at once
+  corrupted its heap on a 28-thread host.
 - Settings › Saves is easier to find your way round:
   - SAVES lists **NAS Backup**, **Search Games** and each system with games that have anything
     saved, with how many. A system opens its games, each with how big its save is.
@@ -17,7 +31,7 @@
 - **Play time**: how long each game has been played, and when last, counted while it is on
   screen (not under its menu), shown in Saves: "Played 3 h 5 min, last 2 days ago".
 - **Auto Backup** (Saves, on to start): a game's save is backed up by itself as the game goes in,
-  on a thread of its own, and only where it changed since the newest backup. The newest five
+  on a thread of its own, and only where it changed since the newest backup. Only the newest few
   automatic backups are kept, each named with "(Auto)"; the ones kept by hand all stay.
 - **Back Up All Saves** in Saves keeps a copy of every game's save at once.
 - **X on Save States** deletes every one of a game's states, asked first: a PSP state is 40 MB.

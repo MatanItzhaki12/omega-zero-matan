@@ -165,7 +165,7 @@ impl Rig {
             self.press(Btn::Down);
             assert_ne!(
                 self.a.settings_row(),
-                Some(SettingsRow::ColourCorrection),
+                Some(SettingsRow::Display),
                 "the bar went round without reaching Labels"
             );
         }

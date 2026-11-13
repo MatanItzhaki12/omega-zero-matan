@@ -48,7 +48,15 @@ pub struct HeadlessSurface {
     get_proc_address: GetProcAddress,
     get_error: GetError,
     destroy_context: DestroyContext,
+    /// One surface at a time in the process, held for its life: see [`ONE`].
+    _one: std::sync::MutexGuard<'static, ()>,
 }
+
+/// Mesa's software OpenGL drawing on many surfaceless contexts at once, one for each test
+/// thread, corrupted its heap (`malloc(): unsorted double linked list corrupted`) on a 28-thread
+/// host; made and drawn on one at a time it never did, and the tests that draw are quick. The
+/// handheld's own surface is one, so this is the tests' only.
+static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// libEGL, opened once and never closed: Mesa keeps threads and exit handlers of its own in
 /// there, and a process that unloads it under them goes down on its way out.
@@ -67,6 +75,10 @@ unsafe fn sym<T: Copy>(lib: &Library, name: &str) -> Result<T, GfxError> {
 
 impl HeadlessSurface {
     pub fn new() -> Result<Self, GfxError> {
+        // a test that failed while it held one leaves nothing broken for the next
+        let one = ONE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let lib = egl()?;
         unsafe {
             let get_platform_display: GetPlatformDisplay = sym(lib, "eglGetPlatformDisplay")?;
@@ -147,6 +159,7 @@ impl HeadlessSurface {
                 get_proc_address: sym(lib, "eglGetProcAddress")?,
                 get_error,
                 destroy_context: sym(lib, "eglDestroyContext")?,
+                _one: one,
             })
         }
     }

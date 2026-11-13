@@ -15,6 +15,7 @@ use omega_ui::{
     SettingsFaces, SettingsGroup, SettingsRow, TexId, SPRITE_PX,
 };
 use omega_zero::app::{App, Phase};
+use omega_zero::options::OptionRow;
 use omega_zero::wifi::{Status, WifiJob, WifiJobs, WifiNews};
 use omega_zero::wifi_screen::Summary;
 use tempfile::TempDir;
@@ -60,13 +61,13 @@ fn open_at(a: &mut App, row: SettingsRow) {
 fn start_opens_settings_with_its_top_row_selected_every_time() {
     let (_d, mut a, _) = on_carousel();
     a.apply(Action::QuickMenu);
-    assert_eq!(a.settings_row(), Some(SettingsRow::ColourCorrection));
+    assert_eq!(a.settings_row(), Some(SettingsRow::Display));
     press(&mut a, Btn::Down);
     press(&mut a, Btn::Start);
     a.apply(Action::QuickMenu);
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::ColourCorrection),
+        Some(SettingsRow::Display),
         "the menu opened where it was last left"
     );
 }
@@ -75,7 +76,7 @@ fn start_opens_settings_with_its_top_row_selected_every_time() {
 fn menu_opens_settings_on_the_carousel_as_on_slot() {
     let (_d, mut a, _) = on_carousel();
     a.apply(Action::QuickMenu);
-    assert_eq!(a.settings_row(), Some(SettingsRow::ColourCorrection));
+    assert_eq!(a.settings_row(), Some(SettingsRow::Display));
 }
 
 #[test]
@@ -129,8 +130,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
         "up from the top did not wrap to the bottom"
     );
     for want in [
-        SettingsRow::ColourCorrection,
-        SettingsRow::ScreenFilter,
+        SettingsRow::Display,
         SettingsRow::Gameplay,
         SettingsRow::Shelf,
         SettingsRow::Labels,
@@ -142,7 +142,8 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
         SettingsRow::Background,
         SettingsRow::Update,
         SettingsRow::About,
-        SettingsRow::ColourCorrection,
+        SettingsRow::Display,
+        SettingsRow::Gameplay,
     ] {
         press(&mut a, Btn::Down);
         assert_eq!(a.settings_row(), Some(want));
@@ -200,7 +201,14 @@ fn rumble_and_fast_forward_sound_flip_on_either_arrow_in_gameplay_and_save() {
     assert_eq!(a.option_text(OptionRow::FastForwardSound), "ON");
     press(&mut a, Btn::Right);
     assert_eq!(card(&d), (false, true));
-    press(&mut a, Btn::Down);
+    // past Rewind, Turbo and Run-Ahead to Rumble
+    for _ in 0..4 {
+        press(&mut a, Btn::Down);
+    }
+    assert_eq!(
+        a.options_view().unwrap().lines[a.options_view().unwrap().lit].0,
+        OptionRow::Rumble
+    );
     press(&mut a, Btn::Right);
     assert_eq!(card(&d), (false, false));
     assert!(!a.rumble_enabled());
@@ -210,17 +218,57 @@ fn rumble_and_fast_forward_sound_flip_on_either_arrow_in_gameplay_and_save() {
     assert_eq!(a.settings_row(), Some(SettingsRow::Gameplay));
 }
 
+/// Settings › Display, its Colour Correction row lit.
+fn open_colour_correction(a: &mut App) {
+    open_at(a, SettingsRow::Display);
+    press(a, Btn::A);
+    a.finish_slide();
+    let view = a.options_view().expect("DISPLAY did not open");
+    assert_eq!(view.title, "DISPLAY");
+    for _ in 0..view.lines.len() {
+        let v = a.options_view().unwrap();
+        if v.lines[v.lit].0 == OptionRow::ColourCorrection {
+            return;
+        }
+        press(a, Btn::Down);
+    }
+    panic!("DISPLAY has no Colour Correction row");
+}
+
+#[test]
+fn display_holds_how_games_are_drawn_as_the_games_menu_does() {
+    let (_d, mut a, _) = on_carousel();
+    open_at(&mut a, SettingsRow::Display);
+    press(&mut a, Btn::A);
+    a.finish_slide();
+    let rows: Vec<OptionRow> = a
+        .options_view()
+        .unwrap()
+        .lines
+        .iter()
+        .map(|l| l.0)
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            OptionRow::ScreenFilter,
+            OptionRow::Palette,
+            OptionRow::ColourCorrection,
+            OptionRow::Blending,
+            OptionRow::Brightness,
+            OptionRow::BlueLight,
+            OptionRow::PspScreen,
+        ]
+    );
+}
+
 #[test]
 fn colour_correction_flips_on_either_arrow_and_saves() {
     let (d, mut a, _) = on_carousel();
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_colour_correction(&mut a);
     assert!(
         !a.colour_correction(),
         "the row did not open on the default, which is off"
-    );
-    assert_eq!(
-        a.settings_value(SettingsRow::ColourCorrection),
-        Some(QuickValue::Off)
     );
     for (btn, want) in [
         (Btn::Right, true),
@@ -236,8 +284,8 @@ fn colour_correction_flips_on_either_arrow_and_saves() {
             "{btn:?} never reached the card"
         );
         assert_eq!(
-            a.settings_value(SettingsRow::ColourCorrection),
-            Some(QuickValue::flag(want))
+            a.option_text(OptionRow::ColourCorrection),
+            QuickValue::flag(want).text()
         );
     }
 }
@@ -245,7 +293,7 @@ fn colour_correction_flips_on_either_arrow_and_saves() {
 #[test]
 fn colour_correction_leaves_the_settings_around_it_alone() {
     let (d, mut a, _) = on_carousel();
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_colour_correction(&mut a);
     press(&mut a, Btn::Right);
     let s = read_app_state(d.path());
     assert!(s.colour_correction, "the row never took");
@@ -382,7 +430,7 @@ fn the_first_boot_clock_still_has_no_way_back() {
 #[test]
 fn brightness_and_volume_still_answer_over_settings() {
     let (d, mut a, _) = on_carousel();
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::Display);
     let before = read_app_state(d.path());
     a.apply(Action::BrightnessUp);
     a.apply(Action::VolumeDown);
@@ -393,7 +441,7 @@ fn brightness_and_volume_still_answer_over_settings() {
     );
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::ColourCorrection),
+        Some(SettingsRow::Display),
         "a level moved the menu"
     );
     let gauge = a.hud().gauge().expect("the level shows no gauge");
@@ -456,7 +504,7 @@ fn the_modal_fills_the_page_and_the_lit_title_follows_the_cursor() {
         let out = frame(&a);
         assert_eq!(
             placed(&out, 100),
-            Some(at_2x(omega_ui::settings_rect(7))),
+            Some(at_2x(omega_ui::settings_rect(6))),
             "{row:?}: the frame"
         );
         let (configs, general) = (drawn(&out, 110), drawn(&out, 111));
@@ -474,7 +522,7 @@ fn the_modal_fills_the_page_and_the_lit_title_follows_the_cursor() {
 fn the_title_lights_over_the_frame_and_the_rows_over_both() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::Display);
     let out = frame(&a);
     let at = |id: usize| {
         out.iter()
@@ -489,7 +537,7 @@ fn the_title_lights_over_the_frame_and_the_rows_over_both() {
 fn every_row_is_drawn_in_its_panels_well() {
     let (_d, mut a, _) = on_carousel();
     let faces = fake_faces(&mut a);
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::Display);
     let out = frame(&a);
     for (row, rect) in settings_row_rects(&a.settings_rows(), faces.wells) {
         let [x, y, ..] = at_2x(rect);
@@ -510,7 +558,7 @@ fn every_row_is_drawn_in_its_panels_well() {
 fn settings_no_longer_lays_a_plate_over_the_backdrop() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::Display);
     let see_through = frame(&a).into_iter().any(
         |d| matches!(d, Draw::Rect { w, h, colour, .. } if w >= out_w() as f32 && h >= 100.0 && colour[3] < 1.0),
     );
@@ -529,20 +577,19 @@ fn the_rows_say_what_is_set_in_flows_capitals() {
         rumble: true,
         ..AppState::default()
     });
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::Display);
     let said = |a: &App| SettingsRow::ALL.map(|r| a.settings_text(r));
     let text = |s: &str| Some(s.to_string());
     let clock_text = text(&date_time_text(a.wall_secs()));
     assert_eq!(
         said(&a),
         [
-            text("OFF"),
-            text("LCD"),
+            // Display, Gameplay, Shelf, Labels, RetroAchievements and Saves open panels
             None,
             None,
             None,
             None,
-            // Save Backup opens its panel
+            None,
             None,
             clock_text,
             text("OFF"),
@@ -628,7 +675,7 @@ fn without_a_radio_network_is_not_listed_drawn_or_stepped_onto() {
         .settings_shown()
         .iter()
         .all(|s| s.row != SettingsRow::Network));
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::Display);
     for _ in 0..SettingsRow::DateTime.index() {
         press(&mut a, Btn::Down);
     }
@@ -645,14 +692,14 @@ fn without_a_radio_network_is_not_listed_drawn_or_stepped_onto() {
     let date = placed(&out, 200 + SettingsRow::DateTime.index()).unwrap();
     let bluetooth = placed(&out, 200 + SettingsRow::Bluetooth.index()).unwrap();
     assert_eq!(bluetooth[1], date[1] + (2 * ROW_H) as f32);
-    assert_eq!(placed(&out, 100), Some(at_2x(omega_ui::settings_rect(7))));
+    assert_eq!(placed(&out, 100), Some(at_2x(omega_ui::settings_rect(6))));
     assert_eq!(placed(&out, 111), Some(at_2x(faces.titles[1].at)));
 }
 
 #[test]
 fn nothing_is_drawn_before_its_faces_are_made() {
     let (_d, mut a, _) = on_carousel();
-    open_at(&mut a, SettingsRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::Display);
     assert!(a.settings_faces().is_none());
     let out = frame(&a);
     assert!(

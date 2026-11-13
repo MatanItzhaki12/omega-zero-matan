@@ -106,7 +106,7 @@ fn saves_lists_the_nas_a_search_and_the_systems_with_anything_saved() {
             (
                 OptionRow::SavesAutoBackup,
                 "Auto Backup".into(),
-                "ON".into()
+                "KEEP 5".into()
             ),
             (
                 OptionRow::SavesBackUpAll,
@@ -334,18 +334,27 @@ fn a_backup_is_named_for_when_it_was_made_on_either_clock() {
 }
 
 #[test]
-fn auto_backup_is_switched_off_and_on_and_kept() {
+fn auto_backup_steps_how_many_each_game_keeps() {
     let d = card();
     let mut a = boot(d.path());
     open_saves(&mut a);
     down_to(&mut a, OptionRow::SavesAutoBackup);
     press(&mut a, Btn::A);
     assert!(
-        !omega_store::read_app_state(d.path()).auto_backup,
-        "OFF was not kept"
+        omega_store::read_app_state(d.path()).auto_backups == 10,
+        "KEEP 10 was not kept"
     );
-    press(&mut a, Btn::Right);
-    assert!(omega_store::read_app_state(d.path()).auto_backup);
+    // A steps on, and wraps from 10 to OFF
+    press(&mut a, Btn::A);
+    assert_eq!(omega_store::read_app_state(d.path()).auto_backups, 0);
+    assert_eq!(
+        rows(&a)
+            .iter()
+            .find(|r| r.0 == OptionRow::SavesAutoBackup)
+            .unwrap()
+            .2,
+        "OFF"
+    );
 }
 
 #[test]

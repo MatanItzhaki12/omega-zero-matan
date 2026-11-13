@@ -325,28 +325,13 @@ fn every_move_between_screens_slides_the_way_it_goes() {
 
     for close in [Btn::B, Btn::Start] {
         a.apply(Action::QuickMenu);
-        slid(
-            &a,
-            &settings(SettingsRow::ColourCorrection),
-            Dir::Aside,
-            &shelf,
-        );
+        slid(&a, &settings(SettingsRow::Display), Dir::Aside, &shelf);
         press(&mut a, close);
-        slid(
-            &a,
-            &shelf,
-            Dir::FromAside,
-            &settings(SettingsRow::ColourCorrection),
-        );
+        slid(&a, &shelf, Dir::FromAside, &settings(SettingsRow::Display));
     }
     a.apply(Action::QuickMenu);
     a.apply(Action::QuickMenu);
-    slid(
-        &a,
-        &shelf,
-        Dir::FromAside,
-        &settings(SettingsRow::ColourCorrection),
-    );
+    slid(&a, &shelf, Dir::FromAside, &settings(SettingsRow::Display));
 
     a.apply(Action::QuickMenu);
     press(&mut a, Btn::Down);
@@ -462,7 +447,7 @@ fn a_press_during_a_slide_finishes_it_and_acts() {
     assert!(a.slide().is_none(), "the press left the slide running");
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::ScreenFilter),
+        Some(SettingsRow::Gameplay),
         "the press was spent on the slide"
     );
     a.apply_at(Action::GbaDown(Btn::B), 5_100);
@@ -470,12 +455,12 @@ fn a_press_during_a_slide_finishes_it_and_acts() {
         &a,
         &Phase::Shelf,
         Dir::FromAside,
-        &settings(SettingsRow::ScreenFilter),
+        &settings(SettingsRow::Gameplay),
     );
     a.apply_at(Action::QuickMenu, 5_120);
     slid(
         &a,
-        &settings(SettingsRow::ColourCorrection),
+        &settings(SettingsRow::Display),
         Dir::Aside,
         &Phase::Shelf,
     );

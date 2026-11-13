@@ -46,3 +46,21 @@ fn left_or_right_on_update_switches_between_releases_and_test_builds() {
     assert!(!read_app_state(d.path()).test_updates);
     assert_eq!(a.settings_row(), Some(SettingsRow::Update), "the row moved");
 }
+
+#[test]
+fn x_on_update_with_nothing_found_or_downloading_changes_nothing() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut a = boot(d.path());
+    a.apply(Action::QuickMenu);
+    for _ in 0..16 {
+        if a.settings_row() == Some(SettingsRow::Update) {
+            break;
+        }
+        press(&mut a, Btn::Down);
+    }
+    let was = a.settings_text(SettingsRow::Update);
+    press(&mut a, Btn::X);
+    assert_eq!(a.settings_text(SettingsRow::Update), was);
+    assert_eq!(a.update_channel(), Channel::Stable);
+    assert_eq!(a.settings_row(), Some(SettingsRow::Update), "the row moved");
+}

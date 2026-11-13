@@ -24,9 +24,6 @@ pub const BACKUPS: &str = "Backups";
 /// The file in a backup's folder that says it was made by itself, as its game went in.
 const AUTO_MARK: &str = ".auto";
 
-/// How many automatic backups a game keeps: the newest, the rest deleted as each is made.
-pub const AUTO_KEEP: usize = 5;
-
 /// Where PPSSPP keeps a PSP game's saves in Saves, a folder each.
 const PSP_SAVES: &str = "PSP/SAVEDATA";
 
@@ -366,9 +363,13 @@ pub fn is_auto(root: &Path, game: &Game, stamp: &str) -> bool {
 }
 
 /// Backs `game`'s save up by itself, as it goes in: kept as an automatic backup stamped `stamp`,
-/// unless the newest backup already holds it as it is. Only the newest [`AUTO_KEEP`] automatic
-/// backups stay; the ones kept by hand all do. True where one was made.
-pub fn auto_back_up(root: &Path, game: &Game, stamp: &str) -> std::io::Result<bool> {
+/// unless the newest backup already holds it as it is. Only the newest `keep` automatic backups
+/// stay, so they never pile up on the card; the ones kept by hand all do. True where one was
+/// made.
+pub fn auto_back_up(root: &Path, game: &Game, stamp: &str, keep: usize) -> std::io::Result<bool> {
+    if keep == 0 {
+        return Ok(false);
+    }
     let files = save_files(root, game);
     if files.is_empty() {
         return Ok(false);
@@ -387,7 +388,7 @@ pub fn auto_back_up(root: &Path, game: &Game, stamp: &str) -> std::io::Result<bo
         .into_iter()
         .filter(|s| is_auto(root, game, s))
         .collect();
-    for old in autos.iter().skip(AUTO_KEEP) {
+    for old in autos.iter().skip(keep) {
         delete_backup(root, game, old)?;
     }
     Ok(true)

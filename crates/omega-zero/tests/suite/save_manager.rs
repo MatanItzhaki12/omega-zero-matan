@@ -240,9 +240,9 @@ fn a_game_going_in_is_backed_up_only_when_its_save_changed_and_five_are_kept() {
     let d = tempfile::tempdir().unwrap();
     let game = gba("Emerald");
     write(d.path(), "Saves/GBA/Emerald.sav", b"first");
-    assert!(save_manager::auto_back_up(d.path(), &game, "2026-11-12_10-00-00").unwrap());
+    assert!(save_manager::auto_back_up(d.path(), &game, "2026-11-12_10-00-00", 5).unwrap());
     // the same save again: nothing new kept
-    assert!(!save_manager::auto_back_up(d.path(), &game, "2026-11-12_10-01-00").unwrap());
+    assert!(!save_manager::auto_back_up(d.path(), &game, "2026-11-12_10-01-00", 5).unwrap());
     assert!(save_manager::is_auto(
         d.path(),
         &game,
@@ -257,14 +257,14 @@ fn a_game_going_in_is_backed_up_only_when_its_save_changed_and_five_are_kept() {
             format!("play {n}").as_bytes(),
         );
         let stamp = format!("2026-11-12_11-0{n}-00");
-        assert!(save_manager::auto_back_up(d.path(), &game, &stamp).unwrap());
+        assert!(save_manager::auto_back_up(d.path(), &game, &stamp, 5).unwrap());
     }
     let kept = save_manager::backups(d.path(), &game);
     let autos = kept
         .iter()
         .filter(|s| save_manager::is_auto(d.path(), &game, s))
         .count();
-    assert_eq!(autos, save_manager::AUTO_KEEP);
+    assert_eq!(autos, 5);
     assert!(
         kept.contains(&"2026-11-12_09-00-00".to_string()),
         "{kept:?}"

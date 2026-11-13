@@ -118,7 +118,7 @@ A Game Boy, Game Boy Color or GBA game shown at 3x goes through one of three fil
 | Grid | A thin dark line between the game's pixels, like Slot's Grid |
 | Off | The game's pixels as they are |
 
-Change it in Settings › CONFIGS › Screen Filter, in the in-game menu's Screen page, or with
+Change it in Settings › CONFIGS › Display › Screen Filter, in the in-game menu's Display page, or with
 SELECT + A / B in a game. A toast names the filter you switched to.
 
 ## Settings
@@ -126,10 +126,13 @@ SELECT + A / B in a game. A toast names the filter you switched to.
 MENU on the shelf opens Settings. Because the Settings window has room for only a few rows,
 Slot's extra settings live in two panels that CONFIGS opens, like THEME.
 
-**CONFIGS:** Colour Correction, Screen Filter, Gameplay ›, Shelf ›, Labels ›, RetroAchievements ›,
-Saves › (see [Saves and Save Backup](#saves-and-save-backup)). Fast Forward's speed moved into GAMEPLAY to make
-room for RetroAchievements. On a 480-line screen the Settings window reaches up over the top bar
-to hold all seven.
+**CONFIGS:** Display ›, Gameplay ›, Shelf ›, Labels ›, RetroAchievements ›, Saves › (see
+[Saves and Save Backup](#saves-and-save-backup)). On a 480-line screen the Settings window
+reaches up over the top bar to hold all six.
+
+**DISPLAY ›** holds how games are drawn, as the in-game menu's DISPLAY page does, with the same
+rows, notes and values: Screen Filter, Game Boy Palette, Colour Correction, Frame Blending,
+Brightness, Blue Light Filter and PSP Screen.
 
 **GENERAL:** Date & Time, Network, Bluetooth, Theme, Update, About (see
 [Updating on the console](#updating-on-the-console)).
@@ -140,14 +143,12 @@ to hold all seven.
 |---|---|---|
 | Fast Forward | OFF, 2X, 3X, 4X, 6X: how fast fast-forward plays | 6X |
 | Fast Forward Sound | On, Off | Off |
-| Rumble | On, Off | On |
-| Load State on Insert | On, Off: off starts every game from its beginning | On |
-| Save State on Eject | On, Off: the battery save is written either way | On |
 | Rewind | On, Off | On |
 | Turbo Buttons | On, Off | On |
 | Run-Ahead | On, Off: a press answered a frame sooner, on gpSP (see [Run-Ahead](#run-ahead)) | Off |
-| Frame Blending | Off, Mix, Ghosting (mGBA only; gpSP takes it as Mix) | Off |
-| Game Boy Palette | Auto, then mGBA's 48 palettes (original Game Boy games on mGBA) | Auto |
+| Rumble | On, Off | On |
+| Load State on Insert | On, Off: off starts every game from its beginning | On |
+| Save State on Eject | On, Off: the battery save is written either way | On |
 | Online Play › | The Name online rooms show and the Relay a room is opened through | |
 | Emulators › | Opens the EMULATORS panel below | |
 
@@ -209,9 +210,9 @@ goes straight to the save states without the menu flashing up first.
 | Page | Rows |
 |---|---|
 | MENU | Resume · Undo Save · Undo Load · States · Settings › · Restart · Exit Game |
-| SETTINGS | Screen › · Gameplay › · Achievements › · Controls › |
-| SCREEN | Screen Filter · Palette · Colour Correction · Frame Blending · Brightness · Blue Light |
-| GAMEPLAY | Fast Forward · Fast Forward Sound · Rewind · Turbo Buttons · Run-Ahead (gpSP) · Rumble · Load State on Insert · Save State on Eject |
+| SETTINGS | Display › · Gameplay › · Achievements › · Controls › |
+| DISPLAY | Screen Filter · Game Boy Palette · Colour Correction · Frame Blending · Brightness · Blue Light Filter · PSP Screen (for this game) |
+| GAMEPLAY | Fast Forward · Fast Forward Sound · Rewind · Turbo Buttons · Run-Ahead (gpSP) · Rumble · Load State on Insert · Save State on Eject · Stick (PSP) |
 | ACHIEVEMENTS | Game · Unlocked · View All › · RetroAchievements · Hardcore |
 | ALL ACHIEVEMENTS | Every achievement of the game, unlocked or locked |
 | CONTROLS | Every button, for the system being played |
@@ -224,7 +225,9 @@ goes straight to the save states without the menu flashing up first.
 - Rows a game has no use for are hidden, as on Slot: States with no states saved, Exit Game on a
   card with one cart, the Palette away from original Game Boy games, Achievements on the
   PlayStation.
-- The SCREEN page does not dim the game, and its panel sits at the bottom, so each change shows
+- DISPLAY and GAMEPLAY hold the rows Settings' own DISPLAY and GAMEPLAY do, in the same order
+  and with the same names, so a setting is found in one place in both.
+- The DISPLAY page does not dim the game, and its panel sits at the bottom, so each change shows
   on the game as you make it.
 - B steps back one page, MENU closes the menu from any page, and holding MENU still ejects.
 
@@ -355,8 +358,9 @@ system. A game opens GAME, with two panels of its own:
 
 **Auto Backup** (on to start) backs a game's save up by itself as the game goes in, where it
 changed since the newest backup: on a thread of its own, so the cart's way in is drawn as ever.
-The newest five automatic backups are kept, named with "(Auto)"; a backup kept by hand is never
-deleted by itself. **Back Up All Saves** keeps a copy of every game's save at once.
+How many automatic backups each game keeps is Auto Backup's value: OFF, KEEP 1, 3, 5 (as it
+starts) or 10. Each new one deletes the oldest past that, so they never pile up on the card; they
+are named with "(Auto)", and a backup kept by hand is never deleted by itself. **Back Up All Saves** keeps a copy of every game's save at once.
 
 **Play time** counts while a game is on screen, not while its menu is up over it, and is kept in
 `Config/play_log.txt` as the cart comes out, as the game autosaves and as the console powers off.
@@ -578,7 +582,7 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `menu_sounds`, `menu_music` | `1`, `0` |
 | `menu_sounds_volume`, `menu_music_volume` | `1` to `10` |
 | `test_updates` | `1` for Settings' Update to take test builds, `0` for releases |
-| `auto_backup` | `1` (as it starts) for Saves to back a game's save up as it goes in, `0` not to |
+| `auto_backups` | How many automatic backups each game keeps: `0` (none made), `1`, `3`, `5` (as it starts) or `10` |
 
 `ff_speed` also takes `0` now, for OFF.
 
@@ -603,6 +607,10 @@ to releases, the latest release is offered, so a test build is left for it.
    beside it and that it is a program for the handheld, and puts it in place. The one it replaces
    is kept as `System/omega-zero.previous`.
 3. The row says *RESTART*: A restarts the handheld onto the new version.
+
+X on Update puts off an update offered, until the next look for one, and stops one downloading
+before its next file: what it fetched is thrown away and the card stays as it was. One already in
+place waits for its restart.
 
 *NO NETWORK*, *BAD DOWNLOAD* and the like say what stopped it, and leave omega-zero as it was.
 Only omega-zero itself is updated this way; a release that changes the cores says so, and needs

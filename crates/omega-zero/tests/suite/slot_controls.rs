@@ -204,7 +204,7 @@ fn settings_opens_screen_gameplay_and_controls_and_b_steps_back() {
         ]
     );
     press(&mut a, Btn::A);
-    assert_eq!(a.pause_view().unwrap().title, "SCREEN");
+    assert_eq!(a.pause_view().unwrap().title, "DISPLAY");
     assert_eq!(
         rows(&a),
         [
@@ -497,7 +497,7 @@ fn account_signs_in_to_retroachievements_on_the_keyboard_and_y_signs_out() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = boot(d.path());
     a.apply(Action::QuickMenu);
-    for _ in 0..5 {
+    for _ in 0..4 {
         press(&mut a, Btn::Down);
     }
     assert_eq!(a.settings_row(), Some(omega_ui::SettingsRow::Achievements));
@@ -571,7 +571,7 @@ fn retroachievements_opens_from_configs_under_labels() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = boot(d.path());
     a.apply(Action::QuickMenu);
-    for _ in 0..4 {
+    for _ in 0..3 {
         press(&mut a, Btn::Down);
     }
     assert_eq!(a.settings_row(), Some(SettingsRow::Labels));
@@ -616,9 +616,7 @@ fn emulators_set_each_systems_default_and_put_switched_games_back() {
     write_selected_core(d.path(), "Emerald", Core::Gpsp).unwrap();
     let mut a = boot(d.path());
     a.apply(Action::QuickMenu);
-    for _ in 0..2 {
-        press(&mut a, Btn::Down);
-    }
+    press(&mut a, Btn::Down);
     press(&mut a, Btn::A);
     a.finish_slide();
     let view = a.options_view().expect("the GAMEPLAY panel");

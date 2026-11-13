@@ -124,9 +124,15 @@ pub struct AppState {
     pub menu_music_volume: u8,
     /// Settings' Update takes the test builds of the `test` branch, not the releases.
     pub test_updates: bool,
-    /// A game's save is backed up by itself as it goes in, the newest five kept.
-    pub auto_backup: bool,
+    /// How many automatic backups each game keeps, its save backed up by itself as it goes in:
+    /// one of `AUTO_BACKUPS`, 0 for none made.
+    pub auto_backups: u8,
 }
+
+/// How many automatic backups a game may keep, as Saves › Auto Backup steps them: none, or
+/// the newest few. Each is a copy of a save, a few KB for most games and some MB for a PSP's.
+pub const AUTO_BACKUPS: [u8; 5] = [0, 1, 3, 5, 10];
+pub const AUTO_BACKUPS_DEFAULT: u8 = 5;
 
 /// The top of the menu sounds' and the tune's volumes.
 pub const MENU_VOLUME_MAX: u8 = 10;
@@ -195,7 +201,7 @@ impl Default for AppState {
             menu_sounds_volume: MENU_VOLUME_DEFAULT,
             menu_music_volume: MENU_VOLUME_DEFAULT,
             test_updates: false,
-            auto_backup: true,
+            auto_backups: AUTO_BACKUPS_DEFAULT,
         }
     }
 }
@@ -516,7 +522,13 @@ const FIELDS: &[Field] = &[
         }
     ),
     flag!("test_updates", test_updates),
-    flag!("auto_backup", auto_backup),
+    may!(
+        "auto_backups",
+        |s| s.auto_backups.to_string(),
+        |t, v| if let Some(n) = v.parse().ok().filter(|n| AUTO_BACKUPS.contains(n)) {
+            t.auto_backups = n;
+        }
+    ),
 ];
 
 fn menu_volume(value: &str) -> Option<u8> {

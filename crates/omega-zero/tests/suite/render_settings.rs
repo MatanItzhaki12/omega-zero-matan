@@ -114,11 +114,11 @@ fn over(under: &mut UndoFace, top: &UndoFace, x: u32, y: u32) {
     }
 }
 
-/// The modal as the kit's faces make it for `shown`, at art resolution, at `omega_ui::settings_rect(7)`.
+/// The modal as the kit's faces make it for `shown`, at art resolution, at `omega_ui::settings_rect(6)`.
 fn expected(shown: &[RowShown], pal: &Palette) -> UndoFace {
     let rows: Vec<SettingsRow> = shown.iter().map(|s| s.row).collect();
     let frame = settings_frame(configs_in(&rows), pal);
-    let [mx, my, ..] = omega_ui::settings_rect(7);
+    let [mx, my, ..] = omega_ui::settings_rect(6);
     let mut modal = UndoFace {
         rgba: frame.face.rgba.clone(),
         w: frame.face.w,
@@ -137,12 +137,19 @@ fn expected(shown: &[RowShown], pal: &Palette) -> UndoFace {
 
 /// Every pixel the modal's faces ink is on the screen, at 2x where the kit puts it.
 fn holds_the_modal(px: &[u8], f: &Frontend, name: &str) {
+    holds_the_modal_in(px, f, name, None);
+}
+
+/// As `holds_the_modal`, only within `within` (art pixels on the screen), where a toast may
+/// stand over the rest.
+fn holds_the_modal_in(px: &[u8], f: &Frontend, name: &str, within: Option<[u32; 4]>) {
     let pal = f.app().palette();
     let want = expected(&f.app().settings_shown(), pal);
-    let [mx, my, ..] = omega_ui::settings_rect(7);
+    let [mx, my, ..] = omega_ui::settings_rect(6);
+    let [wx, wy, ww, wh] = within.unwrap_or([mx, my, want.w, want.h]);
     let mut off = Vec::new();
-    for y in 0..want.h {
-        for x in 0..want.w {
+    for y in wy - my..wy - my + wh {
+        for x in wx - mx..wx - mx + ww {
             let i = ((y * want.w + x) * 4) as usize;
             if want.rgba[i + 3] == 0 {
                 continue;
@@ -187,7 +194,7 @@ fn settings_draws_the_modal_and_the_lit_rows_band_over_the_backdrop() {
     holds_the_modal(&px, &f, "night");
 
     // the frame: its dark outline, its bright line, the frame colour the panels sit on
-    let [mx, my, mw, mh] = omega_ui::settings_rect(7);
+    let [mx, my, mw, mh] = omega_ui::settings_rect(6);
     assert_eq!(art(&px, mx + 3, my), pal.dark, "the frame's top outline");
     assert_eq!(art(&px, mx, my + 3), pal.dark, "the frame's left outline");
     assert_eq!(
@@ -203,7 +210,7 @@ fn settings_draws_the_modal_and_the_lit_rows_band_over_the_backdrop() {
     );
 
     // the lit row's band: a frame line with its corners left out, round the tab colour
-    let [x, y, w, h] = row_rect(&f, SettingsRow::ColourCorrection);
+    let [x, y, w, h] = row_rect(&f, SettingsRow::Display);
     assert_eq!(art(&px, x + 1, y), pal.frame, "the band's top line");
     assert_eq!(art(&px, x, y + 1), pal.frame, "the band's left line");
     assert_eq!(
@@ -214,7 +221,7 @@ fn settings_draws_the_modal_and_the_lit_rows_band_over_the_backdrop() {
     assert_eq!(art(&px, x + 2, y + 2), pal.tab, "the band");
     assert_eq!(art(&px, x + w / 2, y + h - 2), pal.tab, "the band");
     assert_eq!(art(&px, x, y), pal.well, "the band's corner is the well's");
-    let [x, y, w, h] = row_rect(&f, SettingsRow::ScreenFilter);
+    let [x, y, w, h] = row_rect(&f, SettingsRow::Gameplay);
     for (dx, dy) in [(1, 0), (2, 2), (w / 2, h - 2)] {
         assert_eq!(
             art(&px, x + dx, y + dy),
@@ -244,7 +251,7 @@ fn the_palette_tints_settings_with_the_backdrop() {
     let Ok(mut c) = Compositor::new(&surface) else {
         return;
     };
-    let [mx, my, _, mh] = omega_ui::settings_rect(7);
+    let [mx, my, _, mh] = omega_ui::settings_rect(6);
     let mut sides = Vec::new();
     for (colour, name) in [(NIGHT, "night"), (AMBER, "amber")] {
         let (_d, mut f, _) = settings_over(colour, &mut c);
@@ -253,7 +260,7 @@ fn the_palette_tints_settings_with_the_backdrop() {
         holds_the_modal(&px, &f, name);
         assert_eq!(art(&px, 0, 0), pal.bg, "{name}'s backdrop");
         assert_eq!(art(&px, mx + 3, my + mh / 2), pal.frame, "{name}'s frame");
-        let [x, y, ..] = row_rect(&f, SettingsRow::ColourCorrection);
+        let [x, y, ..] = row_rect(&f, SettingsRow::Display);
         assert_eq!(art(&px, x + 2, y + 2), pal.tab, "{name}'s band");
         sides.push(art(&px, mx + 3, my + mh / 2));
     }
@@ -298,12 +305,8 @@ fn the_cursor_in_general_lights_its_title_and_its_row() {
     );
     let [x, y, ..] = row_rect(&f, SettingsRow::DateTime);
     assert_eq!(art(&px, x + 2, y + 2), pal.tab, "Date & Time is not lit");
-    let [x, y, ..] = row_rect(&f, SettingsRow::ColourCorrection);
-    assert_eq!(
-        art(&px, x + 2, y + 2),
-        pal.well,
-        "Colour Correction is still lit"
-    );
+    let [x, y, ..] = row_rect(&f, SettingsRow::Display);
+    assert_eq!(art(&px, x + 2, y + 2), pal.well, "Display is still lit");
 }
 
 #[test]
@@ -315,22 +318,22 @@ fn a_new_value_is_on_the_screen_the_frame_after() {
         return;
     };
     let (_d, mut f, mut input) = settings_over(NIGHT, &mut c);
-    // the cursor opens on Colour Correction, and Down is Screen Filter
-    let px = composed(&mut f, &mut c, "correction-before");
+    // the cursor opens on Display; Up wraps to About, and once more is Update, whose arrows
+    // switch between the releases and the test builds
+    tap(&mut f, &mut input, Btn::Up);
+    tap(&mut f, &mut input, Btn::Up);
+    assert_eq!(f.app().settings_row(), Some(SettingsRow::Update));
+    let px = composed(&mut f, &mut c, "update-before");
     holds_the_modal(&px, &f, "before");
-    let was = f.app().colour_correction();
-    tap(&mut f, &mut input, Btn::Left);
-    assert_ne!(f.app().colour_correction(), was, "Left changed nothing");
-    let px = composed(&mut f, &mut c, "correction-after");
-    holds_the_modal(&px, &f, "after");
-    let filter = f.app().settings_value(SettingsRow::ScreenFilter);
-    tap(&mut f, &mut input, Btn::Down);
+    let was = f.app().settings_text(SettingsRow::Update);
     tap(&mut f, &mut input, Btn::Right);
     assert_ne!(
-        f.app().settings_value(SettingsRow::ScreenFilter),
-        filter,
-        "Right changed no filter"
+        f.app().settings_text(SettingsRow::Update),
+        was,
+        "Right changed nothing"
     );
-    let px = composed(&mut f, &mut c, "filter-next");
-    holds_the_modal(&px, &f, "filter next");
+    // the switch is said in a toast over the top of the screen: the row itself is what changed
+    let px = composed(&mut f, &mut c, "update-after");
+    let row = row_rect(&f, SettingsRow::Update);
+    holds_the_modal_in(&px, &f, "after", Some(row));
 }

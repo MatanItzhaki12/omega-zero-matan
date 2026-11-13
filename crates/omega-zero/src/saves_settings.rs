@@ -295,9 +295,10 @@ impl App {
         let look = &ui.look;
         match row {
             OptionRow::SavesNas => self.backup_word(),
-            OptionRow::SavesAutoBackup => {
-                if self.state.auto_backup { "ON" } else { "OFF" }.to_string()
-            }
+            OptionRow::SavesAutoBackup => match self.state.auto_backups {
+                0 => "OFF".to_string(),
+                n => format!("KEEP {n}"),
+            },
             OptionRow::SavesCardSpace => match ui.card {
                 Some((free, _)) => format!("{} FREE", size(free)),
                 None => String::new(),

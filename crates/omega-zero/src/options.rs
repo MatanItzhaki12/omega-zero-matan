@@ -36,6 +36,8 @@ pub const VIEW_ROWS: usize = 13;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OptionsPage {
+    /// How games are drawn, and the screen's brightness and blue light.
+    Display,
     Gameplay,
     Shelf,
     /// RetroAchievements, opened from CONFIGS.
@@ -87,6 +89,7 @@ impl OptionsPage {
 
     pub fn title(self) -> &'static str {
         match self {
+            OptionsPage::Display => "DISPLAY",
             OptionsPage::Gameplay => "GAMEPLAY",
             OptionsPage::Shelf => "SHELF",
             OptionsPage::Achievements => "ACHIEVEMENTS",
@@ -108,18 +111,25 @@ impl OptionsPage {
 
     pub fn rows(self) -> &'static [OptionRow] {
         match self {
+            // as the game's menu has them, in the same order
+            OptionsPage::Display => &[
+                OptionRow::ScreenFilter,
+                OptionRow::Palette,
+                OptionRow::ColourCorrection,
+                OptionRow::Blending,
+                OptionRow::Brightness,
+                OptionRow::BlueLight,
+                OptionRow::PspScreen,
+            ],
             OptionsPage::Gameplay => &[
                 OptionRow::FastForward,
                 OptionRow::FastForwardSound,
-                OptionRow::Rumble,
-                OptionRow::LoadOnInsert,
-                OptionRow::SaveOnEject,
                 OptionRow::Rewind,
                 OptionRow::Turbo,
                 OptionRow::RunAhead,
-                OptionRow::Blending,
-                OptionRow::Palette,
-                OptionRow::PspScreen,
+                OptionRow::Rumble,
+                OptionRow::LoadOnInsert,
+                OptionRow::SaveOnEject,
                 OptionRow::OnlinePlay,
                 OptionRow::Emulators,
             ],
@@ -174,6 +184,7 @@ impl OptionsPage {
     /// The Settings row that opens it, or the panel it opens from.
     pub fn settings_row(self) -> SettingsRow {
         match self {
+            OptionsPage::Display => SettingsRow::Display,
             OptionsPage::Gameplay | OptionsPage::Emulators | OptionsPage::Online => {
                 SettingsRow::Gameplay
             }
@@ -207,7 +218,8 @@ impl OptionsPage {
             OptionsPage::Nas => Some((OptionsPage::Backup, OptionRow::BackupNas)),
             OptionsPage::Folder => Some((OptionsPage::Backup, OptionRow::BackupFolder)),
             OptionsPage::Restore => Some((OptionsPage::Backup, OptionRow::BackupRestore)),
-            OptionsPage::Gameplay
+            OptionsPage::Display
+            | OptionsPage::Gameplay
             | OptionsPage::Shelf
             | OptionsPage::Achievements
             | OptionsPage::Saves
@@ -218,6 +230,12 @@ impl OptionsPage {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OptionRow {
+    /// DISPLAY: the screen filter, colour correction, and the screen's brightness and blue light
+    /// filter, as the game's menu has them.
+    ScreenFilter,
+    ColourCorrection,
+    Brightness,
+    BlueLight,
     /// Fast Forward's speed, which stood in CONFIGS.
     FastForward,
     FastForwardSound,
@@ -366,6 +384,10 @@ impl OptionRow {
 
     pub fn label(self) -> &'static str {
         match self {
+            OptionRow::ScreenFilter => "Screen Filter",
+            OptionRow::ColourCorrection => "Colour Correction",
+            OptionRow::Brightness => "Brightness",
+            OptionRow::BlueLight => "Blue Light Filter",
             OptionRow::FastForward => "Fast Forward",
             OptionRow::FastForwardSound => "Fast Forward Sound",
             OptionRow::Rumble => "Rumble",
@@ -434,6 +456,10 @@ impl OptionRow {
     /// What the row does, in the note under the rows while it is lit.
     pub fn note(self) -> &'static str {
         match self {
+            OptionRow::ScreenFilter => "LCD, a grid between pixels or none",
+            OptionRow::ColourCorrection => "Colours as the old screens had",
+            OptionRow::Brightness => "SELECT+Up and Down do this too",
+            OptionRow::BlueLight => "Warms the picture for the dark",
             OptionRow::FastForward => "How fast fast-forward plays",
             OptionRow::FastForwardSound => "Sound while fast-forwarding",
             OptionRow::Rumble => "For games with a rumble pak",
@@ -466,7 +492,7 @@ impl OptionRow {
             OptionRow::PspScreen => "Fit fills the width; each game can differ",
             OptionRow::SavesNas => "Saves copied to a NAS, and back",
             OptionRow::SavesSearch => "Find a game by its name",
-            OptionRow::SavesAutoBackup => "Backs a save up as its game goes in",
+            OptionRow::SavesAutoBackup => "How many automatic backups each game keeps",
             OptionRow::SavesBackUpAll => "Keeps a copy of every save on the handheld",
             OptionRow::SavesCardSpace => "The room left on the card",
             OptionRow::SavesSystem(_) => "Its games' saves and states",
@@ -667,6 +693,13 @@ impl App {
     pub fn option_text(&self, row: OptionRow) -> String {
         let s = &self.state;
         match row {
+            OptionRow::ScreenFilter => QuickValue::filter(s.screen_filter).text().to_string(),
+            OptionRow::ColourCorrection => QuickValue::flag(s.colour_correction).text().to_string(),
+            OptionRow::Brightness => s.brightness.to_string(),
+            OptionRow::BlueLight => match s.blue_light {
+                0 => "OFF".to_string(),
+                n => n.to_string(),
+            },
             OptionRow::FastForward => QuickValue::speed(s.ff_speed)
                 .map(|v| v.text().to_string())
                 .unwrap_or_default(),
@@ -770,8 +803,19 @@ impl App {
         if let OptionRow::Hp(row) = row {
             return self.change_headphones(row, right);
         }
+        match row {
+            OptionRow::ScreenFilter => return self.step_filter(right),
+            OptionRow::ColourCorrection => return self.toggle_colour_correction(),
+            OptionRow::Brightness => return self.step_light(false, right),
+            OptionRow::BlueLight => return self.step_light(true, right),
+            _ => {}
+        }
         let s = &mut self.state;
         match row {
+            OptionRow::ScreenFilter
+            | OptionRow::ColourCorrection
+            | OptionRow::Brightness
+            | OptionRow::BlueLight => return,
             OptionRow::FastForward => {
                 let to = ff_next(s.ff_speed, right);
                 if to == s.ff_speed {
@@ -858,7 +902,9 @@ impl App {
             | OptionRow::GameNoStates
             | OptionRow::GameBackupsHeading
             | OptionRow::Hp(_) => return,
-            OptionRow::SavesAutoBackup => s.auto_backup = !s.auto_backup,
+            OptionRow::SavesAutoBackup => {
+                s.auto_backups = step(&omega_store::AUTO_BACKUPS, s.auto_backups, right);
+            }
             OptionRow::Relay => {
                 let n = crate::netplay_lobby::RELAYS.len() as u8;
                 s.relay = match right {

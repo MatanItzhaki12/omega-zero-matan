@@ -1984,7 +1984,7 @@ impl App {
             return true;
         }
         if action == Action::ColourCorrectionToggle {
-            self.change_setting(SettingsRow::ColourCorrection, true);
+            self.toggle_colour_correction();
             let said = match self.state.colour_correction {
                 true => Toast::ColourOn,
                 false => Toast::ColourOff,
@@ -3069,7 +3069,8 @@ impl App {
     /// Backs the save of `picked`, going in, up by itself, where Saves › Auto Backup is on: on a
     /// thread of its own, as the cart's way in is drawn, and only where it changed since.
     fn auto_back_up(&self, picked: &Cart) {
-        let (true, Some(root)) = (self.state.auto_backup, self.root.clone()) else {
+        let keep = usize::from(self.state.auto_backups);
+        let (true, Some(root)) = (keep > 0, self.root.clone()) else {
             return;
         };
         let game = crate::save_manager::Game::of(picked);
@@ -3078,7 +3079,7 @@ impl App {
             .name("omega-auto-backup".into())
             .spawn(move || {
                 crate::spawn::stand_back();
-                if let Err(e) = crate::save_manager::auto_back_up(&root, &game, &stamp) {
+                if let Err(e) = crate::save_manager::auto_back_up(&root, &game, &stamp, keep) {
                     crate::log!("saves: auto backup of {}: {e}", game.stem);
                 }
             });

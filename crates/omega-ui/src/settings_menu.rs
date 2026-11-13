@@ -54,9 +54,9 @@ impl SettingsGroup {
 /// A row of the settings START opens on the shelf, in the order they are listed.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum SettingsRow {
-    ColourCorrection,
-    /// What a Game Boy or GBA game at 3x is drawn through: LCD, GRID or OFF.
-    ScreenFilter,
+    /// The DISPLAY panel: how games are drawn (the screen filter, the Game Boy palette, colour
+    /// correction, frame blending, the PSP's picture) and the screen's brightness and blue light.
+    Display,
     /// The GAMEPLAY panel: Slot's gameplay settings, and the sound and rumble ones.
     Gameplay,
     /// The SHELF panel: Recents, Game Titles, the clock and the lid.
@@ -78,9 +78,8 @@ pub enum SettingsRow {
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 13] = [
-        SettingsRow::ColourCorrection,
-        SettingsRow::ScreenFilter,
+    pub const ALL: [SettingsRow; 12] = [
+        SettingsRow::Display,
         SettingsRow::Gameplay,
         SettingsRow::Shelf,
         SettingsRow::Labels,
@@ -100,8 +99,7 @@ impl SettingsRow {
 
     pub fn label(self) -> &'static str {
         match self {
-            SettingsRow::ColourCorrection => "Colour Correction",
-            SettingsRow::ScreenFilter => "Screen Filter",
+            SettingsRow::Display => "Display",
             SettingsRow::Gameplay => "Gameplay",
             SettingsRow::Shelf => "Shelf",
             SettingsRow::Labels => "Labels",
@@ -118,8 +116,7 @@ impl SettingsRow {
 
     pub fn group(self) -> SettingsGroup {
         match self {
-            SettingsRow::ColourCorrection
-            | SettingsRow::ScreenFilter
+            SettingsRow::Display
             | SettingsRow::Gameplay
             | SettingsRow::Shelf
             | SettingsRow::Labels
@@ -139,7 +136,8 @@ impl SettingsRow {
     pub fn opens(self) -> bool {
         matches!(
             self,
-            SettingsRow::Gameplay
+            SettingsRow::Display
+                | SettingsRow::Gameplay
                 | SettingsRow::Shelf
                 | SettingsRow::Labels
                 | SettingsRow::Achievements
@@ -155,10 +153,8 @@ impl SettingsRow {
     /// The row's value stands between a ◀ and a ▶ while it is lit: every row Left and Right
     /// change, the ON/OFF switch and the filters alike, as on the Network screen.
     pub fn carets(self) -> bool {
-        matches!(
-            self,
-            SettingsRow::ColourCorrection | SettingsRow::ScreenFilter
-        )
+        // Update's arrows switch between the releases and the test builds
+        matches!(self, SettingsRow::Update)
     }
 
     /// The row above this one among `rows`, the rows a handheld shows, wrapping at the top.

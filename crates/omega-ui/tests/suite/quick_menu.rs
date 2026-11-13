@@ -24,7 +24,7 @@ fn px(face: &UndoFace, x: u32, y: u32) -> Option<[u8; 3]> {
 /// The rows as flow.html's Settings shows them, with `lit` under the cursor.
 fn flow_rows(lit: SettingsRow) -> Vec<RowShown> {
     let value = |row| match row {
-        SettingsRow::ColourCorrection => Some("OFF"),
+        SettingsRow::Update => Some("V2.7.3"),
         SettingsRow::DateTime => Some("OCT 10 16:00"),
         SettingsRow::Network => Some("HOME"),
         SettingsRow::Bluetooth => Some("8BITDO SN30 PRO"),
@@ -172,7 +172,7 @@ fn every_row_stands_in_its_own_panels_well() {
     let rects = settings_row_rects(&listed(true), frame.wells);
     let at = |row: SettingsRow| rects.iter().find(|(r, _)| *r == row).unwrap().1;
     assert_eq!(
-        at(SettingsRow::ColourCorrection)[1],
+        at(SettingsRow::Display)[1],
         frame.wells[0][1],
         "CONFIGS' first row is not at its well's top"
     );
@@ -263,7 +263,7 @@ fn the_lit_row_is_a_band_and_the_others_are_clear_round_their_words() {
         value: Some("6X".into()),
         lit,
     };
-    let lit = settings_row_face(w, &shown(SettingsRow::ColourCorrection, true), pal);
+    let lit = settings_row_face(w, &shown(SettingsRow::Update, true), pal);
     assert_eq!((lit.w, lit.h), (w, ROW_H));
     // the band: a frame line with its corner pixels left out, round the tab colour
     assert_eq!(px(&lit, 0, 0), None, "the band's corner");
@@ -276,7 +276,7 @@ fn the_lit_row_is_a_band_and_the_others_are_clear_round_their_words() {
     );
     assert_eq!(px(&lit, 2, 2), Some(pal.tab), "the band's fill");
     assert_eq!(px(&lit, w / 2, ROW_H - 2), Some(pal.tab), "the band's fill");
-    let plain = settings_row_face(w, &shown(SettingsRow::ColourCorrection, false), pal);
+    let plain = settings_row_face(w, &shown(SettingsRow::Update, false), pal);
     for (x, y) in [(1, 0), (0, 1), (2, 2), (w / 2, ROW_H - 2)] {
         assert_eq!(
             px(&plain, x, y),
@@ -308,10 +308,8 @@ fn the_rows_left_and_right_change_step_between_arrows_and_the_rows_that_open_end
         .into_iter()
         .filter(|r| r.carets())
         .collect();
-    assert_eq!(
-        carets,
-        [SettingsRow::ColourCorrection, SettingsRow::ScreenFilter]
-    );
+    // Update's arrows switch between the releases and the test builds; the rest open panels
+    assert_eq!(carets, [SettingsRow::Update]);
     let pal = palette(NIGHT);
     let w = settings_row_width(268);
     let face = |row, lit| {
@@ -343,9 +341,9 @@ fn the_rows_left_and_right_change_step_between_arrows_and_the_rows_that_open_end
 /// art pixel, at each canvas, in Night with the cursor on Fast Forward and in Amber with it on
 /// Date & Time.
 const FLOW_REFS: [(&str, u8, SettingsRow); 5] = [
-    ("640x480-night-0", NIGHT, SettingsRow::ColourCorrection),
-    ("720x480-night-0", NIGHT, SettingsRow::ColourCorrection),
-    ("720x720-night-0", NIGHT, SettingsRow::ColourCorrection),
+    ("640x480-night-0", NIGHT, SettingsRow::Display),
+    ("720x480-night-0", NIGHT, SettingsRow::Display),
+    ("720x720-night-0", NIGHT, SettingsRow::Display),
     ("640x480-amber-5", AMBER, SettingsRow::DateTime),
     ("720x480-amber-5", AMBER, SettingsRow::DateTime),
 ];
@@ -385,7 +383,7 @@ fn settings_is_flows_pixel_for_pixel() {
 #[test]
 fn a_sync_bakes_the_frame_once_and_a_row_only_when_it_changes() {
     let mut baked = SettingsBaked::default();
-    let rows = flow_rows(SettingsRow::ColourCorrection);
+    let rows = flow_rows(SettingsRow::Display);
     let first = baked.rebake(NIGHT, &rows);
     assert!(first.frame, "the first sync baked no frame");
     assert_eq!(first.rows, rows, "the first sync left rows unbaked");
@@ -417,10 +415,7 @@ fn a_sync_bakes_the_frame_once_and_a_row_only_when_it_changes() {
     moved[1].lit = true;
     let plan = baked.rebake(NIGHT, &moved);
     let rebaked: Vec<SettingsRow> = plan.rows.iter().map(|s| s.row).collect();
-    assert_eq!(
-        rebaked,
-        [SettingsRow::ColourCorrection, SettingsRow::ScreenFilter]
-    );
+    assert_eq!(rebaked, [SettingsRow::Display, SettingsRow::Gameplay]);
     assert!(!plan.frame, "moving the cursor baked the frame");
 
     // a new palette: everything
@@ -441,7 +436,7 @@ fn a_sync_bakes_the_frame_once_and_a_row_only_when_it_changes() {
 
 #[test]
 fn the_palette_tints_every_face() {
-    let rows = flow_rows(SettingsRow::ColourCorrection);
+    let rows = flow_rows(SettingsRow::Display);
     for colour in [NIGHT, AMBER] {
         let pal = palette(colour);
         let frame = settings_frame(5, pal);
@@ -483,8 +478,7 @@ fn the_rows_run_in_the_order_the_user_chose() {
     assert_eq!(
         labels,
         [
-            "Colour Correction",
-            "Screen Filter",
+            "Display",
             "Gameplay",
             "Shelf",
             "Labels",
@@ -502,6 +496,7 @@ fn the_rows_run_in_the_order_the_user_chose() {
     assert_eq!(
         opens,
         [
+            SettingsRow::Display,
             SettingsRow::Gameplay,
             SettingsRow::Shelf,
             SettingsRow::Labels,
@@ -523,7 +518,7 @@ fn the_configs_come_first_and_the_handheld_itself_after() {
         .iter()
         .take_while(|g| **g == SettingsGroup::Configs)
         .count();
-    assert_eq!(configs, 7, "{groups:?}");
+    assert_eq!(configs, 6, "{groups:?}");
     assert!(
         groups[configs..]
             .iter()
@@ -549,10 +544,7 @@ fn a_hidden_row_is_stepped_over_both_ways() {
         .collect();
     assert_eq!(SettingsRow::DateTime.down_in(&rows), SettingsRow::Bluetooth);
     assert_eq!(SettingsRow::Bluetooth.up_in(&rows), SettingsRow::DateTime);
-    assert_eq!(
-        SettingsRow::About.down_in(&rows),
-        SettingsRow::ColourCorrection
-    );
+    assert_eq!(SettingsRow::About.down_in(&rows), SettingsRow::Display);
     assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);
 }
 
@@ -565,8 +557,9 @@ fn the_values_read_as_flow_prints_them() {
     assert_eq!(QuickValue::filter(ScreenFilter::Lcd), QuickValue::Lcd);
     assert_eq!(QuickValue::filter(ScreenFilter::Grid), QuickValue::Grid);
     assert_eq!(QuickValue::filter(ScreenFilter::Off), QuickValue::Off);
-    assert!(SettingsRow::ScreenFilter.carets());
-    assert!(!SettingsRow::ScreenFilter.opens());
+    assert!(SettingsRow::Update.carets());
+    assert!(!SettingsRow::Update.opens());
+    assert!(SettingsRow::Display.opens() && !SettingsRow::Display.carets());
     assert_eq!(QuickValue::flag(true), QuickValue::On);
     assert_eq!(QuickValue::flag(false), QuickValue::Off);
 }

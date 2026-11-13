@@ -140,14 +140,14 @@ impl Update {
                 release,
                 system: Some((_, bytes)),
             } => format!(
-                "A downloads {} and installs v{}",
-                size_text(*bytes),
-                release.version
+                "A installs v{} ({}), X puts it off",
+                release.version,
+                size_text(*bytes)
             ),
             Update::Available { release, .. } => {
-                format!("A downloads and installs v{}", release.version)
+                format!("A installs v{}, X puts it off", release.version)
             }
-            Update::Downloading(version) => format!("Downloading v{version}"),
+            Update::Downloading(version) => format!("Downloading v{version}: X stops it"),
             Update::Installed(version) => format!("A restarts onto v{version}"),
         }
     }
@@ -170,6 +170,8 @@ struct Held {
 #[derive(Clone)]
 pub struct Updater {
     state: Arc<Mutex<Held>>,
+    /// The download under way is to stop: asked from Settings, looked at before each file.
+    stop: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Default for Updater {
@@ -179,6 +181,7 @@ impl Default for Updater {
                 update: Update::Idle,
                 at: std::time::Instant::now(),
             })),
+            stop: Arc::default(),
         }
     }
 }
@@ -203,6 +206,16 @@ impl Updater {
             held.update = to;
             held.at = std::time::Instant::now();
         }
+    }
+
+    /// Stops the download under way before its next file: nothing it fetched is put in place,
+    /// and the card stays as it was. False where none is under way to stop.
+    pub fn stop(&self) -> bool {
+        if !matches!(self.state(), Update::Downloading(_)) {
+            return false;
+        }
+        self.stop.store(true, std::sync::atomic::Ordering::Release);
+        true
     }
 
     /// Forgets an update found, as Settings switches channel and the other's is looked for.
@@ -305,17 +318,24 @@ impl Updater {
         };
         let version = release.version.clone();
         self.set(Update::Downloading(version.clone()));
+        self.stop.store(false, std::sync::atomic::Ordering::Release);
         let me = self.clone();
         let spawned = std::thread::Builder::new()
             .name("omega-update".into())
             .spawn(move || {
                 crate::spawn::stand_back();
+                let stop = || me.stop.load(std::sync::atomic::Ordering::Acquire);
                 let done = match system {
-                    Some((manifest, _)) => install_system(&root, &release, &manifest),
+                    Some((manifest, _)) => install_system(&root, &release, &manifest, &stop),
                     None => install(&program(&root), &release.program, &release.sum),
                 };
                 let done = match done {
                     Ok(()) => Update::Installed(version),
+                    // stopped: the card as it was, and the update offered again
+                    Err(STOPPED) => {
+                        crate::log!("update: stopped before v{version} was put in place");
+                        Update::Idle
+                    }
                     Err(why) => {
                         crate::log!("update: {why}");
                         Update::Failed(why)
@@ -570,7 +590,15 @@ fn fetch_range(url: &str, start: u64, len: u64) -> Result<Vec<u8>, &'static str>
 
 /// Brings the card rooted at `root` to `manifest`: fetches what differs, writes each file
 /// beside the one it replaces, then, all of them made, puts them in place.
-fn install_system(root: &Path, release: &Release, manifest: &Manifest) -> Result<(), &'static str> {
+/// What an install stopped from Settings ends in: the card as it was.
+pub const STOPPED: &str = "STOPPED";
+
+fn install_system(
+    root: &Path,
+    release: &Release,
+    manifest: &Manifest,
+    stop: &dyn Fn() -> bool,
+) -> Result<(), &'static str> {
     let [_, files_url, patches_url] = release.system.as_ref().ok_or("BAD RELEASE")?;
     if !program(root).is_file() {
         return Err("NOT ON CARD");
@@ -580,6 +608,10 @@ fn install_system(root: &Path, release: &Release, manifest: &Manifest) -> Result
     let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut make = || -> Result<(), &'static str> {
         for step in &steps {
+            // asked to stop: before the next file, nothing yet in place
+            if stop() {
+                return Err(STOPPED);
+            }
             let file = step.file();
             let to = root.join(&file.path);
             let (piece, old) = match step {
@@ -1013,5 +1045,48 @@ mod tests {
         let hex = "ab".repeat(32);
         assert_eq!(sum_of(&format!("{hex}  omega-zero-aarch64\n")), Some(hex));
         assert_eq!(sum_of("Not Found"), None);
+    }
+
+    #[test]
+    fn a_stopped_install_leaves_the_card_as_it_was() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path();
+        std::fs::create_dir_all(root.join("System")).unwrap();
+        std::fs::write(program(root), b"the one running").unwrap();
+        let manifest = Manifest {
+            version: "9.9.9".into(),
+            files: vec![omega_pack::FileEntry {
+                path: PROGRAM.into(),
+                sha: "ab".repeat(32),
+                size: 4,
+                exec: true,
+                offset: 0,
+                len: 4,
+            }],
+            patches: Vec::new(),
+        };
+        // nothing answers here: a stop has to come before any fetch
+        let release = Release {
+            version: "9.9.9".into(),
+            program: String::new(),
+            sum: String::new(),
+            system: Some([
+                "http://127.0.0.1:9/m".into(),
+                "http://127.0.0.1:9/f".into(),
+                "http://127.0.0.1:9/p".into(),
+            ]),
+        };
+        assert_eq!(
+            install_system(root, &release, &manifest, &|| true),
+            Err(STOPPED)
+        );
+        assert_eq!(std::fs::read(program(root)).unwrap(), b"the one running");
+        let left: Vec<_> = std::fs::read_dir(root.join("System"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(left, ["omega-zero"], "something was left staged");
+        // with none under way there is nothing to stop
+        assert!(!Updater::default().stop());
     }
 }

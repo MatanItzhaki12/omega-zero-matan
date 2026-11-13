@@ -6,13 +6,14 @@
 //! - MENU: Resume; Undo Save and Undo Load, for 30 seconds after a save or a load; States, while
 //!   the game has any; Settings; Restart, which starts the game over from power on; and Exit
 //!   Game, which saves a state and ejects the cart, but for a card with one cart.
-//! - SETTINGS: Screen, Gameplay, Achievements, for a system RetroAchievements reads, and
+//! - SETTINGS: Display, Gameplay, Achievements, for a system RetroAchievements reads, and
 //!   Controls.
-//! - SCREEN, for the system being played: Screen Filter, the Game Boy's Palette, Colour
-//!   Correction, Frame Blending, Brightness and Blue Light. The game is not dimmed behind it and
+//! - DISPLAY, for the system being played: Screen Filter, the Game Boy's Palette, Colour
+//!   Correction, Frame Blending, Brightness, Blue Light and a PSP game's Picture, as Settings'
+//!   own DISPLAY holds them. The game is not dimmed behind it and
 //!   the panel stands at the bottom, so every change shows on the game as it is made.
 //! - GAMEPLAY: Fast Forward, Fast Forward Sound, Rewind, Turbo Buttons, Run-Ahead, Rumble, Load
-//!   State on Insert and Save State on Eject.
+//!   State on Insert and Save State on Eject, as Settings' GAMEPLAY, and a PSP game's Stick.
 //! - ACHIEVEMENTS: whether RetroAchievements found the game, and the title it took it for; how
 //!   many of its achievements are unlocked; every one of them, in a list of its own; and
 //!   RetroAchievements and Hardcore switched on or off.
@@ -24,7 +25,7 @@
 
 use omega_gfx::{out_h, out_w};
 use omega_input::{Action, Btn, Millis};
-use omega_store::{Core, Platform, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX};
+use omega_store::{Core, Platform, RING_MAX};
 use omega_ui::kit::layout::{page, screen_px};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::panel_face;
@@ -37,12 +38,11 @@ use crate::options::OptionRow;
 use crate::screens::lone::{
     fitted, notes, notes_height, over, rows_height, Lone, NOTE_GAP, NOTE_X,
 };
-use crate::screens::settings::SettingsRow;
 
 /// How wide the panel is: the GAMEPLAY and SHELF panels' width.
 pub const PANEL_W: u32 = crate::options::PANEL_W;
 
-/// How dark the game is behind every page but SCREEN.
+/// How dark the game is behind every page but DISPLAY.
 const DIM: f32 = 0.55;
 
 /// How long after the tap that opens it the menu comes up, as Slot's does: room for the second
@@ -80,7 +80,7 @@ impl PausePage {
         match self {
             PausePage::Main => "MENU",
             PausePage::Settings => "SETTINGS",
-            PausePage::Screen => "SCREEN",
+            PausePage::Screen => "DISPLAY",
             PausePage::Gameplay => "GAMEPLAY",
             PausePage::Controls => "CONTROLS",
             PausePage::Achievements => "ACHIEVEMENTS",
@@ -104,6 +104,7 @@ impl PausePage {
                 PauseRow::Restart,
                 PauseRow::ExitGame,
             ],
+            // as Settings has them: Display, Gameplay, then what a game has besides
             PausePage::Settings => &[
                 PauseRow::Screen,
                 PauseRow::Gameplay,
@@ -112,17 +113,18 @@ impl PausePage {
                 PauseRow::Wifi,
                 PauseRow::Bluetooth,
             ],
+            // as Settings › Display and Settings › Gameplay have them, in the same order, and what
+            // is this game's alone after: its picture, and the D-pad as its stick
             PausePage::Screen => &[
-                PauseRow::Picture,
                 PauseRow::ScreenFilter,
                 PauseRow::Palette,
                 PauseRow::ColourCorrection,
                 PauseRow::Blending,
                 PauseRow::Brightness,
                 PauseRow::BlueLight,
+                PauseRow::Picture,
             ],
             PausePage::Gameplay => &[
-                PauseRow::Stick,
                 PauseRow::FastForward,
                 PauseRow::FastForwardSound,
                 PauseRow::Rewind,
@@ -131,6 +133,7 @@ impl PausePage {
                 PauseRow::Rumble,
                 PauseRow::LoadOnInsert,
                 PauseRow::SaveOnEject,
+                PauseRow::Stick,
             ],
             PausePage::Achievements => &[
                 PauseRow::Game,
@@ -226,21 +229,21 @@ impl PauseRow {
             PauseRow::States => "States",
             PauseRow::Settings => "Settings",
             PauseRow::ExitGame => "Exit Game",
-            PauseRow::Screen => "Screen",
+            PauseRow::Screen => "Display",
             PauseRow::Gameplay => "Gameplay",
             PauseRow::Controls => "Controls",
             PauseRow::ScreenFilter => "Screen Filter",
-            PauseRow::Palette => "Palette",
+            PauseRow::Palette => "Game Boy Palette",
             PauseRow::ColourCorrection => "Colour Correction",
             PauseRow::Blending => "Frame Blending",
             PauseRow::Brightness => "Brightness",
-            PauseRow::BlueLight => "Blue Light",
+            PauseRow::BlueLight => "Blue Light Filter",
             PauseRow::FastForward => "Fast Forward",
             PauseRow::FastForwardSound => "Fast Forward Sound",
             PauseRow::Rewind => "Rewind",
             PauseRow::Turbo => "Turbo Buttons",
             PauseRow::RunAhead => "Run-Ahead",
-            PauseRow::Picture => "Picture",
+            PauseRow::Picture => "PSP Screen",
             PauseRow::Stick => "D-Pad as Stick",
             PauseRow::Headphones => "Headphones",
             PauseRow::Wifi => "Wi-Fi",
@@ -767,32 +770,16 @@ impl App {
 
     fn change_pause_row(&mut self, row: PauseRow, right: bool) {
         match row {
-            PauseRow::ScreenFilter => {
-                self.state.screen_filter = self.state.screen_filter.step(right);
-                self.persist();
-            }
-            PauseRow::ColourCorrection => self.change_setting(SettingsRow::ColourCorrection, right),
+            PauseRow::ScreenFilter => self.step_filter(right),
+            PauseRow::ColourCorrection => self.toggle_colour_correction(),
             PauseRow::FastForward => self.step_ff_speed(right),
             PauseRow::Picture => self.step_picture(right),
             PauseRow::Stick => self.step_stick(right),
             PauseRow::Hp(row) => self.change_headphones(row, right),
             PauseRow::Wifi => self.toggle_wifi(),
             PauseRow::Bluetooth => self.toggle_bluetooth(),
-            PauseRow::Brightness | PauseRow::BlueLight => {
-                let (level, max) = match row {
-                    PauseRow::Brightness => (&mut self.state.brightness, BRIGHTNESS_MAX),
-                    _ => (&mut self.state.blue_light, BLUE_LIGHT_MAX),
-                };
-                *level = match right {
-                    true => (*level + 1).min(max),
-                    false => level.saturating_sub(1),
-                };
-                let brightness = self.state.brightness;
-                if let Some(power) = &mut self.power {
-                    power.set_backlight(brightness);
-                }
-                self.persist();
-            }
+            PauseRow::Brightness => self.step_light(false, right),
+            PauseRow::BlueLight => self.step_light(true, right),
             _ => {
                 let option = match row {
                     PauseRow::Palette => OptionRow::Palette,
@@ -946,9 +933,9 @@ impl App {
         }
     }
 
-    /// The menu over the game: the game dimmed, but on SCREEN, whose changes show on it; the
+    /// The menu over the game: the game dimmed, but on DISPLAY, whose changes show on it; the
     /// bar across the top with the clock and the battery; and the page's panel, in the middle,
-    /// or at the bottom on SCREEN, out of the game's way.
+    /// or at the bottom on DISPLAY, out of the game's way.
     pub(crate) fn draw_pause_menu(&self, out: &mut Vec<Draw>) {
         let Some(menu) = self.pause_menu_shown() else {
             return;

@@ -30,9 +30,8 @@ impl App {
     /// What a config row is set to; a row that opens a screen shows none of these.
     pub fn settings_value(&self, row: SettingsRow) -> Option<QuickValue> {
         match row {
-            SettingsRow::ColourCorrection => Some(QuickValue::flag(self.state.colour_correction)),
-            SettingsRow::ScreenFilter => Some(QuickValue::filter(self.state.screen_filter)),
-            SettingsRow::Gameplay
+            SettingsRow::Display
+            | SettingsRow::Gameplay
             | SettingsRow::Shelf
             | SettingsRow::Labels
             | SettingsRow::Achievements
@@ -130,6 +129,7 @@ impl App {
             Action::GbaDown(Btn::Left) => return self.change_setting(row, false),
             Action::GbaDown(Btn::Right) => return self.change_setting(row, true),
             Action::GbaDown(Btn::A) if row == SettingsRow::Update => return self.press_update(),
+            Action::GbaDown(Btn::X) if row == SettingsRow::Update => return self.stop_update(),
             Action::GbaDown(Btn::A) => return self.open_settings_row(row),
             Action::GbaDown(Btn::B | Btn::Start) | Action::QuickMenu => {
                 // what Update said goes with Settings: the version shows again when it opens
@@ -143,6 +143,7 @@ impl App {
 
     fn open_settings_row(&mut self, row: SettingsRow) {
         let to = match row {
+            SettingsRow::Display => Phase::Options(OptionsScreen::new(OptionsPage::Display)),
             SettingsRow::Gameplay => Phase::Options(OptionsScreen::new(OptionsPage::Gameplay)),
             SettingsRow::Shelf => Phase::Options(OptionsScreen::new(OptionsPage::Shelf)),
             SettingsRow::Labels => Phase::Labels(LabelsScreen::default()),
@@ -155,35 +156,50 @@ impl App {
             SettingsRow::Bluetooth => Phase::Bluetooth(BluetoothScreen::default()),
             SettingsRow::Background => Phase::Background(BackgroundScreen::default()),
             SettingsRow::About => Phase::About,
-            SettingsRow::ColourCorrection | SettingsRow::ScreenFilter | SettingsRow::Update => {
-                return
-            }
+            SettingsRow::Update => return,
         };
         self.go(to, Dir::Deeper);
     }
 
+    /// Left or right on a row of Settings: only Update's steps, between the releases and the
+    /// test builds. The rest open a panel of their own.
     pub(crate) fn change_setting(&mut self, row: SettingsRow, right: bool) {
+        let _ = right;
         if row == SettingsRow::Update {
-            return self.switch_update_channel();
+            self.switch_update_channel();
         }
+    }
+
+    /// Colour correction on or off: the core takes it as the game plays. DISPLAY and the game's
+    /// menu both step it, and SELECT+R.
+    pub(crate) fn toggle_colour_correction(&mut self) {
         let s = &mut self.state;
-        match row {
-            SettingsRow::ColourCorrection => {
-                s.colour_correction = !s.colour_correction;
-                self.colour_pending = Some(s.colour_correction);
-            }
-            SettingsRow::ScreenFilter => s.screen_filter = s.screen_filter.step(right),
-            SettingsRow::Gameplay
-            | SettingsRow::Shelf
-            | SettingsRow::Labels
-            | SettingsRow::Achievements
-            | SettingsRow::Backup
-            | SettingsRow::DateTime
-            | SettingsRow::Network
-            | SettingsRow::Bluetooth
-            | SettingsRow::Background
-            | SettingsRow::Update
-            | SettingsRow::About => return,
+        s.colour_correction = !s.colour_correction;
+        self.colour_pending = Some(s.colour_correction);
+        self.persist();
+    }
+
+    /// The screen filter, one step on or back, as a menu steps it: its row says which, so no
+    /// toast (SELECT+A and B in a game name it in one: `step_screen_filter`).
+    pub(crate) fn step_filter(&mut self, right: bool) {
+        self.state.screen_filter = self.state.screen_filter.step(right);
+        self.persist();
+    }
+
+    /// The screen's brightness, or its blue light filter, one step up or down, held between
+    /// none and the top.
+    pub(crate) fn step_light(&mut self, blue: bool, right: bool) {
+        let (level, max) = match blue {
+            false => (&mut self.state.brightness, omega_store::BRIGHTNESS_MAX),
+            true => (&mut self.state.blue_light, omega_store::BLUE_LIGHT_MAX),
+        };
+        *level = match right {
+            true => (*level + 1).min(max),
+            false => level.saturating_sub(1),
+        };
+        let brightness = self.state.brightness;
+        if let Some(power) = &mut self.power {
+            power.set_backlight(brightness);
         }
         self.persist();
     }
@@ -223,6 +239,24 @@ impl App {
             crate::update::Channel::Test => "Updates from test builds",
             crate::update::Channel::Stable => "Updates from releases",
         };
+        let now = self.now();
+        self.hud.toast(Toast::Update(said), now);
+    }
+
+    /// X on Update: an update offered is put off until the next look for one, and one
+    /// downloading is stopped before its next file, the card left as it was. One already in
+    /// place waits for its restart, and cannot be taken back.
+    fn stop_update(&mut self) {
+        use crate::update::Update;
+        let said = match self.updater.state() {
+            Update::Available { .. } => {
+                self.updater.forget();
+                "Update put off"
+            }
+            Update::Downloading(_) if self.updater.stop() => "Update stopped",
+            _ => return self.refuse(),
+        };
+        crate::log!("update: {said}");
         let now = self.now();
         self.hud.toast(Toast::Update(said), now);
     }
