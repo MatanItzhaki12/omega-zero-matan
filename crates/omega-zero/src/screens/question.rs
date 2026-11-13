@@ -7,9 +7,24 @@ use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::panel_face;
 use omega_ui::kit::pixel::text_width;
 use omega_ui::kit::row::panel_height;
-use omega_ui::UndoFace;
+use omega_ui::{Draw, UndoFace};
 
 use crate::screens::lone::{notes, notes_height, NOTE_GAP, NOTE_X};
+
+/// How dark the screen behind a question goes, so the question stands out from what it is
+/// about without hiding it.
+const DIM: f32 = 0.45;
+
+/// Darkens the whole screen behind a question, under its panel.
+pub fn dim_behind(out: &mut Vec<Draw>) {
+    out.push(Draw::Rect {
+        x: 0.0,
+        y: 0.0,
+        w: omega_gfx::out_w() as f32,
+        h: omega_gfx::out_h() as f32,
+        colour: [0.0, 0.0, 0.0, DIM],
+    });
+}
 
 /// The room either side of the question, inside the panel's frame, in art pixels.
 const MARGIN: u32 = 8;

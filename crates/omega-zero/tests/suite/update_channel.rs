@@ -30,6 +30,13 @@ fn left_or_right_on_update_switches_between_releases_and_test_builds() {
 
     press(&mut a, Btn::Right);
     assert_eq!(a.update_channel(), Channel::Test);
+    // a release running on test builds says so on the row
+    assert!(
+        a.settings_text(SettingsRow::Update)
+            .is_some_and(|t| t.starts_with("TEST V")),
+        "{:?}",
+        a.settings_text(SettingsRow::Update)
+    );
     assert!(
         read_app_state(d.path()).test_updates,
         "the channel was not kept"

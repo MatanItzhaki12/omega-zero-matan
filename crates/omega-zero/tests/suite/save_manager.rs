@@ -234,3 +234,57 @@ fn the_index_finds_what_a_look_at_each_game_finds() {
     assert_eq!(index[0].1, 12, "the save's size");
     assert_eq!(index[1].1, 0, "a game with only states has no save");
 }
+
+#[test]
+fn a_game_going_in_is_backed_up_only_when_its_save_changed_and_five_are_kept() {
+    let d = tempfile::tempdir().unwrap();
+    let game = gba("Emerald");
+    write(d.path(), "Saves/GBA/Emerald.sav", b"first");
+    assert!(save_manager::auto_back_up(d.path(), &game, "2026-11-12_10-00-00").unwrap());
+    // the same save again: nothing new kept
+    assert!(!save_manager::auto_back_up(d.path(), &game, "2026-11-12_10-01-00").unwrap());
+    assert!(save_manager::is_auto(
+        d.path(),
+        &game,
+        "2026-11-12_10-00-00"
+    ));
+    // a backup kept by hand stays, however many automatic ones come after it
+    save_manager::back_up(d.path(), &game, "2026-11-12_09-00-00").unwrap();
+    for n in 0..8 {
+        write(
+            d.path(),
+            "Saves/GBA/Emerald.sav",
+            format!("play {n}").as_bytes(),
+        );
+        let stamp = format!("2026-11-12_11-0{n}-00");
+        assert!(save_manager::auto_back_up(d.path(), &game, &stamp).unwrap());
+    }
+    let kept = save_manager::backups(d.path(), &game);
+    let autos = kept
+        .iter()
+        .filter(|s| save_manager::is_auto(d.path(), &game, s))
+        .count();
+    assert_eq!(autos, save_manager::AUTO_KEEP);
+    assert!(
+        kept.contains(&"2026-11-12_09-00-00".to_string()),
+        "{kept:?}"
+    );
+    // put back, an automatic backup is the save alone, without its mark
+    save_manager::restore(d.path(), &game, &kept[0], "2026-11-12_12-00-00").unwrap();
+    assert!(!d.path().join("Saves/.auto").exists());
+    assert_eq!(
+        save_manager::save_files(d.path(), &game),
+        vec!["GBA/Emerald.sav"]
+    );
+}
+
+#[test]
+fn the_room_on_the_card_is_read_from_df() {
+    let printed = "Filesystem     1024-blocks      Used Available Capacity Mounted on\n\
+                   /dev/mmcblk0p7    60000000  30000000  29000000      51% /mnt/sdcard\n";
+    assert_eq!(
+        save_manager::df_space(printed),
+        Some((29_000_000 * 1024, 60_000_000 * 1024))
+    );
+    assert_eq!(save_manager::df_space("nothing"), None);
+}

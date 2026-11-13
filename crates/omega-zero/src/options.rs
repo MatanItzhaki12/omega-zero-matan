@@ -24,7 +24,7 @@ use omega_ui::{Draw, Keyboard, QuickValue, Toast, UndoFace};
 
 use crate::app::{App, Phase};
 use crate::nav::Dir;
-use crate::screens::lone::{notes, notes_height, over, rows_height, Lone, NOTE_GAP};
+use crate::screens::lone::{notes, notes_height, over, rows_height, Lone, NOTE_GAP, NOTE_X};
 use crate::screens::settings::{ff_next, SettingsRow};
 
 /// How wide a panel is, in art pixels: room for Load State on Insert and a palette's name.
@@ -258,10 +258,14 @@ pub enum OptionRow {
     Relay,
     /// How a PSP game is shown unless set for itself: Fit, Actual or Stretch.
     PspScreen,
-    /// SAVES' way into SAVE BACKUP, the keyboard for a search, and a system's games.
+    /// SAVES' way into SAVE BACKUP, the keyboard for a search, Auto Backup, Back Up All Saves,
+    /// a system's games, and the room on the card.
     SavesNas,
     SavesSearch,
+    SavesAutoBackup,
+    SavesBackUpAll,
     SavesSystem(Platform),
+    SavesCardSpace,
     /// A game in GAMES, by its place in the list: A opens GAME. And the row of a list with none.
     SavesGame(u16),
     SavesNoMatch,
@@ -348,6 +352,8 @@ impl OptionRow {
                     | OptionRow::FolderUse
                     | OptionRow::RestoreItem(_)
                     | OptionRow::SavesNoMatch
+                    | OptionRow::SavesBackUpAll
+                    | OptionRow::SavesCardSpace
                     | OptionRow::GameSave
                     | OptionRow::GameBackUp
                     | OptionRow::GameBackup(_)
@@ -394,6 +400,9 @@ impl OptionRow {
             OptionRow::PspScreen => "PSP Screen",
             OptionRow::SavesNas => "NAS Backup",
             OptionRow::SavesSearch => "Search Games",
+            OptionRow::SavesAutoBackup => "Auto Backup",
+            OptionRow::SavesBackUpAll => "Back Up All Saves",
+            OptionRow::SavesCardSpace => "Card Space",
             OptionRow::SavesNoMatch => "No Games Found",
             OptionRow::GameSaveMenu => "Save",
             OptionRow::GameStatesMenu => "Save States",
@@ -457,6 +466,9 @@ impl OptionRow {
             OptionRow::PspScreen => "Fit fills the width; each game can differ",
             OptionRow::SavesNas => "Saves copied to a NAS, and back",
             OptionRow::SavesSearch => "Find a game by its name",
+            OptionRow::SavesAutoBackup => "Backs a save up as its game goes in",
+            OptionRow::SavesBackUpAll => "Keeps a copy of every save on the handheld",
+            OptionRow::SavesCardSpace => "The room left on the card",
             OptionRow::SavesSystem(_) => "Its games' saves and states",
             OptionRow::SavesGame(_) => "Its save and its states",
             OptionRow::SavesNoMatch => "No games here",
@@ -561,6 +573,9 @@ pub struct OptionsView {
     pub lit: usize,
     /// The lit row's note: what it does, or for RetroAchievements who is signed in.
     pub note: String,
+    /// The list goes on past the rows in view: above them, and below.
+    pub above: bool,
+    pub below: bool,
 }
 
 /// A panel in `pal`, every value between carets while its row is lit, and the lit row's note.
@@ -590,13 +605,32 @@ pub fn options_panel_face(view: &OptionsView, pal: &Palette) -> UndoFace {
         );
         over(&mut panel.face, &face, x, y);
     }
-    notes(
-        &mut panel,
-        std::slice::from_ref(&view.note),
-        held + NOTE_GAP,
-        pal,
-    );
+    // a list longer than the panel says so at the end of the note's line, clear of the rows: an
+    // arrow up for rows above, one down for rows below, in the dim colour the note is in
+    let [wx, wy, ww, _] = panel.well;
+    let right = wx as i32 + ww as i32;
+    let y = wy as i32 + (held + NOTE_GAP) as i32 + 3;
+    if view.above {
+        scroll_mark(&mut panel.face, right - 20, y, true, pal.dim);
+    }
+    if view.below {
+        scroll_mark(&mut panel.face, right - 11, y, false, pal.dim);
+    }
+    // the note stops short of the arrows
+    let note = match view.above || view.below {
+        true => crate::screens::lone::fitted(&view.note, ww.saturating_sub(NOTE_X + 24)),
+        false => view.note.clone(),
+    };
+    notes(&mut panel, &[note], held + NOTE_GAP, pal);
     panel.face
+}
+
+/// A small arrow, 7 art pixels wide and 4 tall, from `(x, y)`: pointing up, or down.
+fn scroll_mark(face: &mut UndoFace, x: i32, y: i32, up: bool, colour: [u8; 3]) {
+    for row in 0..4 {
+        let half = if up { row } else { 3 - row };
+        omega_ui::kit::pixel::fill(face, [x + 3 - half, y + row, 2 * half + 1, 1], colour);
+    }
 }
 
 fn on_off(on: bool) -> String {
@@ -692,6 +726,9 @@ impl App {
             | OptionRow::FolderItem(_) => self.backup_text(row),
             OptionRow::SavesNas
             | OptionRow::SavesSearch
+            | OptionRow::SavesAutoBackup
+            | OptionRow::SavesBackUpAll
+            | OptionRow::SavesCardSpace
             | OptionRow::SavesSystem(_)
             | OptionRow::SavesGame(_)
             | OptionRow::SavesNoMatch
@@ -807,6 +844,8 @@ impl App {
             | OptionRow::FolderItem(_)
             | OptionRow::SavesNas
             | OptionRow::SavesSearch
+            | OptionRow::SavesBackUpAll
+            | OptionRow::SavesCardSpace
             | OptionRow::SavesSystem(_)
             | OptionRow::SavesGame(_)
             | OptionRow::SavesNoMatch
@@ -819,6 +858,7 @@ impl App {
             | OptionRow::GameNoStates
             | OptionRow::GameBackupsHeading
             | OptionRow::Hp(_) => return,
+            OptionRow::SavesAutoBackup => s.auto_backup = !s.auto_backup,
             OptionRow::Relay => {
                 let n = crate::netplay_lobby::RELAYS.len() as u8;
                 s.relay = match right {
@@ -869,6 +909,8 @@ impl App {
                 .map(|r| (*r, self.option_label(*r), self.option_text(*r)))
                 .collect(),
             lit: lit - first,
+            above: first > 0,
+            below: first + VIEW_ROWS < rows.len(),
             note: match row {
                 OptionRow::Cheevos | OptionRow::Account => self.achievements_note(),
                 row => self

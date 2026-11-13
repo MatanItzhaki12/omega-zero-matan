@@ -1,8 +1,9 @@
 //! Settings › Saves, a panel at a time:
 //!
 //! - **SAVES**: NAS Backup (SAVE BACKUP: saves copied to a NAS as they are made, and brought
-//!   back), Search Games (a name typed on the keyboard), and each system with games that have
-//!   anything on the card.
+//!   back), Search Games (a name typed on the keyboard), Auto Backup (a save backed up by itself
+//!   as its game goes in), Back Up All Saves, each system with games that have anything on the
+//!   card, and the room left on the card.
 //! - **GAMES**: a system's games, or those the search found, each with how big its save is.
 //! - **GAME**: a game's Save and its Save States, each a panel of its own.
 //! - **SAVE**: the Current Save and Back Up Now, then under the Backups heading each backup kept,
@@ -37,6 +38,7 @@ pub enum Answer {
     DeleteState(u16),
     ResumeFrom(u16),
     DeleteSave,
+    DeleteAllStates,
 }
 
 impl Answer {
@@ -48,6 +50,7 @@ impl Answer {
             Answer::DeleteState(_) => "Delete this state?",
             Answer::ResumeFrom(_) => "Resume from this state?",
             Answer::DeleteSave => "Delete this save?",
+            Answer::DeleteAllStates => "Delete every state?",
         }
     }
 
@@ -59,6 +62,7 @@ impl Answer {
             Answer::DeleteState(_) => "This state cannot be brought back",
             Answer::ResumeFrom(_) => "The game picks up here when it goes in",
             Answer::DeleteSave => "The game starts over; a backup is kept first",
+            Answer::DeleteAllStates => "Its resume point and saved states all go",
         }
     }
 }
@@ -85,6 +89,8 @@ pub struct SavesUi {
     /// The game GAME is open on, by its place in `games`, and what it has.
     pub open: Option<usize>,
     pub look: GameSaves,
+    /// The room on the card, free and in all, as SAVES opened.
+    pub card: Option<(u64, u64)>,
     /// The question up over the rows, and its panel.
     pub asking: Option<Answer>,
     pub panel: Option<Lone>,
@@ -124,6 +130,7 @@ impl App {
             all.len(),
             began.elapsed().as_millis()
         );
+        self.saves_ui.card = save_manager::card_space(&root);
         games.sort_by(|(a, an, _), (b, bn, _)| {
             (system_order(a.platform), an.to_lowercase())
                 .cmp(&(system_order(b.platform), bn.to_lowercase()))
@@ -221,10 +228,16 @@ impl App {
         let look = &ui.look;
         let index = |n: usize| 0..n.min(u16::MAX as usize);
         Some(match page {
-            OptionsPage::Saves => [OptionRow::SavesNas, OptionRow::SavesSearch]
-                .into_iter()
-                .chain(self.saved_systems().into_iter().map(OptionRow::SavesSystem))
-                .collect(),
+            OptionsPage::Saves => [
+                OptionRow::SavesNas,
+                OptionRow::SavesSearch,
+                OptionRow::SavesAutoBackup,
+                OptionRow::SavesBackUpAll,
+            ]
+            .into_iter()
+            .chain(self.saved_systems().into_iter().map(OptionRow::SavesSystem))
+            .chain(ui.card.map(|_| OptionRow::SavesCardSpace))
+            .collect(),
             OptionsPage::SavesGames if ui.shown.is_empty() => vec![OptionRow::SavesNoMatch],
             OptionsPage::SavesGames => index(ui.shown.len())
                 .map(|i| OptionRow::SavesGame(i as u16))
@@ -258,7 +271,14 @@ impl App {
             OptionRow::SavesSystem(p) => system(p).to_string(),
             OptionRow::SavesGame(i) => ui.games.get(*ui.shown.get(i as usize)?)?.1.clone(),
             OptionRow::GameBackup(i) => {
-                made_at(ui.look.backups.get(i as usize)?, self.state.clock_24h)
+                let stamp = ui.look.backups.get(i as usize)?;
+                let made = made_at(stamp, self.state.clock_24h);
+                match self.open_game().zip(self.root.as_deref()) {
+                    Some((game, root)) if save_manager::is_auto(root, game, stamp) => {
+                        format!("{made} (Auto)")
+                    }
+                    _ => made,
+                }
             }
             OptionRow::GameState(i) => match &ui.look.states.get(i as usize)?.kind {
                 StateKind::Resume => "Resume Point".to_string(),
@@ -275,15 +295,32 @@ impl App {
         let look = &ui.look;
         match row {
             OptionRow::SavesNas => self.backup_word(),
+            OptionRow::SavesAutoBackup => {
+                if self.state.auto_backup { "ON" } else { "OFF" }.to_string()
+            }
+            OptionRow::SavesCardSpace => match ui.card {
+                Some((free, _)) => format!("{} FREE", size(free)),
+                None => String::new(),
+            },
             OptionRow::SavesSystem(p) => {
                 let n = ui.games.iter().filter(|(g, ..)| g.platform == p).count();
                 format!("{n} {}", if n == 1 { "GAME" } else { "GAMES" })
             }
             OptionRow::SavesGame(i) => {
-                match ui.shown.get(i as usize).and_then(|&i| ui.games.get(i)) {
+                let what = match ui.shown.get(i as usize).and_then(|&i| ui.games.get(i)) {
                     Some((_, _, 0)) => "STATES".to_string(),
                     Some((_, _, bytes)) => size(*bytes),
-                    None => String::new(),
+                    None => return String::new(),
+                };
+                // a search lists every system's games: each says which it is
+                match (
+                    &ui.listed,
+                    ui.shown.get(i as usize).and_then(|&i| ui.games.get(i)),
+                ) {
+                    (Listed::Search(_), Some((game, ..))) => {
+                        format!("{} {what}", game.platform.dir_name())
+                    }
+                    _ => what,
                 }
             }
             OptionRow::GameSaveMenu if look.save.is_empty() && look.backups.is_empty() => {
@@ -321,11 +358,28 @@ impl App {
                 .map(|(_, n, _)| n.clone())
         };
         Some(match row {
+            OptionRow::SavesGame(i) => {
+                let (game, ..) = ui.games.get(*ui.shown.get(i as usize)?)?;
+                self.played_note(game)
+                    .unwrap_or_else(|| "Its save and its states".to_string())
+            }
+            OptionRow::SavesCardSpace => match ui.card {
+                Some((free, total)) => format!("{} free of {}", size(free), size(total)),
+                None => return None,
+            },
+            OptionRow::GameStatesMenu if !look.states.is_empty() => {
+                format!("{}: X deletes every state", name()?)
+            }
             OptionRow::SavesNoMatch => match &ui.listed {
                 Listed::Search(text) => format!("No game's name holds \"{text}\""),
                 _ => "No games here".to_string(),
             },
-            OptionRow::GameSaveMenu | OptionRow::GameStatesMenu => name()?,
+            OptionRow::GameSaveMenu | OptionRow::GameStatesMenu => {
+                match self.open_game().and_then(|game| self.played_note(game)) {
+                    Some(played) => format!("{}: {}", name()?, played.to_lowercase()),
+                    None => name()?,
+                }
+            }
             OptionRow::GameSave if look.save.is_empty() => "No save on the handheld".to_string(),
             OptionRow::GameSave => match look.save_written {
                 Some(at) => {
@@ -358,6 +412,9 @@ impl App {
             (Btn::X, OptionRow::GameBackup(i)) => return self.ask(Answer::DeleteBackup(i)),
             (Btn::Y, OptionRow::GameBackup(i)) => return self.ask(Answer::RestoreBackup(i)),
             (Btn::X, OptionRow::GameState(i)) => return self.ask(Answer::DeleteState(i)),
+            (Btn::X, OptionRow::GameStatesMenu) if !look.states.is_empty() => {
+                return self.ask(Answer::DeleteAllStates)
+            }
             // the resume point is already where the game picks up
             (Btn::Y, OptionRow::GameState(i))
                 if look
@@ -377,6 +434,8 @@ impl App {
                 self.open_page(OptionsPage::Backup);
             }
             OptionRow::SavesSearch => self.open_typing(Step::SearchGames, String::new()),
+            OptionRow::SavesAutoBackup => self.change_option(row, true),
+            OptionRow::SavesBackUpAll => self.back_up_all(),
             OptionRow::SavesSystem(p) => self.open_games(Listed::System(p)),
             OptionRow::SavesGame(i) => self.open_game_saves(i as usize),
             OptionRow::GameSaveMenu => self.open_page(OptionsPage::SaveMenu),
@@ -417,8 +476,54 @@ impl App {
     /// The question over the rows, while it is up.
     pub(crate) fn draw_saves_question(&self, out: &mut Vec<Draw>) {
         if let (Some(_), Some(panel)) = (self.saves_ui.asking, &self.saves_ui.panel) {
+            crate::screens::question::dim_behind(out);
             panel.draw(out);
         }
+    }
+
+    /// What Saves says of how long `game` has been played, and when last; none for a game
+    /// not played since the handheld kept count.
+    fn played_note(&self, game: &Game) -> Option<String> {
+        let p = self
+            .played(game.platform, &game.stem)
+            .filter(|p| p.secs > 0)?;
+        let last = p
+            .last
+            .map(|at| format!(", last {}", crate::backup_settings::ago(at)))
+            .unwrap_or_default();
+        Some(format!(
+            "Played {}{last}",
+            crate::play_log::played_text(p.secs)
+        ))
+    }
+
+    /// Back Up All Saves: a copy of every game's save, kept on the handheld.
+    fn back_up_all(&mut self) {
+        let Some(root) = self.root.clone() else {
+            return self.refuse();
+        };
+        let stamp = omega_store::format_stamp(self.wall_secs());
+        let began = std::time::Instant::now();
+        let (mut kept, mut failed) = (0, 0);
+        for (game, ..) in &self.saves_ui.games {
+            match save_manager::back_up(&root, game, &stamp) {
+                Ok(true) => kept += 1,
+                Ok(false) => {}
+                Err(e) => {
+                    failed += 1;
+                    crate::log!("saves: back up {}: {e}", game.stem);
+                }
+            }
+        }
+        crate::log!(
+            "saves: backed up {kept} saves in {} ms, {failed} failed",
+            began.elapsed().as_millis()
+        );
+        self.saves_toast(match (kept, failed) {
+            (_, f) if f > 0 => "Some saves could not be backed up",
+            (0, _) => "No saves to back up",
+            _ => "Every save backed up",
+        });
     }
 
     /// Back Up Now: a copy of the save as it is, kept on the handheld.
@@ -478,6 +583,12 @@ impl App {
             Answer::DeleteSave => (
                 save_manager::delete_save(&root, &game, &now),
                 "Save deleted",
+            ),
+            Answer::DeleteAllStates => (
+                look.states
+                    .iter()
+                    .try_for_each(|s| save_manager::delete_state(&root, &game, s)),
+                "Every state deleted",
             ),
         };
         match done {
@@ -547,11 +658,14 @@ pub fn made_at(stamp: &str, clock_24h: bool) -> String {
     format!("{day} {month} {year}, {time}")
 }
 
-/// A size as the panel prints it: bytes, KB or MB.
-fn size(bytes: u64) -> String {
+/// A size as the panel prints it: bytes, KB, MB or GB.
+pub fn size(bytes: u64) -> String {
+    const MB: u64 = 1024 * 1024;
+    const GB: u64 = 1024 * MB;
     match bytes {
         b if b < 1024 => format!("{b} B"),
-        b if b < 1024 * 1024 => format!("{} KB", b.div_ceil(1024)),
-        b => format!("{:.1} MB", b as f64 / (1024.0 * 1024.0)),
+        b if b < MB => format!("{} KB", b.div_ceil(1024)),
+        b if b < GB => format!("{:.1} MB", b as f64 / MB as f64),
+        b => format!("{:.1} GB", b as f64 / GB as f64),
     }
 }

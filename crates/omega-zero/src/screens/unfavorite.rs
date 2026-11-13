@@ -61,6 +61,7 @@ impl App {
     /// The question over the shelf, while it is up.
     pub(crate) fn draw_unfavorite(&self, out: &mut Vec<Draw>) {
         if let (true, Some(panel)) = (self.unfavorite_asked, &self.unfavorite_panel) {
+            crate::screens::question::dim_behind(out);
             panel.draw(out);
         }
     }

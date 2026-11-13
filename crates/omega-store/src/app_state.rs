@@ -124,6 +124,8 @@ pub struct AppState {
     pub menu_music_volume: u8,
     /// Settings' Update takes the test builds of the `test` branch, not the releases.
     pub test_updates: bool,
+    /// A game's save is backed up by itself as it goes in, the newest five kept.
+    pub auto_backup: bool,
 }
 
 /// The top of the menu sounds' and the tune's volumes.
@@ -193,6 +195,7 @@ impl Default for AppState {
             menu_sounds_volume: MENU_VOLUME_DEFAULT,
             menu_music_volume: MENU_VOLUME_DEFAULT,
             test_updates: false,
+            auto_backup: true,
         }
     }
 }
@@ -513,6 +516,7 @@ const FIELDS: &[Field] = &[
         }
     ),
     flag!("test_updates", test_updates),
+    flag!("auto_backup", auto_backup),
 ];
 
 fn menu_volume(value: &str) -> Option<u8> {

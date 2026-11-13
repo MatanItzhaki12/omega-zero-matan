@@ -61,6 +61,7 @@ mod opening;
 mod picker_systems;
 mod platform;
 mod play;
+mod play_log;
 mod play_rules;
 mod polaroids;
 mod power;

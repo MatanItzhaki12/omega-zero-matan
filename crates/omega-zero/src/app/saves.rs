@@ -5,6 +5,8 @@ use super::*;
 
 impl App {
     pub(super) fn flush_eject(&mut self, stem: &str) {
+        // the time the game was played goes on the card as it comes out
+        self.write_play_log();
         self.settle_saves();
         let (Some(root), Some(snapshot)) = (&self.root, &self.snapshot) else {
             return;
@@ -127,6 +129,7 @@ impl App {
 
     pub(super) fn autosave(&mut self) {
         self.autosave_at = self.now() + self.autosave_every();
+        self.write_play_log();
         self.settle_saves();
         let (Some(root), Some(snapshot), Some(cart)) = (&self.root, &self.snapshot, self.seated())
         else {

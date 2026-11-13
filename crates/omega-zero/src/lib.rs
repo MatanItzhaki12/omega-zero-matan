@@ -53,6 +53,7 @@ pub mod opening;
 pub mod options;
 pub mod pause_menu;
 pub mod persist;
+pub mod play_log;
 pub mod resample;
 pub mod rewind;
 pub mod root;

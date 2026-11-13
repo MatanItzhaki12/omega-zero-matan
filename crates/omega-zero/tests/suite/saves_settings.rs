@@ -97,11 +97,22 @@ fn saves_lists_the_nas_a_search_and_the_systems_with_anything_saved() {
     assert_eq!(SettingsRow::Backup.label(), "Saves");
     open_saves(&mut a);
     assert_eq!(title(&a), "SAVES");
+    let shown = rows(&a);
     assert_eq!(
-        rows(&a),
+        shown[..5],
         [
             (OptionRow::SavesNas, "NAS Backup".into(), "OFF".into()),
             (OptionRow::SavesSearch, "Search Games".into(), String::new()),
+            (
+                OptionRow::SavesAutoBackup,
+                "Auto Backup".into(),
+                "ON".into()
+            ),
+            (
+                OptionRow::SavesBackUpAll,
+                "Back Up All Saves".into(),
+                String::new()
+            ),
             (
                 OptionRow::SavesSystem(Platform::Gba),
                 "Game Boy Advance".into(),
@@ -110,6 +121,14 @@ fn saves_lists_the_nas_a_search_and_the_systems_with_anything_saved() {
         ],
         "Fusion has nothing, and is not counted"
     );
+    // the room on the card closes the list, where the card can be asked
+    if let Some((row, label, value)) = shown.get(5) {
+        assert_eq!(
+            (*row, label.as_str()),
+            (OptionRow::SavesCardSpace, "Card Space")
+        );
+        assert!(value.ends_with(" FREE"), "{value}");
+    }
     // a system lists its games, each with its save's size
     down_to(&mut a, OptionRow::SavesSystem(Platform::Gba));
     press(&mut a, Btn::A);
@@ -156,7 +175,11 @@ fn a_game_has_its_save_and_its_states_each_in_a_panel_of_its_own() {
             (OptionRow::GameStatesMenu, "Save States".into(), "1".into()),
         ]
     );
-    assert_eq!(note(&a), "Emerald");
+    assert_eq!(
+        note(&a),
+        "Emerald",
+        "a game not played since the count began"
+    );
 
     press(&mut a, Btn::A);
     assert_eq!(title(&a), "SAVE");
@@ -308,4 +331,99 @@ fn a_backup_is_named_for_when_it_was_made_on_either_clock() {
         made_at("2026-01-03_00-05-00", false),
         "3 Jan 2026, 12:05 AM"
     );
+}
+
+#[test]
+fn auto_backup_is_switched_off_and_on_and_kept() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_saves(&mut a);
+    down_to(&mut a, OptionRow::SavesAutoBackup);
+    press(&mut a, Btn::A);
+    assert!(
+        !omega_store::read_app_state(d.path()).auto_backup,
+        "OFF was not kept"
+    );
+    press(&mut a, Btn::Right);
+    assert!(omega_store::read_app_state(d.path()).auto_backup);
+}
+
+#[test]
+fn back_up_all_saves_keeps_a_copy_of_every_save() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_saves(&mut a);
+    down_to(&mut a, OptionRow::SavesBackUpAll);
+    press(&mut a, Btn::A);
+    assert_eq!(save_manager::backups(d.path(), &emerald()).len(), 1);
+}
+
+#[test]
+fn x_on_save_states_deletes_every_state_after_asking() {
+    let d = card();
+    StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald")
+        .push(b"one", b"png", "2026-11-12_10-00-00")
+        .unwrap();
+    let mut a = boot(d.path());
+    open_emerald(&mut a);
+    down_to(&mut a, OptionRow::GameStatesMenu);
+    press(&mut a, Btn::X);
+    assert!(a.saves_asking().is_some(), "X deleted them without asking");
+    press(&mut a, Btn::A);
+    let ring = StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald");
+    assert!(!ring.has_resume());
+    assert!(ring.list().unwrap().is_empty());
+    assert_eq!(rows(&a)[1].2, "NONE");
+}
+
+#[test]
+fn a_search_says_which_system_each_game_is() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_saves(&mut a);
+    a.search_typed("emer");
+    a.finish_slide();
+    assert_eq!(rows(&a)[0].2, "GBA 11 B");
+}
+
+#[test]
+fn a_long_list_marks_the_rows_above_and_below_the_panel() {
+    let names: Vec<String> = (0..20).map(|i| format!("Game {i:02}")).collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let d = tmp_root_with_carts(&refs);
+    for n in &names {
+        let sav = d.path().join(format!("Saves/GBA/{n}.sav"));
+        std::fs::create_dir_all(sav.parent().unwrap()).unwrap();
+        std::fs::write(sav, b"s").unwrap();
+    }
+    let mut a = boot(d.path());
+    open_saves(&mut a);
+    down_to(&mut a, OptionRow::SavesSystem(Platform::Gba));
+    press(&mut a, Btn::A);
+    let v = a.options_view().unwrap();
+    assert!(
+        !v.above && v.below,
+        "the top of a long list: {} {}",
+        v.above,
+        v.below
+    );
+    for _ in 0..19 {
+        press(&mut a, Btn::Down);
+    }
+    let v = a.options_view().unwrap();
+    assert!(
+        v.above && !v.below,
+        "the end of a long list: {} {}",
+        v.above,
+        v.below
+    );
+}
+
+#[test]
+fn sizes_read_in_the_unit_that_suits_them() {
+    use omega_zero::saves_settings::size;
+    assert_eq!(size(512), "512 B");
+    assert_eq!(size(128 * 1024), "128 KB");
+    assert_eq!(size(40 * 1024 * 1024), "40.0 MB");
+    assert_eq!(size(29 * 1024 * 1024 * 1024), "29.0 GB");
 }

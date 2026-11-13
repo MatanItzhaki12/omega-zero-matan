@@ -64,7 +64,7 @@ impl App {
                 BluetoothSummary::On => QuickValue::On.text().to_string(),
                 BluetoothSummary::Connected(name) => name.to_uppercase(),
             }),
-            SettingsRow::Update => Some(self.updater.state().text()),
+            SettingsRow::Update => Some(self.update_text()),
             _ => self.settings_value(row).map(|v| v.text().to_string()),
         }
     }
@@ -186,6 +186,19 @@ impl App {
             | SettingsRow::About => return,
         }
         self.persist();
+    }
+
+    /// What the Update row says: where the update stands, and, on test builds while a release
+    /// runs, TEST before the version, so the channel is never taken for the releases.
+    fn update_text(&self) -> String {
+        use crate::update::{Channel, Update, VERSION};
+        let state = self.updater.state();
+        let switched = self.update_channel() == Channel::Test
+            && Channel::of_version(VERSION) == Channel::Stable;
+        match state {
+            Update::Idle if switched => format!("TEST {}", state.text()),
+            _ => state.text(),
+        }
     }
 
     /// Left or right on Update: the other channel, the releases or the test builds. What the one

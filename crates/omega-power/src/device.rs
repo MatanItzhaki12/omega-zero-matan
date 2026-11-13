@@ -444,11 +444,16 @@ fn charge_at(dir: &Path) -> Charge {
 
 /// Whether the jack's pin is high, headphones in, by debugfs's list of GPIOs: none for a list
 /// with no line for it, as while its driver takes it back.
-fn headphones_in(gpio: &str) -> Option<bool> {
-    let (_, state) = gpio
-        .lines()
-        .find(|l| l.contains("|Headphone detection"))?
-        .rsplit_once(')')?;
+///
+/// Read as bytes, as the list is 20 times a second: only the jack's own line is made text, and a
+/// label of another driver's that is not UTF-8 is passed over.
+fn headphones_in(gpio: &[u8]) -> Option<bool> {
+    const LABEL: &[u8] = b"|Headphone detection";
+    let line = gpio
+        .split(|&b| b == b'\n')
+        .find(|l| l.windows(LABEL.len()).any(|w| w == LABEL))?;
+    let line = String::from_utf8_lossy(line);
+    let (_, state) = line.rsplit_once(')')?;
     match state.split_whitespace().nth(1)? {
         "hi" => Some(true),
         "lo" => Some(false),
@@ -543,10 +548,7 @@ impl Platform for DevicePlatform {
         // read as bytes: the list of GPIOs holds, at times, a label of another driver's that is
         // not UTF-8, and read as text the whole list failed, which read as the headphones out
         let read = fs::read(self.sysfs.join("kernel/debug/gpio"));
-        let state = read
-            .as_deref()
-            .ok()
-            .and_then(|g| headphones_in(&String::from_utf8_lossy(g)));
+        let state = read.as_deref().ok().and_then(headphones_in);
         match state {
             Some(on) => {
                 self.jack.store(on, Ordering::Relaxed);

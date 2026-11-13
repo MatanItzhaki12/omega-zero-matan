@@ -21,6 +21,12 @@ use omega_store::{Core, Platform, StateRing};
 /// Where backups are kept, under the card's root.
 pub const BACKUPS: &str = "Backups";
 
+/// The file in a backup's folder that says it was made by itself, as its game went in.
+const AUTO_MARK: &str = ".auto";
+
+/// How many automatic backups a game keeps: the newest, the rest deleted as each is made.
+pub const AUTO_KEEP: usize = 5;
+
 /// Where PPSSPP keeps a PSP game's saves in Saves, a folder each.
 const PSP_SAVES: &str = "PSP/SAVEDATA";
 
@@ -322,12 +328,18 @@ fn states(root: &Path, game: &Game) -> Vec<State> {
 /// Keeps `game`'s save as it is as a backup stamped `stamp`. False, and nothing kept, for a game
 /// with no save.
 pub fn back_up(root: &Path, game: &Game, stamp: &str) -> std::io::Result<bool> {
+    Ok(back_up_as(root, game, stamp)?.is_some())
+}
+
+/// As [`back_up`], saying the stamp the backup was kept under.
+fn back_up_as(root: &Path, game: &Game, stamp: &str) -> std::io::Result<Option<String>> {
     let files = save_files(root, game);
     if files.is_empty() {
-        return Ok(false);
+        return Ok(None);
     }
     let saves = crate::root::saves_dir(root);
-    let to = backups_dir(root, game).join(free_stamp(root, game, stamp));
+    let stamp = free_stamp(root, game, stamp);
+    let to = backups_dir(root, game).join(&stamp);
     for rel in &files {
         let bytes = std::fs::read(saves.join(rel))?;
         let at = to.join(rel);
@@ -341,7 +353,81 @@ pub fn back_up(root: &Path, game: &Game, stamp: &str) -> std::io::Result<bool> {
         game.platform.dir_name(),
         game.stem
     );
+    Ok(Some(stamp))
+}
+
+/// Whether the backup stamped `stamp` was made by itself, as its game went in.
+pub fn is_auto(root: &Path, game: &Game, stamp: &str) -> bool {
+    omega_store::parse_stamp(stamp).is_some()
+        && backups_dir(root, game)
+            .join(stamp)
+            .join(AUTO_MARK)
+            .is_file()
+}
+
+/// Backs `game`'s save up by itself, as it goes in: kept as an automatic backup stamped `stamp`,
+/// unless the newest backup already holds it as it is. Only the newest [`AUTO_KEEP`] automatic
+/// backups stay; the ones kept by hand all do. True where one was made.
+pub fn auto_back_up(root: &Path, game: &Game, stamp: &str) -> std::io::Result<bool> {
+    let files = save_files(root, game);
+    if files.is_empty() {
+        return Ok(false);
+    }
+    if backups(root, game)
+        .first()
+        .is_some_and(|newest| holds(root, game, newest, &files))
+    {
+        return Ok(false);
+    }
+    let Some(made) = back_up_as(root, game, stamp)? else {
+        return Ok(false);
+    };
+    std::fs::write(backups_dir(root, game).join(&made).join(AUTO_MARK), b"")?;
+    let autos: Vec<String> = backups(root, game)
+        .into_iter()
+        .filter(|s| is_auto(root, game, s))
+        .collect();
+    for old in autos.iter().skip(AUTO_KEEP) {
+        delete_backup(root, game, old)?;
+    }
     Ok(true)
+}
+
+/// Whether the backup stamped `stamp` holds the save's `files` as they are on the card.
+fn holds(root: &Path, game: &Game, stamp: &str, files: &[String]) -> bool {
+    let saves = crate::root::saves_dir(root);
+    let kept = backups_dir(root, game).join(stamp);
+    let mut in_backup = Vec::new();
+    files_under(&kept, "", &mut in_backup);
+    in_backup.retain(|f| f != AUTO_MARK);
+    in_backup.len() == files.len()
+        && files.iter().all(|rel| {
+            matches!(
+                (std::fs::read(saves.join(rel)), std::fs::read(kept.join(rel))),
+                (Ok(a), Ok(b)) if a == b
+            )
+        })
+}
+
+/// How much room the card at `root` has: free and in all, in bytes, as `df` says. None where
+/// it cannot be asked.
+pub fn card_space(root: &Path) -> Option<(u64, u64)> {
+    let out = std::process::Command::new("df")
+        .arg("-kP")
+        .arg(root)
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    df_space(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// What `df -kP` printed, as free and in-all bytes.
+pub fn df_space(printed: &str) -> Option<(u64, u64)> {
+    let fields: Vec<&str> = printed.lines().nth(1)?.split_whitespace().collect();
+    let total: u64 = fields.get(1)?.parse().ok()?;
+    let free: u64 = fields.get(3)?.parse().ok()?;
+    Some((free * 1024, total * 1024))
 }
 
 /// `stamp`, or the next second free of a backup already kept, so two in a second keep both.
@@ -365,6 +451,8 @@ pub fn restore(root: &Path, game: &Game, stamp: &str, now: &str) -> std::io::Res
     }
     let mut files = Vec::new();
     files_under(&from, "", &mut files);
+    // the mark of an automatic backup is no part of the save
+    files.retain(|f| f != AUTO_MARK);
     back_up(root, game, now)?;
     remove_save(root, game)?;
     let saves = crate::root::saves_dir(root);

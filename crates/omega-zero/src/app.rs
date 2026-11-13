@@ -516,6 +516,10 @@ pub struct App {
     pub(crate) start_notice: Option<StartNotice>,
     /// The games put in last, the latest first, as Config/recents.txt lists them.
     pub(crate) recents: Vec<(Platform, String)>,
+    /// How long each game has been played, and the seconds of the one in the slot not yet
+    /// counted into it.
+    pub(crate) play_log: crate::play_log::PlayLog,
+    pub(crate) play_secs: f32,
     /// The GAMEPLAY or SHELF panel, once baked.
     /// Each options panel as last baked, by its title.
     pub(crate) options_panels: Vec<(&'static str, Lone)>,
@@ -588,6 +592,8 @@ impl App {
             opening: None,
             start_notice: None,
             recents: Vec::new(),
+            play_log: crate::play_log::PlayLog::default(),
+            play_secs: 0.0,
             options_panels: Vec::new(),
             switched: Vec::new(),
             updater: Default::default(),
@@ -736,6 +742,7 @@ impl App {
         app.start_achievements();
         app.start_save_backup();
         app.recents = read_recents(root);
+        app.play_log = crate::play_log::PlayLog::read(root);
         app.refresh_recents();
         app.refresh_marks();
         // RECENTS, when shown, is the shelf a boot comes up on, as on Slot
@@ -1585,6 +1592,7 @@ impl App {
 
     pub fn poweroff(&mut self) {
         self.remember_pick();
+        self.write_play_log();
         self.settle_saves();
         crate::card_writer::settle();
         if let Some(power) = &mut self.power {
@@ -2145,6 +2153,7 @@ impl App {
 
     pub fn update(&mut self, dt: f32) {
         self.clock += dt as f64 * 1000.0;
+        self.count_play(dt);
         self.step_boot_fade(dt);
         self.step_opening(dt);
         self.step_start_notice(dt);
@@ -2390,9 +2399,41 @@ impl App {
         if self.state.cart == cart && self.state.cart_platform == platform {
             return;
         }
+        // the game that was in the slot is done with: its time goes on the card
+        self.write_play_log();
         self.state.cart = cart;
         self.state.cart_platform = platform;
         self.persist();
+    }
+
+    /// Counts `dt` seconds of the game on screen into its time played: only while it plays, not
+    /// while its menu or the save states are up over it.
+    fn count_play(&mut self, dt: f32) {
+        if !matches!(self.phase, Phase::Playing { .. }) || self.pause_menu.is_some() {
+            return;
+        }
+        self.play_secs += dt;
+        if self.play_secs >= 1.0 {
+            let whole = self.play_secs.floor();
+            self.play_secs -= whole;
+            if let Some(cart) = self.seated_cart() {
+                let (platform, stem) = (cart.platform, cart.stem.clone());
+                let now = u64::try_from(self.utc_secs()).unwrap_or(0);
+                self.play_log.add(platform, &stem, whole as u64, now);
+            }
+        }
+    }
+
+    /// Writes the time played to the card, where any was played since it last was.
+    pub(crate) fn write_play_log(&mut self) {
+        if let Some(root) = &self.root {
+            self.play_log.write(root);
+        }
+    }
+
+    /// How long `stem` has been played, and when last.
+    pub fn played(&self, platform: Platform, stem: &str) -> Option<crate::play_log::Played> {
+        self.play_log.of(platform, stem)
     }
 
     pub(crate) fn persist(&self) {
@@ -3009,6 +3050,7 @@ impl App {
         };
         let cart = picked.stem.clone();
         self.note_recent(&picked);
+        self.auto_back_up(&picked);
         self.play_held = None;
         self.refusal = None;
         self.refused_from = None;
@@ -3022,6 +3064,27 @@ impl App {
             resumed: false,
             clean,
         };
+    }
+
+    /// Backs the save of `picked`, going in, up by itself, where Saves › Auto Backup is on: on a
+    /// thread of its own, as the cart's way in is drawn, and only where it changed since.
+    fn auto_back_up(&self, picked: &Cart) {
+        let (true, Some(root)) = (self.state.auto_backup, self.root.clone()) else {
+            return;
+        };
+        let game = crate::save_manager::Game::of(picked);
+        let stamp = omega_store::format_stamp(self.wall_secs());
+        let spawned = std::thread::Builder::new()
+            .name("omega-auto-backup".into())
+            .spawn(move || {
+                crate::spawn::stand_back();
+                if let Err(e) = crate::save_manager::auto_back_up(&root, &game, &stamp) {
+                    crate::log!("saves: auto backup of {}: {e}", game.stem);
+                }
+            });
+        if let Err(e) = spawned {
+            crate::log!("saves: no thread for the auto backup: {e}");
+        }
     }
 
     pub fn starting_clean(&self) -> bool {
