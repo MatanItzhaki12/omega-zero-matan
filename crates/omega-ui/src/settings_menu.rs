@@ -270,9 +270,10 @@ pub fn settings_panels(w: u32, h: u32, top: u32) -> [[u32; 4]; 2] {
     [[x, y, pw, hug], [x, y + hug - 1, pw, ph + 1 - hug]]
 }
 
-/// Where Settings' modal goes, `[x, y, w, h]`: at `modal_rect()`, reaching up into the margin
-/// above it as far as CONFIGS needs to hold every row it has under GENERAL holding `top`, where
-/// a short screen leaves it too little.
+/// Where Settings' modal goes, `[x, y, w, h]`: as tall as GENERAL holding `top` rows and
+/// CONFIGS holding all of its own need, and no taller, in the middle of `modal_rect()`, between
+/// the bars. Where a short screen leaves `modal_rect()` too little, it reaches up into the margin
+/// above it as far as CONFIGS needs.
 pub fn settings_rect(top: u32) -> [u32; 4] {
     let [x, y, w, h] = modal_rect();
     let configs = SettingsRow::ALL
@@ -280,9 +281,11 @@ pub fn settings_rect(top: u32) -> [u32; 4] {
         .filter(|r| r.group() == SettingsGroup::Configs)
         .count() as u32;
     let need = panel_height(configs * ROW_H);
-    let rise = (0..=y)
-        .find(|rise| settings_panels(w, h + rise, top)[1][3] >= need)
-        .unwrap_or(y);
+    let fits = |mh: u32| settings_panels(w, mh, top)[1][3] >= need;
+    if let Some(mh) = (0..=h).find(|&mh| fits(mh)) {
+        return [x, y + (h - mh) / 2, w, mh];
+    }
+    let rise = (0..=y).find(|rise| fits(h + rise)).unwrap_or(y);
     [x, y - rise, w, h + rise]
 }
 

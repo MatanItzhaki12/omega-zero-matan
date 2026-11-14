@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Pokémon FireRed Rev 1 runs at full speed on gpSP**: gpSP finds a game's idle loop by its
+  code alone, and FireRed's entry is Rev 0's, whose WaitForVBlank stands 20 bytes before Rev 1's;
+  so Rev 1's loop was run turn by turn, and fast-forward topped out near 2.5x where Emerald
+  reached 6x. A patch to gpSP (`cores/gpsp/firered-rev1-idle-loop.patch`) takes Rev 1's loop,
+  where its bytes are that loop.
+- Settings is as tall as its rows and no taller, in the middle between the bars, rather than
+  filling the page round ten rows.
 - X on Update stops a download where it is: curl is ended at once rather than at the file's end,
   so an update of one file, the program alone (a test build to its release), stops too; a stop
   asked as the last file comes in is taken before anything is put in place, and one asked once

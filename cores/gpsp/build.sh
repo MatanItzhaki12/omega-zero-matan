@@ -20,7 +20,7 @@ stamp() {
 	echo "source=https://github.com/libretro/gpsp/archive/$1.tar.gz"
 	echo "recipe=make platform=arm64"
 	echo "device_cflags=$device_cflags"
-	# gpSP is built as libretro ships it: no patch is kept, and one added later is stamped
+	# gpSP is built as libretro ships it but for the patches beside this script, each stamped
 	for p in "$here"/*.patch; do
 		[ -f "$p" ] || continue
 		echo "patch=$(basename "$p") sha256:$(sha256 "$p")"

@@ -162,11 +162,19 @@ fn every_row_stands_in_its_own_panels_well() {
         configs(&listed(true)) <= room,
         "CONFIGS has no room for Saves"
     );
+    // as tall as its rows and no taller, in the middle of the room between the bars
     let [_, y, _, h] = omega_ui::settings_rect(omega_ui::top_in(&listed(true)));
     let [_, my, _, mh] = modal_rect();
-    assert_eq!(y + h, my + mh, "the modal's foot moved");
-    // five rows in each, the modal reaches no more than a row's height up into the margin
-    assert!(my - y <= ROW_H + 1, "it reached up {} pixels", my - y);
+    assert!(
+        y >= my && y + h <= my + mh,
+        "the modal left the room between the bars"
+    );
+    assert!(
+        (y - my).abs_diff(my + mh - (y + h)) <= 1,
+        "the modal is not in the middle: {} above, {} below",
+        y - my,
+        my + mh - (y + h)
+    );
     let frame = settings_frame(omega_ui::top_in(&listed(true)), palette(NIGHT));
     let rects = settings_row_rects(&listed(true), frame.wells);
     let at = |row: SettingsRow| rects.iter().find(|(r, _)| *r == row).unwrap().1;
@@ -184,6 +192,11 @@ fn every_row_stands_in_its_own_panels_well() {
         at(SettingsRow::About)[1] + ROW_H,
         frame.wells[0][1] + frame.wells[0][3],
         "GENERAL does not hug its rows"
+    );
+    let left = frame.wells[1][1] + frame.wells[1][3] - (at(SettingsRow::Backup)[1] + ROW_H);
+    assert!(
+        left < ROW_H,
+        "CONFIGS holds {left} art pixels under Saves, room for another row"
     );
 }
 

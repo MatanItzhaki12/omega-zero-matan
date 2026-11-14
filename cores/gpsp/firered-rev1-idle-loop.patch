@@ -1,0 +1,21 @@
+diff -ru a/gba_memory.c b/gba_memory.c
+--- a/gba_memory.c
++++ b/gba_memory.c
+@@ -2973,6 +2973,17 @@
+ 
+    load_game_config_over(game_code);
+ 
++   /* Pokemon FireRed Rev 1 shares Rev 0's code BPRE, and so its entry, but its WaitForVBlank
++    * stands 20 bytes on: the loop's branch back is at 0x80008c6, not 0x80008b2, so the idle
++    * loop was never found and every turn of it was run. Taken only where those very bytes are
++    * the loop (ldrh r1,[r2,#0x1c]; adds r0,r3,#0; ands r0,r1; cmp r0,#0; beq). */
++   if (!memcmp(game_code, "BPRE", 4) && gamepak_size >= 0x8c8)
++   {
++      static const u8 loop[10] = { 0x91,0x8b, 0x18,0x1c, 0x08,0x40, 0x00,0x28, 0xfa,0xd0 };
++      if (!memcmp(&gamepak_buffers[0][0x8be], loop, sizeof(loop)))
++         idle_loop_target_pc = 0x80008c6;
++   }
++
+    if (backup_type_reset == BACKUP_UNKN)
+    {
+       u32 scan_size = gamepak_size < (1024*1024) ? gamepak_size : (1024*1024);
