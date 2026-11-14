@@ -84,6 +84,11 @@ type SpinFaces = (omega_ui::CartFace, omega_ui::CartFace);
 
 pub struct Frontend {
     session: Session,
+    /// The card watched for games, labels and colours changed behind omega-zero's back, on a
+    /// thread of its own; none for a frontend with no card.
+    watch: Option<crate::card_watch::CardWatch>,
+    /// Faces of games gone from the card, for games added later to be drawn on.
+    spare_faces: Vec<TexId>,
     start: Instant,
     last: Instant,
     /// When the last two frames reached the screen, as the panel shows them: what the next
@@ -200,8 +205,17 @@ impl Frontend {
         // Settings > Shelf > Lid Power Off, 3 minutes until it is changed
         let timeout = session.app().lid_timeout();
         session.app_mut().set_power(Power::new(platform, timeout));
+        let watch = session
+            .app()
+            .root()
+            .map(std::path::Path::to_path_buf)
+            .and_then(|root| {
+                crate::card_watch::CardWatch::spawn(root, session.app().carts().cloned().collect())
+            });
         Frontend {
             session,
+            watch,
+            spare_faces: Vec::new(),
             start: now,
             last: now,
             shown: (None, None),
@@ -423,6 +437,7 @@ impl Frontend {
         sync_hud(self.session.app_mut(), compositor, &mut self.hud);
         sync_opening(self.session.app_mut(), compositor, &mut self.opening);
         sync_start_notice(self.session.app_mut(), compositor, &mut self.start_notice);
+        self.restock(compositor);
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),
@@ -451,6 +466,37 @@ impl Frontend {
         self.draws.clear();
         self.session.app().draw(&mut self.draws);
         compositor.draw_list(&self.draws);
+    }
+
+    /// Takes what the card's watcher found changed, where the shelf may be stood again now: the
+    /// faces of the games added uploaded (onto the faces of games gone, where there are any),
+    /// the shelves stood on the card's games as they are, and the faces of the games changed
+    /// drawn again by the label workers. Off the shelf and its menus, it waits.
+    fn restock(&mut self, compositor: &mut Compositor) {
+        let Some(watch) = &self.watch else {
+            return;
+        };
+        if !self.session.app().may_restock() {
+            return;
+        }
+        let Some(change) = watch.take() else {
+            return;
+        };
+        let mut added = std::collections::HashMap::new();
+        for (platform, stem, face) in change.faces {
+            let tex = match self.spare_faces.pop() {
+                Some(tex) => {
+                    compositor.update_texture(tex, face.w, face.h, &face.rgba);
+                    tex
+                }
+                None => compositor.create_texture(face.w, face.h, &face.rgba),
+            };
+            added.insert((platform, stem), tex);
+        }
+        let app = self.session.app_mut();
+        let freed = app.restock(change.carts, &added);
+        self.spare_faces.extend(freed);
+        app.redraw_faces(change.redraw);
     }
 
     /// Uploads the faces the label workers have handed back onto the faces their carts are drawn

@@ -249,6 +249,12 @@ playing when the handheld went off is picked up again, as before.
 
 ## Labels and cart shells
 
+- **Changes on the card show live.** Copy a game onto the card or delete one, add a label or
+  draw over one, or change a cart's colours in `Config/cart_shell.ini`, `Labels/cart_shell.ini`
+  or `Labels/cart_shell.txt`, over SSH or any other way, and the shelf shows it within a couple
+  of seconds, the cart you are on staying picked. The card is looked at by a low-priority thread
+  of its own, which scans and draws only when something changed, so the shelf never stutters for
+  it. While a game is in, the changes wait for the shelf.
 - **`Labels/cart_shell.txt`.** omega-zero only read `Labels/cart_shell.ini`. It now also reads
   `cart_shell.txt`, the file Slot and [Cart Studio](https://studio.slot-cfw.fyi) write, in the
   same `Name = outline colour finish` format. When a game is in both files, the `.ini` wins.

@@ -16,6 +16,7 @@ pub mod boot_fade;
 pub mod bootlogo;
 pub mod build_info;
 pub mod cable;
+pub mod card_watch;
 pub mod card_writer;
 pub mod core;
 pub mod core_picker;

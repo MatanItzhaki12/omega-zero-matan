@@ -13,11 +13,12 @@
 //! Both shelves draw each cart on the face its own system's shelf has for it, so a label that
 //! arrives redraws them all, and a boot draws no face twice.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use omega_input::Millis;
 use omega_store::{sort_key, Cart, Platform, CONFIG_DIR};
-use omega_ui::Toast;
+use omega_ui::{TexId, Toast};
 
 use crate::app::App;
 
@@ -204,6 +205,109 @@ impl App {
             }
         }
         self.refresh_marks();
+    }
+
+    /// Whether the shelves may be stood again as the card changed: on the shelf or in a menu,
+    /// never while a game is going in, playing, coming out or dozing in its slot, whose cart the
+    /// shelf holds.
+    pub fn may_restock(&self) -> bool {
+        use crate::app::Phase;
+        matches!(
+            self.phase,
+            Phase::Shelf
+                | Phase::Settings { .. }
+                | Phase::Controls
+                | Phase::About
+                | Phase::Network(_)
+                | Phase::Bluetooth(_)
+                | Phase::Info(_)
+                | Phase::Labels(_)
+                | Phase::Background(_)
+                | Phase::Options(_)
+                | Phase::SetClock { .. }
+                | Phase::Doze { cart: None }
+        )
+    }
+
+    /// Stands every shelf again on `carts`, the card's games as they are now: each system's
+    /// shelf in place, its games' faces as they were, and a game added drawn on its face from
+    /// `added`; then FAVORITES, RECENTS and the stars, in the order the shelves are sorted. The
+    /// cart picked on each shelf stays picked, or the one at its place where it is gone. The faces
+    /// of the games gone are handed back, for the games added later to be drawn on.
+    pub fn restock(
+        &mut self,
+        carts: Vec<Cart>,
+        added: &HashMap<(Platform, String), TexId>,
+    ) -> Vec<TexId> {
+        let mut freed = Vec::new();
+        for (kind, shelf) in &mut self.shelves {
+            let ShelfKind::System(platform) = *kind else {
+                continue;
+            };
+            let picked = (
+                shelf.index,
+                shelf.carts.get(shelf.index).map(|c| c.stem.clone()),
+            );
+            let mine: Vec<(Cart, Option<TexId>)> = carts
+                .iter()
+                .filter(|c| c.platform == platform)
+                .map(|c| {
+                    let face = shelf
+                        .find(&c.stem)
+                        .and_then(|(_, face)| face)
+                        .or_else(|| added.get(&(platform, c.stem.clone())).copied());
+                    (c.clone(), face)
+                })
+                .collect();
+            for old in &shelf.carts {
+                if !mine.iter().any(|(c, _)| c.stem == old.stem) {
+                    freed.extend(shelf.find(&old.stem).and_then(|(_, face)| face));
+                }
+            }
+            shelf.replace(mine);
+            let at = picked
+                .1
+                .and_then(|stem| shelf.carts.iter().position(|c| c.stem == stem))
+                .unwrap_or_else(|| picked.0.min(shelf.carts.len().saturating_sub(1)));
+            shelf.select(at);
+        }
+        if let Some(at) = self.favorites_at() {
+            let picked = self.shelves[at]
+                .1
+                .carts
+                .get(self.shelves[at].1.index)
+                .map(|c| c.stem.clone());
+            let starred = favorite_carts(&carts, &self.favorites);
+            let faces: Vec<(Cart, Option<TexId>)> = starred
+                .into_iter()
+                .map(|c| {
+                    let face = self.face_of(c.platform, &c.stem);
+                    (c, face)
+                })
+                .collect();
+            let shelf = &mut self.shelves[at].1;
+            shelf.replace(faces);
+            if let Some(i) = picked.and_then(|p| shelf.carts.iter().position(|c| c.stem == p)) {
+                shelf.select(i);
+            }
+        }
+        self.sort_shelves();
+        self.refresh_recents();
+        self.refresh_marks();
+        if self.shelf().carts.is_empty() {
+            self.leave_empty_shelf();
+        }
+        freed
+    }
+
+    /// The games named are to have their faces drawn again: their labels, as the card has
+    /// them now, cut on the label workers.
+    pub fn redraw_faces(&mut self, games: Vec<(Platform, String)>) {
+        for game in games {
+            if !self.stale_faces.contains(&game) {
+                self.stale_faces.push(game);
+            }
+        }
     }
 
     /// Puts the star on every starred cart, on every shelf.

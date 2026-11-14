@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **The shelf follows the card live**: a game copied onto the card or taken off it, a label added
+  or drawn over, and a cart's colours set in `Config/cart_shell.ini` or the labels' own configs
+  all show on the shelf within a couple of seconds, over SSH or otherwise, with no restart. A
+  thread of its own at low priority looks at the card every two seconds, cheaply (when each
+  system's Games and Labels folders and every label were last changed), scans it only when
+  something moved, and draws new games' faces itself; the shelf then uploads them, stands its
+  rows again with the cart picked kept picked, and has changed labels cut again on the label
+  workers. With a game in, it waits until the shelf or a menu is up again.
 - **The holo sheen on every UMD**: a PSP game picked on the shelf has the sheen over its label
   as a clear GBA cart does, whatever its shell, since a UMD's label is under its clear window.
   Holo Sheen off, none has it.

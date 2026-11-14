@@ -96,3 +96,49 @@ fn the_shelf_stands_its_games_by_name_or_the_most_played_first() {
     let again = common::boot(d.path());
     assert_eq!(again.shelf_stems(), ["Gamma", "Beta", "Alpha"]);
 }
+
+#[test]
+fn the_shelf_stands_again_on_the_card_as_it_changed_and_keeps_the_cart_picked() {
+    use omega_input::Btn;
+    use omega_ui::TexId;
+    let d = tmp_root_with_carts(&["Alpha", "Beta"]);
+    let mut a = common::boot(d.path());
+    a.set_faces(vec![TexId::from_raw(501), TexId::from_raw(502)]);
+    a.apply(Action::GbaDown(Btn::Right));
+    a.apply(Action::GbaUp(Btn::Right));
+    assert_eq!(a.selected_stem(), Some("Beta"));
+    assert!(a.may_restock(), "the shelf may be stood again");
+
+    // a game copied in: on the shelf, on the face drawn for it, the cart picked as it was
+    std::fs::write(d.path().join("Games/GBA/Gamma.gba"), [0u8; 512]).unwrap();
+    let carts = omega_store::scan(d.path()).unwrap();
+    let added = [((Platform::Gba, "Gamma".to_string()), TexId::from_raw(503))].into();
+    assert!(a.restock(carts, &added).is_empty(), "nothing went");
+    assert_eq!(a.shelf_stems(), ["Alpha", "Beta", "Gamma"]);
+    assert_eq!(a.selected_stem(), Some("Beta"));
+    assert_eq!(
+        a.face_of(Platform::Gba, "Gamma"),
+        Some(TexId::from_raw(503))
+    );
+    assert_eq!(
+        a.face_of(Platform::Gba, "Alpha"),
+        Some(TexId::from_raw(501))
+    );
+
+    // a game taken away: its face handed back for the next game added
+    std::fs::remove_file(d.path().join("Games/GBA/Alpha.gba")).unwrap();
+    let carts = omega_store::scan(d.path()).unwrap();
+    let freed = a.restock(carts, &std::collections::HashMap::new());
+    assert_eq!(freed, [TexId::from_raw(501)]);
+    assert_eq!(a.shelf_stems(), ["Beta", "Gamma"]);
+    assert_eq!(a.selected_stem(), Some("Beta"));
+
+    // a game whose label changed is drawn again
+    a.redraw_faces(vec![(Platform::Gba, "Gamma".to_string())]);
+    let stale: Vec<String> = a
+        .take_stale_faces()
+        .into_iter()
+        .map(|(c, _)| c.stem)
+        .collect();
+    assert_eq!(stale, ["Gamma"]);
+}
