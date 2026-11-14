@@ -58,8 +58,8 @@ fn a_cart_gpsp_cannot_link_says_there_is_no_link() {
 fn colour_correction_says_whether_it_is_on() {
     assert_eq!(Toast::ColourOn.text(), "Correction on");
     assert_eq!(Toast::ColourOff.text(), "Correction off");
-    assert_eq!(Toast::ColourOn.label(), "COLOUR");
-    assert_eq!(Toast::ColourOff.label(), "COLOUR");
+    assert_eq!(Toast::ColourOn.label(), "COLOR");
+    assert_eq!(Toast::ColourOff.label(), "COLOR");
 }
 
 #[test]

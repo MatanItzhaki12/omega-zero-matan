@@ -143,7 +143,7 @@ impl Toast {
             | Toast::LinkEnded
             | Toast::PeerEnded
             | Toast::BiosMismatch => "LINK",
-            Toast::ColourOn | Toast::ColourOff => "COLOUR",
+            Toast::ColourOn | Toast::ColourOff => "COLOR",
             Toast::OneDisc | Toast::Disc(_) => "DISC",
             Toast::Filter(_) => "FILTER",
             Toast::Favorited | Toast::Unfavorited => "FAVORITES",

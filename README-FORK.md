@@ -50,27 +50,29 @@ you are on.
 
 ### The cart editor
 
-SELECT + START on the shelf opens the cart picked in the cart editor: the row slides to the
-left, the cart with it, and a panel slides in on the right. Every change shows on the cart as it
+SELECT + START on the shelf opens the cart picked in the cart editor: the cart shrinks a little
+and slides to the left, and a panel slides in on the right, the two level in the middle of the
+screen. Every change shows on the cart as it
 is made. ▲ ▼ move between the rows, ◀ ▶ change the one lit, **A on Save** keeps the look and
 **B** puts the cart back as it was.
 
 | Cart | Panel | Rows |
 |---|---|---|
-| GBA | GBA CART | Colour, Hue, Shade, Finish |
-| Game Boy, Game Boy Color | GAME PAK | **Shape** (notched, or the Color's rounded pak), Colour, Hue, Shade, Finish |
-| SNES | SNES CART | **Shape** (American, or Super Famicom), Colour, Hue, Shade, Finish |
-| PSP | UMD | Case Colour, Hue, Shade, Finish |
-| PlayStation | DISC | **Disc Colour**, the disc's own print where its label leaves it bare, Hue, Shade |
+| GBA | GBA CART | Color, Hue, Shade, Finish |
+| Game Boy, Game Boy Color | GAME PAK | **Shape** (notched, or the Color's rounded pak), Color, Hue, Shade, Finish |
+| SNES | SNES CART | **Shape** (American, or Super Famicom), Color, Hue, Shade, Finish |
+| PSP | UMD | Case Color, Hue, Shade, Finish |
+| PlayStation | DISC | **Disc Color**, the disc's own print where its label leaves it bare, Hue, Shade |
 
-- **Colour** steps through the system's own classic shells first (the Pokémon GBA colours,
+- **Color** steps through the system's own classic shells first (the Pokémon GBA colors,
   Game Boy grey and black, the Color's clear pak, the SNES and Super Famicom greys, the UMD's
-  smoke), each with its finish, then plain colours. **Hue** turns any colour round by 15°, and
-  **Shade** makes it lighter or darker; a colour so changed shows as CUSTOM.
+  smoke), each with its finish, then plain colors. **Hue** turns any color round by 15°, and
+  **Shade** makes it lighter or darker; a color so changed shows as CUSTOM.
 - **Finish**: solid, clear or glitter plastic. A clear or glitter cart has the holo sheen.
-- **Original**: the cart's own look again, whatever the label configs say.
+- **Undo**: the look the cart had when the editor opened, the editor still open.
+- **Default**: the cart's own look again, whatever the label configs say.
 - **Save** writes the look to `Labels/cart_shell.ini`, the file whose choices win, in the format
-  Slot's Cart Studio writes (`Name = shape colour finish`, or `auto` for Original).
+  Slot's Cart Studio writes (`Name = shape color finish`, or `auto` for Default).
 - SELECT + START is the editor's on the shelf alone: in a game it stays the game's, as many games
   soft-reset on it.
 
@@ -83,7 +85,7 @@ is made. ▲ ▼ move between the rows, ◀ ▶ change the one lit, **A on Save*
 | Hold MENU | Save a state and eject the cart |
 | SELECT + MENU | Link play, or DISC on a PlayStation game on several discs |
 | **SELECT + A / B** | Next or previous screen filter |
-| SELECT + Y | Colour correction on or off |
+| SELECT + Y | Color correction on or off |
 | **SELECT + X** | Screenshot: the game's screen as a PNG in `Screenshots/<system>/` |
 | SELECT + L1 / R1 | Load the newest state / save a state |
 | SELECT + ▲ ▼ / ◀ ▶ | Brightness / blue light |
@@ -161,7 +163,7 @@ closes up on a handheld with no Wi-Fi or Bluetooth.
 [Saves and Save Backup](#saves-and-save-backup)).
 
 **DISPLAY ›** holds how games are drawn, as the in-game menu's DISPLAY page does, with the same
-rows, notes and values: Screen Filter, Game Boy Palette, Colour Correction, Frame Blending,
+rows, notes and values: Screen Filter, Game Boy Palette, Color Correction, Frame Blending,
 Brightness, Blue Light Filter and PSP Screen.
 
 **GAMEPLAY ›** (each row shows a line under the panel saying what it does)
@@ -211,7 +213,7 @@ on. A toast says so when the picker opens on a game switched by hand.
 | Lid Power Off | 1, 3, 5, 10, 15, 30 minutes | 3 |
 | Boot Animation | On, Off: the terminal that types out before the shelf at boot | Off |
 | Sound › | Opens SOUND, below | |
-| Theme › | Opens THEME: the background, its motion, the colour and the font | |
+| Theme › | Opens THEME: the background, its motion, the color and the font | |
 | Labels › | Opens LABELS: ScreenScraper, the label sync and Holo Sheen | |
 
 **SHELF › Sound ›**
@@ -241,7 +243,7 @@ goes straight to the save states without the menu flashing up first.
 |---|---|
 | MENU | Resume · Undo Save · Undo Load · States · Settings › · Restart · Exit Game |
 | SETTINGS | Display › · Gameplay › · Achievements › · Controls › |
-| DISPLAY | Screen Filter · Game Boy Palette · Colour Correction · Frame Blending · Brightness · Blue Light Filter · PSP Screen (for this game) |
+| DISPLAY | Screen Filter · Game Boy Palette · Color Correction · Frame Blending · Brightness · Blue Light Filter · PSP Screen (for this game) |
 | GAMEPLAY | Fast Forward · Fast Forward Sound · Rewind · Turbo Buttons · Run-Ahead (gpSP) · Rumble · Load State on Insert · Save State on Eject · Stick (PSP) |
 | ACHIEVEMENTS | Game · Unlocked · View All › · RetroAchievements · Hardcore |
 | ALL ACHIEVEMENTS | Every achievement of the game, unlocked or locked |
@@ -277,14 +279,14 @@ playing when the handheld went off is picked up again, as before.
 ## Labels and cart shells
 
 - **Changes on the card show live.** Copy a game onto the card or delete one, add a label or
-  draw over one, or change a cart's colours in `Config/cart_shell.ini`, `Labels/cart_shell.ini`
+  draw over one, or change a cart's colors in `Config/cart_shell.ini`, `Labels/cart_shell.ini`
   or `Labels/cart_shell.txt`, over SSH or any other way, and the shelf shows it within a couple
   of seconds, the cart you are on staying picked. The card is looked at by a low-priority thread
   of its own, which scans and draws only when something changed, so the shelf never stutters for
   it. While a game is in, the changes wait for the shelf.
 - **`Labels/cart_shell.txt`.** omega-zero only read `Labels/cart_shell.ini`. It now also reads
   `cart_shell.txt`, the file Slot and [Cart Studio](https://studio.slot-cfw.fyi) write, in the
-  same `Name = outline colour finish` format. When a game is in both files, the `.ini` wins.
+  same `Name = outline color finish` format. When a game is in both files, the `.ini` wins.
 - **Labels come in where you are looking.** At boot the labels of the shelf in view are drawn
   first, Favorites and Recents included. Moving to another shelf or cart moves the carts on
   screen to the front of the labels still waiting, so you never have to visit a cart's own

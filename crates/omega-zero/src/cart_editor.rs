@@ -8,7 +8,8 @@
 //! - a Game Boy pak: its **Shape**, the notched pak or the Game Boy Color's rounded one;
 //! - an SNES cart: its **Shape**, the American cart or the Super Famicom's;
 //! - a PlayStation disc: its colour is the disc's own, the print a label leaves bare;
-//! - and **Original**, the cart's own look again, and **Save**.
+//! - and **Undo**, the look it had as the editor opened, **Default**, the cart's own look again,
+//!   and **Save**.
 //!
 //! B puts the cart back as it was. Save keeps the choice in `Labels/cart_shell.ini`, the file
 //! whose choices win, in the format Slot's Cart Studio writes, and the card's watcher draws it
@@ -28,13 +29,55 @@ pub const OPEN_MS: Millis = 240;
 /// How wide the editor's panel is, in art pixels: half the page, beside the cart.
 pub const PANEL_W: u32 = 176;
 
-/// How far the row slides to the left with the editor open, in screen pixels: the cart picked
-/// to the middle of the room the panel leaves on the left.
-pub fn row_shift() -> f32 {
-    let page = omega_ui::out_w() / omega_ui::SPRITE_PX;
-    let room = page.saturating_sub(PANEL_W + EDGE);
-    let by = (page / 2).saturating_sub(room / 2);
-    omega_ui::kit::layout::screen_px(by)
+/// How big the cart picked stands with the editor open, beside its panel, as a share of its
+/// size on the shelf.
+pub const CART_ZOOM: f32 = 0.8;
+
+/// The row as drawn into `drawn`, moved for the editor `open` that far: shrunk to [`CART_ZOOM`]
+/// about the cart picked, and that cart taken to the middle of the room the panel leaves on the
+/// left, level with the panel, both in the middle of the page between the bars.
+pub fn place_row(drawn: &mut [Draw], open: f32) {
+    if open <= 0.0 {
+        return;
+    }
+    let mid_x = omega_ui::out_w() as f32 / 2.0;
+    // the cart picked is what is drawn across the middle of the screen
+    let (mut top, mut bottom) = (f32::MAX, f32::MIN);
+    for d in drawn.iter() {
+        if let Some([x, y, w, h]) = rect_of(d) {
+            if x <= mid_x && x + w >= mid_x {
+                top = top.min(y);
+                bottom = bottom.max(y + h);
+            }
+        }
+    }
+    if top > bottom {
+        return;
+    }
+    let cart_y = f32::midpoint(top, bottom);
+    let [page_w, page_h] = omega_ui::kit::layout::page();
+    let room = page_w.saturating_sub(PANEL_W + EDGE);
+    let (to_x, to_y) = (
+        omega_ui::kit::layout::screen_px(room) / 2.0,
+        omega_ui::kit::layout::screen_px(page_h) / 2.0,
+    );
+    let k = 1.0 - (1.0 - CART_ZOOM) * open;
+    let (dx, dy) = ((to_x - mid_x) * open, (to_y - cart_y) * open);
+    for d in drawn.iter_mut() {
+        *d = d.zoomed(k, mid_x, cart_y).shifted(dx, dy);
+    }
+}
+
+/// Where `d` is drawn, `[x, y, w, h]` in canvas pixels; none for the game's picture.
+fn rect_of(d: &Draw) -> Option<[f32; 4]> {
+    match *d {
+        Draw::Rect { x, y, w, h, .. }
+        | Draw::Tex { x, y, w, h, .. }
+        | Draw::Turned { x, y, w, h, .. }
+        | Draw::Spun { x, y, w, h, .. }
+        | Draw::Model { x, y, w, h, .. } => Some([x, y, w, h]),
+        Draw::Game | Draw::Shot { .. } => None,
+    }
 }
 
 /// How far one press of Hue turns the colour, in degrees, and one of Shade lightens or darkens
@@ -50,7 +93,10 @@ pub enum EditRow {
     Hue,
     Shade,
     Finish,
-    Original,
+    /// The look the cart had as the editor opened, back, the editor still open.
+    Undo,
+    /// The cart's own look, whatever the label configs say.
+    Default,
     Save,
 }
 
@@ -58,13 +104,14 @@ impl EditRow {
     pub fn label(self, platform: Platform) -> &'static str {
         match (self, platform) {
             (EditRow::Shape, _) => "Shape",
-            (EditRow::Colour, Platform::Ps1) => "Disc Colour",
-            (EditRow::Colour, Platform::Psp) => "Case Colour",
-            (EditRow::Colour, _) => "Colour",
+            (EditRow::Colour, Platform::Ps1) => "Disc Color",
+            (EditRow::Colour, Platform::Psp) => "Case Color",
+            (EditRow::Colour, _) => "Color",
             (EditRow::Hue, _) => "Hue",
             (EditRow::Shade, _) => "Shade",
             (EditRow::Finish, _) => "Finish",
-            (EditRow::Original, _) => "Original",
+            (EditRow::Undo, _) => "Undo",
+            (EditRow::Default, _) => "Default",
             (EditRow::Save, _) => "Save",
         }
     }
@@ -75,30 +122,31 @@ impl EditRow {
             (EditRow::Shape, _) => "Notched, or Color's rounded",
             (EditRow::Colour, Platform::Ps1) => "The disc's own print",
             (EditRow::Colour, _) => "Its system's, then plain",
-            (EditRow::Hue, _) => "Turns the colour round",
+            (EditRow::Hue, _) => "Turns the color round",
             (EditRow::Shade, _) => "Lighter or darker",
             (EditRow::Finish, _) => "Solid, clear or glitter",
-            (EditRow::Original, _) => "A: the cart's own look",
+            (EditRow::Undo, _) => "A: back to how it was",
+            (EditRow::Default, _) => "A: the cart's own look",
             (EditRow::Save, _) => "A keeps it, B undoes",
         }
     }
 
     /// Left and Right change it.
     fn steps(self) -> bool {
-        !matches!(self, EditRow::Original | EditRow::Save)
+        !matches!(self, EditRow::Undo | EditRow::Default | EditRow::Save)
     }
 }
 
 /// The rows `platform`'s cart has, in order.
 pub fn rows(platform: Platform) -> &'static [EditRow] {
-    use EditRow::{Colour, Finish, Hue, Original, Save, Shade, Shape};
+    use EditRow::{Colour, Default, Finish, Hue, Save, Shade, Shape, Undo};
     match platform {
         Platform::Gb | Platform::Gbc | Platform::Snes => {
-            &[Shape, Colour, Hue, Shade, Finish, Original, Save]
+            &[Shape, Colour, Hue, Shade, Finish, Undo, Default, Save]
         }
-        Platform::Gba | Platform::Psp => &[Colour, Hue, Shade, Finish, Original, Save],
+        Platform::Gba | Platform::Psp => &[Colour, Hue, Shade, Finish, Undo, Default, Save],
         // a disc has no shell: its colour is its print's
-        Platform::Ps1 => &[Colour, Hue, Shade, Original, Save],
+        Platform::Ps1 => &[Colour, Hue, Shade, Undo, Default, Save],
     }
 }
 
@@ -326,14 +374,10 @@ impl CartEditor {
             EditRow::Hue => format!("{:.0}°", hsv(now.colour).0),
             EditRow::Shade => format!("{:.0}%", hsv(now.colour).2 * 100.0),
             EditRow::Finish => finish_word(now.finish).to_string(),
-            EditRow::Original => {
-                if self.choice.is_none() {
-                    "ON".to_string()
-                } else {
-                    String::new()
-                }
-            }
-            EditRow::Save => String::new(),
+            // where it stands: the look as it opened, or the cart's own
+            EditRow::Undo if self.choice == self.was => "AS IT WAS".to_string(),
+            EditRow::Default if self.choice.is_none() => "DEFAULT".to_string(),
+            EditRow::Undo | EditRow::Default | EditRow::Save => String::new(),
         }
     }
 
@@ -376,7 +420,7 @@ impl CartEditor {
                 let at = FINISHES.iter().position(|f| *f == c.finish);
                 c.finish = FINISHES[turn(FINISHES.len(), at)];
             }
-            EditRow::Original | EditRow::Save => return,
+            EditRow::Undo | EditRow::Default | EditRow::Save => return,
         }
         self.choice = Some(c);
     }
@@ -406,7 +450,7 @@ impl CartEditor {
     }
 }
 
-/// The OptionRow a row of the editor's panel stands as: left and right change it, but Original
+/// The OptionRow a row of the editor's panel stands as: left and right change it, but Undo, Default
 /// and Save, which A does.
 pub fn row_carets(row: EditRow) -> bool {
     row.steps()
@@ -439,7 +483,7 @@ impl App {
     }
 
     /// A press with the editor open: Up and Down move between its rows, Left and Right change
-    /// the one lit, A does Original and Save (and steps the rest), and B, or MENU, puts the cart
+    /// the one lit, A does Undo, Default and Save (and steps the rest), and B, or MENU, puts the cart
     /// back as it was. Nothing reaches the shelf beneath.
     pub(crate) fn cart_editor_input(&mut self, action: Action) {
         let now = self.now();
@@ -466,7 +510,11 @@ impl App {
                 Then::Show
             }
             Action::GbaDown(Btn::A) => match ed.row {
-                EditRow::Original => {
+                EditRow::Undo => {
+                    ed.choice = ed.was;
+                    Then::Show
+                }
+                EditRow::Default => {
                     ed.choice = None;
                     Then::Show
                 }
@@ -570,6 +618,7 @@ impl App {
             return;
         }
         let page_w = omega_ui::out_w() / omega_ui::SPRITE_PX;
+        // level with the cart, in the middle of the page between the bars
         let [_, y, w, h] = panel.rect();
         let rest = page_w.saturating_sub(w + EDGE);
         let away = page_w as f32 + 2.0;
@@ -626,6 +675,6 @@ mod tests {
             assert!(!title(p).is_empty());
             assert_eq!(colours(p).len(), own_colours(p).len() + PLAIN.len());
         }
-        assert_eq!(EditRow::Colour.label(Platform::Ps1), "Disc Colour");
+        assert_eq!(EditRow::Colour.label(Platform::Ps1), "Disc Color");
     }
 }

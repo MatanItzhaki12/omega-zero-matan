@@ -2,14 +2,18 @@
 
 ## Unreleased
 
+- The cart editor shrinks the cart a little beside its panel, the two level in the middle of the
+  screen; **Undo** puts back the look the cart had as the editor opened, and **Default**
+  (Original before) the cart's own.
+- American spelling on every screen: Color, Color Correction, the Theme's Color.
 - **The cart editor**: SELECT+START on the shelf slides the row to the left and a panel in on the
-  right, for the cart picked: its Colour (its system's classic shells first, then plain colours),
+  right, for the cart picked: its Color (its system's classic shells first, then plain colors),
   Hue and Shade, its Finish (solid, clear, glitter), a Game Boy pak's or an SNES cart's Shape,
-  and a PlayStation disc's own colour. Every change shows on the cart as it is made, on the label
+  and a PlayStation disc's own color. Every change shows on the cart as it is made, on the label
   workers; Save keeps it in `Labels/cart_shell.ini` as Slot's Cart Studio would, Original puts
   back the cart's own look, and B undoes. In a game SELECT+START stays the game's.
 - **The shelf follows the card live**: a game copied onto the card or taken off it, a label added
-  or drawn over, and a cart's colours set in `Config/cart_shell.ini` or the labels' own configs
+  or drawn over, and a cart's colors set in `Config/cart_shell.ini` or the labels' own configs
   all show on the shelf within a couple of seconds, over SSH or otherwise, with no restart. A
   thread of its own at low priority looks at the card every two seconds, cheaply (when each
   system's Games and Labels folders and every label were last changed), scans it only when
@@ -67,7 +71,7 @@
   handheld), is measured on a thread from boot, and the save folders read once then too.
 - About shows a test build's version as Update does, V2.7.3-T12, not only the release's.
 - **Settings, set out as the games' menu is**: CONFIGS opens with **Display ›**, which holds how
-  games are drawn: Screen Filter, Game Boy Palette, Colour Correction, Frame Blending, and now
+  games are drawn: Screen Filter, Game Boy Palette, Color Correction, Frame Blending, and now
   **Brightness** and **Blue Light Filter** as well, which were only in a game's menu or on
   SELECT before. GAMEPLAY keeps how games play, in the games' menu's order: Fast Forward, Fast
   Forward Sound, Rewind, Turbo Buttons, Run-Ahead, Rumble, Load State on Insert, Save State on
@@ -642,7 +646,7 @@
 
 - Every cart's label has a foil over it, as the holographic labels of Nintendo's own Pokémon
   paks do: the light breaks on it in small facets like shattered glass, each a little lighter
-  or darker and faintly coloured, a soft band of sheen crosses it on the diagonal, and here and
+  or darker and faintly colored, a soft band of sheen crosses it on the diagonal, and here and
   there a glint. It is slight, so the label's art reads through it.
 - A clear cart's clock chip, crystal, ROM and coin cell stand lower on the board, so only their
   tops and pins peek over a GBA cart's label.
@@ -680,7 +684,7 @@ A bug fix for Settings > Update.
 
 A small update, the first released on its own: Settings > Update on the console fetches it.
 
-- The parts on a clear cart's board keep some of their own colour through the plastic: the gold
+- The parts on a clear cart's board keep some of their own color through the plastic: the gold
   contacts along the foot and the black chips read as such, not as more green. The clock's chip,
   its crystal, the ROM and the coin cell stand higher on the board, so more of them shows over
   a GBA cart's label.
@@ -703,7 +707,7 @@ turned off.
   across every system. They are kept in `Config/favorites.txt`, one `gba/<name>` to a line, the
   file Slot writes, so a card that ran Slot keeps its favorites.
 - A tap of MENU in a game opens MENU over it, the game paused and dimmed behind: Resume, Save
-  State, Load State, States, Screen Filter, Colour Correction and Exit Game. A second tap straight
+  State, Load State, States, Screen Filter, Color Correction and Exit Game. A second tap straight
   after still opens the save states, and holding MENU still ejects.
 - Screen Filter, in Settings' CONFIGS and in MENU, draws a Game Boy or GBA game through the LCD it
   always had, a plain grid between its pixels, or nothing. SELECT+A and SELECT+B step through them
@@ -720,7 +724,7 @@ turned off.
 - Holding POWER powers off at once, as on Slot: the POWER menu and its Restart are gone.
 - MENU over a game is laid out as Slot's in-game menu: Resume; Undo Save and Undo Load for 30
   seconds after a save or a load; States while there are any; Settings, which opens Screen
-  (Screen Filter, Palette, Colour Correction, Frame Blending, Brightness, Blue Light), Gameplay
+  (Screen Filter, Palette, Color Correction, Frame Blending, Brightness, Blue Light), Gameplay
   (Fast Forward and the rest of GAMEPLAY) and Controls; and Exit Game. B steps back a page. The
   game is not dimmed under Screen, whose panel stands at the bottom, so each change shows at once.
   The menu comes up a moment after the tap, so a double tap goes straight to the save states.
@@ -872,14 +876,14 @@ tube TV.
 - The slot under the shelf is gone: a cart goes into the handheld itself. From the middle of the
   shelf it rises a little, then is pulled down out of the bottom of the screen, and the game
   comes on as a tube TV does: a dot, a line across, then the picture opening white and fading to
-  its colours. Leaving a game plays it backwards, and a cart the core turns away goes back out
+  its colors. Leaving a game plays it backwards, and a cart the core turns away goes back out
   the same way under its warning sign.
 - The carts stand in the middle between the top bar and the bottom bar, at their usual sizes. A
   Game Boy cart no longer grows on its way in.
 - The shelf's system, GBA, GB or GBC, is in a pill between the bottom bar's buttons, always. It
   rises in as L1 or R1 changes shelf, and a letter jumped to with Up or Down shows in it for two
   seconds.
-- Config/theme.txt's `recess` and `opening` coloured only the slot and are no longer read.
+- Config/theme.txt's `recess` and `opening` colored only the slot and are no longer read.
 
 ## omega-zero 0.0.3
 
@@ -888,10 +892,10 @@ every screen drawn in the UI kit's 8/16-bit pixel art; carts as low-poly models 
 PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-on.
 
 - Everything around the shelf is on the menus' 2-pixel grid: the slot's edges and its scoop, the
-  slot's name in the menus' type and the theme's dim colour, the top bar's clock, figure and
+  slot's name in the menus' type and the theme's dim color, the top bar's clock, figure and
   "ssh" (drawn bold the kit's way), and a generated label's title, now always Pixel Code at its
   own size. A cart the core turns away comes out under a pixel-art warning sign in the theme's
-  colour. The background drifts two pixels at a time, a refused cart shakes a whole pixel at a
+  color. The background drifts two pixels at a time, a refused cart shakes a whole pixel at a
   time, and the boot screen fades out in four steps.
 - The save states, MENU ×2 in a game, are drawn in the menus' pixel art. The shelf's top bar
   stands over the screenshot in place of a dark strip of their own; a SAVE STATES panel at the
@@ -912,22 +916,22 @@ PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-o
   steps.
 - The carts are low-poly models drawn the way a PlayStation drew 3D: a face and a side for
   every cut of the outline, each lit on its own, corners that land on the 2-pixel grid as they
-  turn, textures mapped without perspective, and colour in 15 bits through the PlayStation's
+  turn, textures mapped without perspective, and color in 15 bits through the PlayStation's
   dither. The one you are on sways twenty degrees either way, seen from closer than before, so
   its side and the step under a GBA cart's grip show. The cart going into the slot and the core
   picker's lid are the same model. A cart is one draw instead of up to seventeen.
 - The volume, brightness, blue light and rewind show as a gauge drawn like the menus: the
   level's name in a tab, then a cell for each step, lit as far as the level reaches, and its
-  icon, on the 2-pixel grid in the colours of Settings > Theme, with no dark band behind it. It
+  icon, on the 2-pixel grid in the colors of Settings > Theme, with no dark band behind it. It
   stands at the top of the screen, on the shelf just under the top bar, and fades out in four
-  steps. What just happened shows the same way, a small panel titled SAVE STATE, LINK or COLOUR
+  steps. What just happened shows the same way, a small panel titled SAVE STATE, LINK or COLOR
   over "State saved", "Link ended", "Correction on" and the rest.
 - Fast forward's badge in the corner is a key cap holding ▶▶ and the speed, ×2 to ×6, lit
   while it is latched. A link's badge shows a link, lit while hosting and dark when joined, and
   broken once the other handheld is lost.
 - The core picker is pixel art on the 2-pixel grid: the open cart in its own plastic, the board,
   the ROM chip marked with the game's title, the sockets and the chip, with outlines and flat
-  colours. The title and the cores' names are in Pixel Code at its own size and spacing. The
+  colors. The title and the cores' names are in Pixel Code at its own size and spacing. The
   chip hops between the sockets a pixel at a time, level, and the shadows under it and under
   the lid are checker dither.
 - About is a window like Settings, drawn in the menus' kit in place of the sticker. OMEGA-ZERO
@@ -942,7 +946,7 @@ PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-o
 - The handheld starts on an old PC's BIOS screen, after Award's, in place of the logo: the
   OmegaZero BIOS, "An Anbernic Ally", oauramos Software Inc., the H700, a memory test, BaseOS's
   Plug and Play Extension and Press START to enter SETTINGS, with the OmegaZero logo in 16
-  colours where Award put its Energy Star. It is set in the opening's letters, where its
+  colors where Award put its Energy Star. It is set in the opening's letters, where its
   terminal prints. `task bootlogos` renders it; `task bootlogos:logo` renders the old logo.
 - An opening after Mega Man X5's NOM ENGINEER WORK SYSTEM boot screen, told about the handheld
   it runs on. omega-zero's first frames show the boot screen where the handheld drew it, and it
@@ -953,7 +957,7 @@ PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-o
   shelf shows through, a press ends the opening at once and works as usual. POWER and the lid
   end it at once. A boot back into a game, or to the clock, cuts as before.
 - START on the shelf opens Settings, a window in the style of Mega Man Zero's menus, in place of
-  the old quick menu. CONFIGS holds Fast Forward (2X, 3X, 4X or 6X), Fast Forward Sound, Colour
+  the old quick menu. CONFIGS holds Fast Forward (2X, 3X, 4X or 6X), Fast Forward Sound, Color
   Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Theme and About.
 - A row that Left and Right change shows ◀ ▶ while it is lit. A row that opens a screen ends
   in ›.
@@ -988,9 +992,9 @@ PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-o
   Settings, from the shelf, slides the other way round: the carts go out to the left as it comes
   in from the right, and it goes back out to the right. Inside Settings every screen slides the
   usual way.
-- The menus, both bars and the slot take their colours from Settings > Theme > Colour.
-  Night is grey; Amber is Mega Man Zero's own colours.
-- Theme is what Background was: the background's pattern, its motion and its colour. It also
+- The menus, both bars and the slot take their colors from Settings > Theme > Color.
+  Night is grey; Amber is Mega Man Zero's own colors.
+- Theme is what Background was: the background's pattern, its motion and its color. It also
   picks the font of the bottom bar's big words, Bold or Thin.
 - Restart no longer freezes the console after Settings > Network has been open. The RTL8821CS's
   Wi-Fi driver hung the kernel's shutdown when it had just gone into its power saving, as it does
@@ -1021,8 +1025,8 @@ PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-o
 
 - `assets/ui/flow.html` walks every new screen with the slides the device draws, and is the
   reference they are built to. Keys stand in for the buttons, slow motion runs the slides five
-  times slower, and the URL's hash picks the screen, colour, panel size and any moment of a
-  slide: `flow.html#screen=network&from=settings&t=0.5&colour=amber&shot=1`.
+  times slower, and the URL's hash picks the screen, color, panel size and any moment of a
+  slide: `flow.html#screen=network&from=settings&t=0.5&color=amber&shot=1`.
 - The storybook has three new components: `<omega-row>`, `<omega-list-row>` and `<omega-bar>`.
 - And four for pages, which the site is now drawn with: `<omega-button>`, `<omega-screen>`, `<omega-card>`, `<omega-code>`.
 - The kit is in Rust too, in `crates/omega-ui/src/kit/` (palette, pixel, modal, panel, action,
@@ -1092,8 +1096,8 @@ The first release, for the RG35XX SP and the other H700 handhelds BaseOS runs on
 - A top bar over the shelf: Wi-Fi, Bluetooth and ssh on the left, lit while they are up; the
   clock in the middle; the battery on the right.
 - The shelf's background is yours to pick under START > Background: a grid, raised plates
-  (riveted or not), dotted lines, a dithered grid, bits or a plain colour, drifting or still, in
-  eight colours, every pattern in the same 2x2 pixels as the words over it. A wallpaper on the
+  (riveted or not), dotted lines, a dithered grid, bits or a plain color, drifting or still, in
+  eight colors, every pattern in the same 2x2 pixels as the words over it. A wallpaper on the
   card still works.
 - The slot below the shelf is bigger: a cart slides into it at full size instead of shrinking.
 - The quick menu scrolls when its rows outgrow the screen.

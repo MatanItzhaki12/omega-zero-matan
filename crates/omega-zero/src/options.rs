@@ -402,7 +402,7 @@ impl OptionRow {
     pub fn label(self) -> &'static str {
         match self {
             OptionRow::ScreenFilter => "Screen Filter",
-            OptionRow::ColourCorrection => "Colour Correction",
+            OptionRow::ColourCorrection => "Color Correction",
             OptionRow::Brightness => "Brightness",
             OptionRow::BlueLight => "Blue Light Filter",
             OptionRow::FastForward => "Fast Forward",
@@ -479,7 +479,7 @@ impl OptionRow {
     pub fn note(self) -> &'static str {
         match self {
             OptionRow::ScreenFilter => "LCD, a grid between pixels or none",
-            OptionRow::ColourCorrection => "Colours as the old screens had",
+            OptionRow::ColourCorrection => "Colors as the old screens had",
             OptionRow::Brightness => "SELECT+Up and Down do this too",
             OptionRow::BlueLight => "Warms the picture for the dark",
             OptionRow::FastForward => "How fast fast-forward plays",
@@ -500,7 +500,7 @@ impl OptionRow {
             OptionRow::LidOff => "A shut lid powers off after this",
             OptionRow::BootAnimation => "The terminal before the shelf",
             OptionRow::Sound => "Menu sounds and music",
-            OptionRow::Theme => "The background, its colour and the font",
+            OptionRow::Theme => "The background, its color and the font",
             OptionRow::Labels => "Cart labels: ScreenScraper and the holo",
             OptionRow::MenuSounds => "Clicks and chimes in the menus",
             OptionRow::SoundsVolume => "How loud the menu sounds are",

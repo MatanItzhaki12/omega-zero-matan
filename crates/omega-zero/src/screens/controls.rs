@@ -84,7 +84,7 @@ impl ControlsView {
             ("SELECT+R1", "SAVE STATE"),
         ]);
         if platform.colour_correction() {
-            game.push(("SELECT+Y", "COLOUR"));
+            game.push(("SELECT+Y", "COLOR"));
         }
         if matches!(platform, Platform::Gba | Platform::Gb | Platform::Gbc) {
             game.push(("SELECT+A B", "SCREEN FILTER"));

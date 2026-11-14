@@ -988,7 +988,7 @@ fn the_controls_panel_is_flows() {
         ("SELECT+▲▼", "BRIGHTNESS"),
         ("SELECT+◀▶", "BLUE LIGHT"),
         ("SELECT+L1/R1", "LOAD/SAVE STATE"),
-        ("SELECT+Y", "COLOUR"),
+        ("SELECT+Y", "COLOR"),
         ("VOL+ VOL-", "MUTE"),
         ("HOLD POWER", "POWER MENU"),
     ];

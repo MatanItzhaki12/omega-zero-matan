@@ -129,7 +129,7 @@ fn theme_opens_from_settings_and_b_comes_back_to_its_row() {
         [
             choice("Background", "Grid"),
             choice("Motion", "Moving"),
-            choice("Colour", "Night"),
+            choice("Color", "Night"),
             choice("Font", "Bold")
         ]
     );
@@ -159,7 +159,7 @@ fn left_and_right_go_round_the_styles_and_each_shows_only_the_rows_it_uses() {
             [
                 choice("Background", style.label()),
                 choice("Motion", "Moving"),
-                choice("Colour", "Night"),
+                choice("Color", "Night"),
                 choice("Font", "Bold")
             ],
             "{style:?} lost a row"
@@ -171,7 +171,7 @@ fn left_and_right_go_round_the_styles_and_each_shows_only_the_rows_it_uses() {
         r.rows(),
         [
             choice("Background", "Solid"),
-            choice("Colour", "Night"),
+            choice("Color", "Night"),
             choice("Font", "Bold")
         ],
         "a plain colour offered to move"

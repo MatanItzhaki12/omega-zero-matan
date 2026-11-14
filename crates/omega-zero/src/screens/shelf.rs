@@ -30,11 +30,15 @@ impl App {
             _ => {
                 self.shelf()
                     .draw_row(None, self.shelf_shake(), 0.0, 1.0, out);
-                self.draw_title(out);
-                // the cart editor open: the row slides to the left, the cart picked with it,
-                // to stand clear of the panel
-                let edit = self.cart_editor_openness() * crate::cart_editor::row_shift();
-                shift(&mut out[carts..], off.carts_dx - edit.round(), off.carts_dy);
+                // the cart editor open: the row shrinks and slides to the left, the cart picked
+                // level with the panel, its name out of the way
+                let edit = self.cart_editor_openness();
+                if edit > 0.0 {
+                    crate::cart_editor::place_row(&mut out[carts..], edit);
+                } else {
+                    self.draw_title(out);
+                }
+                shift(&mut out[carts..], off.carts_dx, off.carts_dy);
             }
         }
         let bar = out.len();

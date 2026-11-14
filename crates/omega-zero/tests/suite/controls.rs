@@ -135,7 +135,7 @@ fn controls_says_what_the_shelf_and_a_gba_game_do_with_each_button() {
             ("SELECT+◀▶", "BLUE LIGHT"),
             ("SELECT+L1", "LOAD STATE"),
             ("SELECT+R1", "SAVE STATE"),
-            ("SELECT+Y", "COLOUR"),
+            ("SELECT+Y", "COLOR"),
             ("SELECT+A B", "SCREEN FILTER"),
             ("VOL+ VOL-", "MUTE"),
             ("HOLD POWER", "POWER MENU"),
@@ -156,7 +156,7 @@ fn a_game_boy_has_no_core_to_pick_and_leaves_l1_and_r1_to_the_picture() {
         for line in [
             ("L2", "REWIND"),
             ("SELECT+MENU", "LINK"),
-            ("SELECT+Y", "COLOUR"),
+            ("SELECT+Y", "COLOR"),
             ("SELECT+A B", "SCREEN FILTER"),
             ("L1 R1", "PICTURE SIZE"),
         ] {

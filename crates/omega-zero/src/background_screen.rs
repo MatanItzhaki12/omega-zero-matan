@@ -164,7 +164,7 @@ impl BackgroundScreen {
                 dim: !Self::applies(look, Sel::Motion),
             },
             Sel::Colour => ViewRow {
-                label: RowLabel::Setting("Colour"),
+                label: RowLabel::Setting("Color"),
                 value: Some(RowValue::Choice(backdrop_colour_name(look.colour))),
                 dim: !Self::applies(look, Sel::Colour),
             },

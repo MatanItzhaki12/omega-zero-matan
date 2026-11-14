@@ -44,7 +44,7 @@ fn select_and_start_open_the_editor_with_the_carts_own_rows() {
     let labels: Vec<&str> = view.lines.iter().map(|l| l.1.as_str()).collect();
     assert_eq!(
         labels,
-        ["Colour", "Hue", "Shade", "Finish", "Original", "Save"]
+        ["Color", "Hue", "Shade", "Finish", "Undo", "Default", "Save"]
     );
     assert!(!a.keys().shelf, "SELECT+START again while it is up");
 }
@@ -65,9 +65,11 @@ fn a_change_shows_on_the_cart_and_save_keeps_it_for_the_cards_next_look() {
     press(&mut a, Btn::Right);
     let finished = shown(&a).unwrap();
     assert_ne!(finished.finish, picked.finish);
-    // to Save, and A
-    press(&mut a, Btn::Down);
-    press(&mut a, Btn::Down);
+    // to Save, past Undo and Default, and A
+    for _ in 0..3 {
+        press(&mut a, Btn::Down);
+    }
+    assert_eq!(a.cart_editor().unwrap().row, EditRow::Save);
     press(&mut a, Btn::A);
     assert!(
         kept(&d).contains(&format!("Emerald = {}", finished.to_value())),
@@ -81,7 +83,7 @@ fn a_change_shows_on_the_cart_and_save_keeps_it_for_the_cards_next_look() {
 }
 
 #[test]
-fn b_puts_the_cart_back_and_original_keeps_its_own_look() {
+fn b_and_undo_put_the_cart_back_and_default_keeps_its_own_look() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = boot(d.path());
     a.apply(Action::CartEditor);
@@ -92,16 +94,29 @@ fn b_puts_the_cart_back_and_original_keeps_its_own_look() {
     assert_eq!(shown(&a), None, "B left the change on the cart");
     assert!(kept(&d).is_empty(), "B wrote to the card");
 
-    // Original then Save: the cart's own look, whatever the other configs say
+    // Undo, the editor still open: the look it opened on
     settle(&mut a);
     a.apply(Action::CartEditor);
     press(&mut a, Btn::Right);
+    assert!(shown(&a).is_some());
     for _ in 0..4 {
         press(&mut a, Btn::Down);
     }
-    assert_eq!(a.cart_editor().unwrap().row, EditRow::Original);
+    assert_eq!(a.cart_editor().unwrap().row, EditRow::Undo);
+    press(&mut a, Btn::A);
+    assert_eq!(shown(&a), None, "Undo left the change");
+    assert!(a.cart_editor().is_some(), "Undo closed the editor");
+    assert_eq!(a.cart_editor().unwrap().value(EditRow::Undo), "AS IT WAS");
+
+    // Default then Save: the cart's own look, whatever the other configs say
+    press(&mut a, Btn::Up);
+    press(&mut a, Btn::Right);
+    press(&mut a, Btn::Down);
+    press(&mut a, Btn::Down);
+    assert_eq!(a.cart_editor().unwrap().row, EditRow::Default);
     press(&mut a, Btn::A);
     assert_eq!(shown(&a), None);
+    assert_eq!(a.cart_editor().unwrap().value(EditRow::Default), "DEFAULT");
     press(&mut a, Btn::Down);
     press(&mut a, Btn::A);
     assert!(kept(&d).contains("Emerald = auto"), "{}", kept(&d));

@@ -120,6 +120,117 @@ pub enum Draw {
 }
 
 impl Draw {
+    /// The same draw grown by `k` about the canvas point `(px, py)`: its rect, a spun face's
+    /// depth and clip with it, so a group drawn together is grown or shrunk as one. The game and
+    /// a shot fill their own rects, which stay put.
+    pub fn zoomed(self, k: f32, px: f32, py: f32) -> Draw {
+        let at = |x: f32, y: f32| (px + (x - px) * k, py + (y - py) * k);
+        match self {
+            Draw::Rect { x, y, w, h, colour } => {
+                let (x, y) = at(x, y);
+                Draw::Rect {
+                    x,
+                    y,
+                    w: w * k,
+                    h: h * k,
+                    colour,
+                }
+            }
+            Draw::Tex {
+                x,
+                y,
+                w,
+                h,
+                tex,
+                alpha,
+            } => {
+                let (x, y) = at(x, y);
+                Draw::Tex {
+                    x,
+                    y,
+                    w: w * k,
+                    h: h * k,
+                    tex,
+                    alpha,
+                }
+            }
+            Draw::Turned {
+                x,
+                y,
+                w,
+                h,
+                tex,
+                alpha,
+                turn,
+            } => {
+                let (x, y) = at(x, y);
+                Draw::Turned {
+                    x,
+                    y,
+                    w: w * k,
+                    h: h * k,
+                    tex,
+                    alpha,
+                    turn,
+                }
+            }
+            Draw::Spun {
+                x,
+                y,
+                w,
+                h,
+                tex,
+                colour,
+                turn,
+                yaw,
+                depth,
+                clip,
+            } => {
+                let (x, y) = at(x, y);
+                Draw::Spun {
+                    x,
+                    y,
+                    w: w * k,
+                    h: h * k,
+                    tex,
+                    colour,
+                    turn,
+                    yaw,
+                    depth: depth * k,
+                    clip: clip.map(|[cx, cy, cw, ch]| {
+                        let (cx, cy) = at(cx, cy);
+                        [cx, cy, cw * k, ch * k]
+                    }),
+                }
+            }
+            Draw::Model {
+                x,
+                y,
+                w,
+                h,
+                mesh,
+                tex,
+                colour,
+                turn,
+                yaw,
+            } => {
+                let (x, y) = at(x, y);
+                Draw::Model {
+                    x,
+                    y,
+                    w: w * k,
+                    h: h * k,
+                    mesh,
+                    tex,
+                    colour,
+                    turn,
+                    yaw,
+                }
+            }
+            Draw::Game | Draw::Shot { .. } => self,
+        }
+    }
+
     /// The same draw moved `dx` across and `dy` down the canvas, a spun face's clip with it, so
     /// a group laid out from (0, 0) can be put anywhere. The game and a shot fill their own
     /// rects, which stay put.
