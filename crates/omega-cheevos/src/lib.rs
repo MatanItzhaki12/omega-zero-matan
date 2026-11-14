@@ -88,6 +88,19 @@ extern "C" {
     ) -> c_int;
     fn oc_achievements(each: AchievementFn, user: *mut c_void);
     fn oc_frame();
+    fn oc_frame_on(snap: *const u8, len: usize);
+    fn oc_snapshot_size() -> usize;
+    fn oc_snapshot(dst: *mut u8, len: usize);
+    #[cfg(test)]
+    fn oc_read_live(address: u32, buffer: *mut u8, num_bytes: u32) -> u32;
+    #[cfg(test)]
+    fn oc_read_snapshot(
+        snap: *const u8,
+        len: usize,
+        address: u32,
+        buffer: *mut u8,
+        num_bytes: u32,
+    ) -> u32;
     fn oc_idle();
     fn oc_reset();
     fn oc_answer(id: u32, status: c_int, body: *const c_char, length: usize);
@@ -122,6 +135,144 @@ static HASHED: Mutex<Option<(u32, std::path::PathBuf, Option<String>)>> = Mutex:
 static RESOLVED: Mutex<Option<(String, String)>> = Mutex::new(None);
 /// What every request says it is, as RetroAchievements asks: omega-zero and rcheevos' versions.
 static AGENT: Mutex<String> = Mutex::new(String::new());
+
+/// The game's achievements checked on a thread of their own, from a copy of each frame's memory,
+/// where the memory is small enough to copy every frame: none between games, or for a game whose
+/// memory is checked on the core's thread as it runs.
+static CHECKER: Mutex<Option<Checker>> = Mutex::new(None);
+
+/// Whether a game whose memory is small enough is checked on a thread of its own. Tests that
+/// step the client offline, frame by frame, check on the core's thread instead.
+static PARALLEL: AtomicBool = AtomicBool::new(true);
+
+/// The most memory a game may have for its achievements to be checked from a copy of each
+/// frame's: a GBA's is 352 KB, a SNES's under 300 KB, a Game Boy's 64 KB, all copied in a tenth
+/// of a millisecond or so; a PlayStation's 2 MB and a PSP's 32 MB are checked as they run.
+pub const PARALLEL_MOST: usize = 1 << 20;
+
+/// How many frames' copies may wait for the check: the core runs that far ahead of it.
+const COPIES: usize = 4;
+
+/// How long the core waits for a copy to come free, the check behind, before it lets the frame
+/// go unchecked, as a frame the client was busy for always has: long enough for a check to end,
+/// short enough that a client held up (taking in a game's achievements) never stalls the game.
+const COPY_WAIT: std::time::Duration = std::time::Duration::from_millis(3);
+
+/// What the checking thread is handed, in the order the core ran it.
+enum Job {
+    /// A frame's memory, to be checked and its copy handed back.
+    Frame(Vec<u8>),
+    /// The memory jumped (a state loaded, a rewind): the check starts again from here.
+    Reset,
+}
+
+/// The thread that checks a game's achievements, and the copies of frames' memory it is handed.
+struct Checker {
+    jobs: Option<std::sync::mpsc::SyncSender<Job>>,
+    free: std::sync::mpsc::Receiver<Vec<u8>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+    /// Frames the check was too far behind for, since the last said.
+    skipped: u32,
+}
+
+impl Checker {
+    fn start(len: usize) -> Option<Checker> {
+        let (jobs, take) = std::sync::mpsc::sync_channel::<Job>(COPIES);
+        let (give, free) = std::sync::mpsc::sync_channel::<Vec<u8>>(COPIES);
+        for _ in 0..COPIES {
+            give.send(vec![0; len]).ok()?;
+        }
+        let thread = std::thread::Builder::new()
+            .name("omega-cheevos-check".into())
+            .spawn(move || {
+                for job in take {
+                    let done = || QUEUED.fetch_sub(1, Ordering::AcqRel);
+                    match job {
+                        Job::Frame(copy) => {
+                            // SAFETY: under the lock; the copy is read only through the call
+                            with_client(|| unsafe { oc_frame_on(copy.as_ptr(), copy.len()) });
+                            let _ = give.send(copy);
+                            done();
+                        }
+                        // SAFETY: under the lock
+                        Job::Reset => {
+                            with_client(|| unsafe { oc_reset() });
+                            done();
+                        }
+                    }
+                }
+            })
+            .ok()?;
+        Some(Checker {
+            jobs: Some(jobs),
+            free,
+            thread: Some(thread),
+            skipped: 0,
+        })
+    }
+
+    /// Copies this frame's memory for the check, waiting a moment for a copy to come free; false
+    /// where none did, and the frame goes unchecked.
+    fn frame(&mut self) -> bool {
+        let Ok(mut copy) = self.free.recv_timeout(COPY_WAIT) else {
+            self.skipped += 1;
+            if self.skipped.is_power_of_two() {
+                trace(&format!(
+                    "the check fell behind: {} frames unchecked",
+                    self.skipped
+                ));
+            }
+            return false;
+        };
+        // SAFETY: on the core's thread, between its frames, which is where its memory holds
+        // still; the copy is as long as the regions say
+        unsafe { oc_snapshot(copy.as_mut_ptr(), copy.len()) };
+        let Some(jobs) = &self.jobs else {
+            return false;
+        };
+        QUEUED.fetch_add(1, Ordering::AcqRel);
+        if jobs.send(Job::Frame(copy)).is_err() {
+            QUEUED.fetch_sub(1, Ordering::AcqRel);
+            return false;
+        }
+        true
+    }
+
+    fn reset(&self) {
+        if let Some(jobs) = &self.jobs {
+            QUEUED.fetch_add(1, Ordering::AcqRel);
+            if jobs.send(Job::Reset).is_err() {
+                QUEUED.fetch_sub(1, Ordering::AcqRel);
+            }
+        }
+    }
+
+    /// Lets the thread check what it was handed, and waits for it to end.
+    fn stop(mut self) {
+        drop(self.jobs.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+/// Whether a game whose memory is small enough has its achievements checked on a thread of its
+/// own (as it starts), or every game's on the core's thread.
+pub fn check_in_parallel(on: bool) {
+    PARALLEL.store(on, Ordering::Release);
+}
+
+/// Jobs handed to the checking thread and not yet done.
+static QUEUED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Waits, up to five seconds, for every frame handed to the checking thread to be checked: for
+/// tests, which look at what the check said.
+pub fn settle() {
+    let began = std::time::Instant::now();
+    while QUEUED.load(Ordering::Acquire) > 0 && began.elapsed().as_secs() < 5 {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -315,6 +466,7 @@ pub fn start(hardcore: bool, version: &str) -> bool {
 /// Keeps every request on the handheld from now on, answered as a network error the client
 /// retries: for tests, so none ever reaches RetroAchievements.
 pub fn go_offline() {
+    check_in_parallel(false);
     OFFLINE.store(true, Ordering::Release);
 }
 
@@ -380,7 +532,30 @@ pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
         oc_game_hashing();
     });
     if begun.is_some() {
+        start_checker();
         load_in_turn(game, console, rom);
+    }
+}
+
+/// The game's achievements checked on a thread of their own from here, where its memory is
+/// small enough to copy every frame, and the frames are not stepped offline by a test.
+fn start_checker() {
+    if let Some(old) = lock(&CHECKER).take() {
+        old.stop();
+    }
+    // SAFETY: the regions are set; the size is only read
+    let len = unsafe { oc_snapshot_size() };
+    if !PARALLEL.load(Ordering::Acquire) || len == 0 || len > PARALLEL_MOST {
+        return;
+    }
+    match Checker::start(len) {
+        Some(checker) => {
+            trace(&format!(
+                "achievements checked on a thread of their own, {len} bytes a frame"
+            ));
+            *lock(&CHECKER) = Some(checker);
+        }
+        None => trace("no thread to check achievements on: the core's checks them"),
     }
 }
 
@@ -548,9 +723,15 @@ pub fn hardcore_active() -> bool {
     with_client(|| unsafe { oc_hardcore() } != 0).unwrap_or(false)
 }
 
-/// One frame of the game has run: the client checks the game's memory for achievements. A
-/// frame the client is busy for, taking in an answer, goes unchecked rather than waiting.
+/// One frame of the game has run: the client checks the game's memory for achievements. Where
+/// a thread of its own checks them, the frame's memory is copied for it and the core runs on;
+/// otherwise it is checked here, and a frame the client is busy for, taking in an answer, goes
+/// unchecked rather than waiting.
 pub fn frame() {
+    if let Some(checker) = lock(&CHECKER).as_mut() {
+        checker.frame();
+        return;
+    }
     // SAFETY: under the lock, on the thread that runs the core
     try_client(|| unsafe { oc_frame() });
 }
@@ -571,6 +752,11 @@ pub fn pump() {
 /// The game's memory jumped, as a state loads or the game rewinds: achievements start watching
 /// again from here, so none is earned by the jump.
 pub fn reset() {
+    // where a thread checks the frames, in its turn after the frames before the jump
+    if let Some(checker) = lock(&CHECKER).as_ref() {
+        checker.reset();
+        return;
+    }
     // SAFETY: under the lock
     with_client(|| unsafe { oc_reset() });
 }
@@ -578,6 +764,10 @@ pub fn reset() {
 /// The game is put away: the client lets go of it and of its memory, before the core goes.
 pub fn end_game() {
     GAME.fetch_add(1, Ordering::AcqRel);
+    // the frames handed over are checked, and the thread gone, before the memory goes
+    if let Some(checker) = lock(&CHECKER).take() {
+        checker.stop();
+    }
     // SAFETY: under the lock
     with_client(|| unsafe { oc_unload_game() });
 }
@@ -1049,5 +1239,130 @@ mod tests {
         let other = d.path().join("Other.gba");
         std::fs::write(&other, [2u8; 4096]).unwrap();
         assert_ne!(hash_once(CONSOLE_GBA, &other), Some(first));
+    }
+
+    #[test]
+    fn a_frames_copy_reads_as_the_live_memory_did_as_the_frame_ended() {
+        let _turn = lock(&ONE_AT_A_TIME);
+        // a GBA's memory as gpSP answers for it by number: its RAM, and its save
+        let mut system: Vec<u8> = (0..0x48000u32).map(|i| (i * 7 + i / 251) as u8).collect();
+        let mut save: Vec<u8> = (0..0x10000u32).map(|i| (i * 13 + 5) as u8).collect();
+        // SAFETY: the memory outlives every read below, and is let go of before it goes
+        unsafe {
+            oc_set_memory(
+                std::ptr::null(),
+                0,
+                CONSOLE_GBA,
+                system.as_mut_ptr(),
+                system.len(),
+                save.as_mut_ptr(),
+                save.len(),
+                std::ptr::null_mut(),
+                0,
+            );
+        }
+        // SAFETY: the regions are set
+        let len = unsafe { oc_snapshot_size() };
+        assert!(len > 0 && len <= PARALLEL_MOST, "{len} bytes");
+        let mut copy = vec![0u8; len];
+        // SAFETY: as long as the size says
+        unsafe { oc_snapshot(copy.as_mut_ptr(), copy.len()) };
+        let live = |address: u32, n: u32| {
+            let mut out = [0u8; 8];
+            // SAFETY: room for `n` bytes
+            let got = unsafe { oc_read_live(address, out.as_mut_ptr(), n) };
+            (got, out)
+        };
+        let copied = |copy: &[u8], address: u32, n: u32| {
+            let mut out = [0u8; 8];
+            // SAFETY: room for `n` bytes; the copy is as long as it says
+            let got = unsafe {
+                oc_read_snapshot(copy.as_ptr(), copy.len(), address, out.as_mut_ptr(), n)
+            };
+            (got, out)
+        };
+        // every edge of every region, and reads across them, past the end too
+        let mut at: Vec<u32> = (0..len as u32 + 16).step_by(4093).collect();
+        for edge in [
+            0x7ffc,
+            0x7fff,
+            0x8000,
+            0x47ffe,
+            0x48000,
+            0x57ffd,
+            len as u32 - 2,
+            len as u32,
+        ] {
+            at.extend(edge.saturating_sub(3)..edge + 4);
+        }
+        for &address in &at {
+            for n in [1, 2, 3, 4, 8] {
+                assert_eq!(
+                    live(address, n),
+                    copied(&copy, address, n),
+                    "{address:#x}, {n} bytes"
+                );
+            }
+        }
+        // the game runs on: the copy still says what the frame left
+        let was = copied(&copy, 0x10, 4);
+        system[0x10..0x14].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(copied(&copy, 0x10, 4), was);
+        // SAFETY: under the turn; the regions are let go of before the memory goes
+        unsafe { oc_unload_game() };
+        drop((system, save));
+    }
+
+    #[test]
+    fn frames_go_to_their_own_thread_and_a_busy_client_never_stalls_the_game() {
+        let _turn = lock(&ONE_AT_A_TIME);
+        let mut system = vec![1u8; 0x48000];
+        let mut save = vec![2u8; 0x10000];
+        // SAFETY: the memory outlives the game, ended below before it goes
+        unsafe {
+            oc_set_memory(
+                std::ptr::null(),
+                0,
+                CONSOLE_GBA,
+                system.as_mut_ptr(),
+                system.len(),
+                save.as_mut_ptr(),
+                save.len(),
+                std::ptr::null_mut(),
+                0,
+            );
+        }
+        let was = PARALLEL.swap(true, Ordering::AcqRel);
+        start_checker();
+        assert!(
+            lock(&CHECKER).is_some(),
+            "a GBA's memory is checked on its own thread"
+        );
+
+        // the check keeps up: every frame handed over, and checked
+        for _ in 0..50 {
+            frame();
+        }
+        reset();
+        settle();
+        assert_eq!(QUEUED.load(Ordering::Acquire), 0);
+
+        // a client held up elsewhere: the copies fill, and then each frame waits a moment at
+        // most and goes unchecked, rather than the game standing still
+        let held = lock(&CLIENT);
+        let began = std::time::Instant::now();
+        for _ in 0..20 {
+            frame();
+        }
+        let took = began.elapsed();
+        drop(held);
+        assert!(took < std::time::Duration::from_millis(500), "{took:?}");
+        settle();
+        assert_eq!(QUEUED.load(Ordering::Acquire), 0);
+
+        end_game();
+        assert!(lock(&CHECKER).is_none(), "the thread outlived its game");
+        PARALLEL.store(was, Ordering::Release);
+        drop((system, save));
     }
 }

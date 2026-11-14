@@ -1113,7 +1113,7 @@ impl Worker {
                 }
                 fast_span = Some((began, core_time));
                 if speed == Speed::Fast {
-                    held_ff.add(began, ran, span > 1, core_time, cheevos_took);
+                    held_ff.add(began, ran, span > 1, core_time, cheevos_took, post_cost);
                 } else if held_ff.presents > 0 {
                     held_ff.log();
                     held_ff = FastHold::new();
@@ -1473,6 +1473,9 @@ struct FastHold {
     doubled: u32,
     core: Duration,
     cheevos: Duration,
+    /// What a present took after its frames ran: the picture handed over, the sound, the
+    /// emulator's own share of the present.
+    after: Duration,
     began: Instant,
 }
 
@@ -1484,6 +1487,7 @@ impl FastHold {
             doubled: 0,
             core: Duration::ZERO,
             cheevos: Duration::ZERO,
+            after: Duration::ZERO,
             began: Instant::now(),
         }
     }
@@ -1495,6 +1499,7 @@ impl FastHold {
         doubled: bool,
         core: Duration,
         cheevos: Duration,
+        after: Duration,
     ) {
         if self.presents == 0 {
             self.began = began;
@@ -1504,6 +1509,7 @@ impl FastHold {
         self.doubled += u32::from(doubled);
         self.core += core;
         self.cheevos += cheevos;
+        self.after += after;
     }
 
     fn log(&self) {
@@ -1513,7 +1519,7 @@ impl FastHold {
         }
         let per_frame = |d: Duration| d.as_secs_f32() * 1000.0 / self.frames as f32;
         crate::log!(
-            "ff: {:.1} s at {:.0} game frames a second, {:.1} frames a present, {} of {} presents across two refreshes; a frame {:.2} ms, {:.2} ms of it achievements",
+            "ff: {:.1} s at {:.0} game frames a second, {:.1} frames a present, {} of {} presents across two refreshes; a frame {:.2} ms, {:.2} ms of it achievements; {:.2} ms after each present",
             secs,
             self.frames as f32 / secs,
             self.frames as f32 / self.presents as f32,
@@ -1521,6 +1527,7 @@ impl FastHold {
             self.presents,
             per_frame(self.core),
             per_frame(self.cheevos),
+            self.after.as_secs_f32() * 1000.0 / self.presents as f32,
         );
     }
 }

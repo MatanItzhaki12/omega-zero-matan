@@ -128,12 +128,88 @@ static void keep_error(char* into, const char* error) {
   snprintf(into, 256, "%s", error ? error : "");
 }
 
+/* A frame's copy of the regions, end to end, that a check on another thread reads in place of
+ * the game's live memory: set only for the length of oc_frame_on. */
+static const uint8_t* snapshot;
+static size_t snapshot_len;
+
+/* As rc_libretro_memory_read reads the regions, from `snap`, the regions laid end to end as
+ * oc_snapshot copies them: a region with no memory ends the read there, as it does live. */
+static uint32_t read_snapshot(const uint8_t* snap, size_t len, uint32_t address, uint8_t* buffer,
+                              uint32_t num_bytes) {
+  uint32_t bytes_read = 0;
+  size_t at = 0;
+  for (uint32_t i = 0; i < regions.count; ++i) {
+    const size_t size = regions.size[i];
+    if (address >= size) {
+      address -= (uint32_t)size;
+      at += size;
+      continue;
+    }
+    if (regions.data[i] == NULL || at + size > len)
+      break;
+    const size_t avail = size - address;
+    if (avail >= num_bytes) {
+      memcpy(buffer, snap + at + address, num_bytes);
+      return bytes_read + num_bytes;
+    }
+    memcpy(buffer, snap + at + address, avail);
+    buffer += avail;
+    bytes_read += (uint32_t)avail;
+    num_bytes -= (uint32_t)avail;
+    address = 0;
+    at += size;
+  }
+  return bytes_read;
+}
+
 static uint32_t RC_CCONV read_memory(uint32_t address, uint8_t* buffer, uint32_t num_bytes,
                                      rc_client_t* c) {
   (void)c;
   if (!regions_ready)
     return 0;
+  if (snapshot)
+    return read_snapshot(snapshot, snapshot_len, address, buffer, num_bytes);
   return rc_libretro_memory_read(&regions, address, buffer, num_bytes);
+}
+
+/* How many bytes a frame's copy of the regions takes: none with no game's memory. */
+size_t oc_snapshot_size(void) {
+  size_t total = 0;
+  if (!regions_ready)
+    return 0;
+  for (uint32_t i = 0; i < regions.count; ++i)
+    total += regions.size[i];
+  return total;
+}
+
+/* Copies the regions as they are now into `dst`, `len` bytes, end to end; a region with no
+ * memory is left as zeros, never read. Called on the thread that runs the core, between its
+ * frames. */
+void oc_snapshot(uint8_t* dst, size_t len) {
+  size_t at = 0;
+  if (!regions_ready)
+    return;
+  for (uint32_t i = 0; i < regions.count && at < len; ++i) {
+    size_t size = regions.size[i];
+    if (size > len - at)
+      size = len - at;
+    if (regions.data[i])
+      memcpy(dst + at, regions.data[i], size);
+    else
+      memset(dst + at, 0, size);
+    at += size;
+  }
+}
+
+/* What the live memory and a frame's copy of it answer for a read: for tests. */
+uint32_t oc_read_live(uint32_t address, uint8_t* buffer, uint32_t num_bytes) {
+  return regions_ready ? rc_libretro_memory_read(&regions, address, buffer, num_bytes) : 0;
+}
+
+uint32_t oc_read_snapshot(const uint8_t* snap, size_t len, uint32_t address, uint8_t* buffer,
+                          uint32_t num_bytes) {
+  return regions_ready ? read_snapshot(snap, len, address, buffer, num_bytes) : 0;
 }
 
 static void RC_CCONV server_call(const rc_api_request_t* request,
@@ -445,6 +521,16 @@ void oc_achievements(oc_achievement_fn each, void* user) {
 void oc_frame(void) {
   if (client && regions_ready)
     rc_client_do_frame(client);
+}
+
+/* A frame checked from its copy, `snap`, on a thread other than the core's: every read the
+ * check makes is of the copy, taken as the frame ended. */
+void oc_frame_on(const uint8_t* snap, size_t len) {
+  snapshot = snap;
+  snapshot_len = len;
+  oc_frame();
+  snapshot = NULL;
+  snapshot_len = 0;
 }
 
 void oc_idle(void) {

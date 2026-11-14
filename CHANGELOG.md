@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Achievements checked on a core of their own**: a game whose memory is small enough to copy
+  every frame (a GBA's 352 KB, a SNES's, a Game Boy's) has it copied as each frame ends, and a
+  thread of its own checks every achievement against the copy, frame by frame in order, while
+  the core runs the next. Nothing is skipped, so hit counts and changes from frame to frame hold
+  as before; an achievement pops a frame or two later. Resets (a state loaded, a rewind) go
+  through the same queue, in their turn. A PlayStation's 2 MB and a PSP's 32 MB are still
+  checked as they run. Fast-forward with achievements on runs as fast as without them, near
+  enough: in FireRed they took 0.63 ms of each frame on the emulator's own core.
+- Each hold of fast-forward logs what a frame cost, RetroAchievements' share of it, and what a
+  present took after its frames ran.
 - **Pokémon FireRed Rev 1 runs at full speed on gpSP**: gpSP finds a game's idle loop by its
   code alone, and FireRed's entry is Rev 0's, whose WaitForVBlank stands 20 bytes before Rev 1's;
   so Rev 1's loop was run turn by turn, and fast-forward topped out near 2.5x where Emerald
