@@ -11,6 +11,11 @@
 //! away is copied once, as it stands. The first pass, or one after the NAS or the folder
 //! changes, finds the list empty and copies everything.
 //!
+//! The backups Saves keeps on the handheld go too, beside the saves: `Backups/<system>/<game>/
+//! <date and time>/` in the folder, a folder for every game as on the card, each backup's name
+//! with it. They are kept on the NAS once copied, whatever the handheld deletes after, so the NAS
+//! holds every backup the handheld ever made; and they are never offered back as saves.
+//!
 //! Passes run on a thread of their own: when a game is saved, when Wi-Fi comes up, every few
 //! minutes while anything waits, and now and then besides for what a core wrote by itself. A
 //! pass that cannot reach the NAS leaves the list as it was, and the next one tries again.
@@ -26,6 +31,10 @@ use crate::nas::{Login, Nas, NasFail};
 
 /// The list of what the NAS has, under the card's root.
 const LIST: &str = "Config/save_backup.list";
+
+/// Where the backups go in the folder, and their paths in the list begin: the card's own
+/// folder's name, a name no system's folder in Saves has.
+pub const BACKUPS: &str = "Backups";
 
 /// How long after a pass that left saves waiting the next tries: 5 seconds, then twice as long
 /// after each that fails, up to a minute, as the NAS may only be waking or the Wi-Fi coming
@@ -151,39 +160,67 @@ impl List {
 /// Every file in `saves`, as its path from there with `/` between its parts: hidden files, as a
 /// write half done is, left out.
 pub fn saved_files(saves: &Path) -> Vec<String> {
-    fn walk(dir: &Path, rel: &str, out: &mut Vec<String>) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') {
-                continue;
-            }
-            let path = match rel {
-                "" => name.clone(),
-                rel => format!("{rel}/{name}"),
-            };
-            match entry.file_type() {
-                Ok(t) if t.is_dir() => walk(&entry.path(), &path, out),
-                Ok(t) if t.is_file() => out.push(path),
-                _ => {}
-            }
-        }
-    }
     let mut out = Vec::new();
-    walk(saves, "", &mut out);
+    walk(saves, "", &|_| false, &mut out);
     out.sort();
     out
+}
+
+/// Every file of every backup the card keeps, as its path from the card's root (`Backups/GBA/
+/// Emerald/<stamp>/GBA/Emerald.sav`): a backup's name, in its hidden `.name`, along with it; its
+/// other hidden files, as a write half done is, left out.
+pub fn backup_files(root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    walk(
+        &root.join(BACKUPS),
+        BACKUPS,
+        &|name| name == ".name",
+        &mut out,
+    );
+    out.sort();
+    out
+}
+
+/// The files under `dir`, each as `rel` and its path from there with `/` between the parts:
+/// hidden ones only where `hidden` keeps them by name.
+fn walk(dir: &Path, rel: &str, hidden: &dyn Fn(&str) -> bool, out: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') && !hidden(&name) {
+            continue;
+        }
+        let path = match rel {
+            "" => name.clone(),
+            rel => format!("{rel}/{name}"),
+        };
+        match entry.file_type() {
+            Ok(t) if t.is_dir() => walk(&entry.path(), &path, hidden, out),
+            Ok(t) if t.is_file() => out.push(path),
+            _ => {}
+        }
+    }
 }
 
 /// The files in `saves` the NAS does not have as they stand, by `list`, with what they hold
 /// now.
 pub fn changed(saves: &Path, list: &List) -> Vec<(String, Vec<u8>)> {
-    saved_files(saves)
-        .into_iter()
+    unlike(saves, saved_files(saves), list)
+}
+
+/// The files of the card's backups the NAS does not have as they stand, by `list`, each by its
+/// path from the card's root, with what it holds.
+pub fn changed_backups(root: &Path, list: &List) -> Vec<(String, Vec<u8>)> {
+    unlike(root, backup_files(root), list)
+}
+
+/// Those of `rels`, under `base`, whose size or CRC `list` does not have.
+fn unlike(base: &Path, rels: Vec<String>, list: &List) -> Vec<(String, Vec<u8>)> {
+    rels.into_iter()
         .filter_map(|rel| {
-            let bytes = std::fs::read(saves.join(&rel)).ok()?;
+            let bytes = std::fs::read(base.join(&rel)).ok()?;
             let now = Kept {
                 size: bytes.len() as u64,
                 crc: crate::label_sync::crc32(&bytes),
@@ -345,7 +382,9 @@ pub fn pass_on(
         };
     }
     let saves = crate::root::saves_dir(root);
-    let todo = changed(&saves, &list);
+    // the saves first, then the backups: a save is what a game going wrong needs most
+    let mut todo = changed(&saves, &list);
+    todo.extend(changed_backups(root, &list));
     let total = todo.len();
     set(&|s| s.waiting = total);
     if todo.is_empty() {
@@ -445,6 +484,10 @@ const PSP_SAVES: &str = "PSP/SAVEDATA/";
 /// or the file itself. `None` for what a core keeps in Saves that is no game's save, the rest of
 /// PPSSPP's memory stick: backed up, but not offered back one file at a time.
 pub fn save_of(rel: &str) -> Option<String> {
+    // the backups beside the saves are kept, not offered back as saves
+    if rel == BACKUPS || rel.starts_with(&format!("{BACKUPS}/")) {
+        return None;
+    }
     match rel.strip_prefix(PSP_SAVES) {
         Some(rest) => rest
             .split_once('/')
@@ -816,6 +859,60 @@ mod tests {
             ..target()
         };
         assert_eq!(top.remote("GBA/Emerald.sav"), "GBA/Emerald.sav");
+    }
+
+    #[test]
+    fn every_backup_goes_beside_the_saves_a_folder_a_game_and_is_never_a_save_to_put_back() {
+        let d = tempfile::tempdir().unwrap();
+        let at = |rel: &str, bytes: &[u8]| {
+            let p = d.path().join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, bytes).unwrap();
+        };
+        let kept = "Backups/GBA/Emerald/2026-11-14_09-00-00";
+        at(&format!("{kept}/GBA/Emerald.sav"), b"before the gym");
+        at(&format!("{kept}/.name"), b"Before Norman\n");
+        at(&format!("{kept}/.auto"), b"");
+        at(
+            "Backups/PSP/Ghost of Sparta/2026-11-14_09-05-00/PSP/SAVEDATA/UCUS98737/DATA.BIN",
+            b"psp",
+        );
+        assert_eq!(
+            backup_files(d.path()),
+            [
+                format!("{kept}/.name"),
+                format!("{kept}/GBA/Emerald.sav"),
+                "Backups/PSP/Ghost of Sparta/2026-11-14_09-05-00/PSP/SAVEDATA/UCUS98737/DATA.BIN"
+                    .to_string(),
+            ],
+            "the backup's name goes with it, and its auto mark does not"
+        );
+        // a pass picks them up once, as it does saves
+        let mut list = List::default();
+        let todo = changed_backups(d.path(), &list);
+        assert_eq!(todo.len(), 3);
+        for (rel, bytes) in todo {
+            list.files.insert(
+                rel,
+                Kept {
+                    size: bytes.len() as u64,
+                    crc: crate::label_sync::crc32(&bytes),
+                },
+            );
+        }
+        assert!(changed_backups(d.path(), &list).is_empty());
+        // under the folder picked, a folder for every game
+        assert_eq!(
+            target().remote(&format!("{kept}/GBA/Emerald.sav")),
+            format!("RG SP/Saves/{kept}/GBA/Emerald.sav")
+        );
+        // Sync From Backup offers saves, never the backups beside them
+        assert_eq!(save_of(&format!("{kept}/GBA/Emerald.sav")), None);
+        assert_eq!(save_of("Backups"), None);
+        assert_eq!(
+            save_of("GBA/Emerald.sav").as_deref(),
+            Some("GBA/Emerald.sav")
+        );
     }
 
     #[test]
