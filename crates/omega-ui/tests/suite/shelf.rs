@@ -1014,6 +1014,45 @@ fn a_solid_cart_has_no_holo_sheen() {
     }
 }
 
+/// A PSP game's UMD has the sheen on its label whatever its shell: the label is under the
+/// disc's clear window. Holo Sheen off, it has none either.
+#[test]
+fn every_umd_has_the_holo_sheen_solid_or_not() {
+    let frames: Vec<TexId> = (0..omega_ui::HOLO_FRAMES)
+        .map(|k| TexId::from_raw(900 + k))
+        .collect();
+    let umds = || {
+        Shelf::new(
+            ["God of War", "Lumines", "Patapon"]
+                .iter()
+                .map(|stem| Cart {
+                    platform: Platform::Psp,
+                    stem: (*stem).into(),
+                    rom: format!("Games/PSP/{stem}.iso").into(),
+                    label: None,
+                    code: String::new(),
+                    shell: None,
+                    title: String::new(),
+                })
+                .collect(),
+        )
+    };
+    for finish in [
+        omega_store::ShellFinish::Solid,
+        omega_store::ShellFinish::Clear,
+    ] {
+        let mut s = umds();
+        shells_of(&mut s, finish);
+        settle(&mut s);
+        let (_, drawn) = sheens_drawn(&mut s, &frames);
+        assert_eq!(drawn.len(), 1, "a UMD in a {finish:?} shell");
+    }
+    let mut s = umds();
+    s.set_holo_shown(false);
+    settle(&mut s);
+    assert!(sheens_drawn(&mut s, &frames).1.is_empty(), "Holo Sheen off");
+}
+
 /// The cart picked, drawn as its model as on the handheld, has the holo sheen over its face,
 /// posed as the face is; the carts beside it have none.
 #[test]

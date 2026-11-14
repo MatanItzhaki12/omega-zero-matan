@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **The holo sheen on every UMD**: a PSP game picked on the shelf has the sheen over its label
+  as a clear GBA cart does, whatever its shell, since a UMD's label is under its clear window.
+  Holo Sheen off, none has it.
 - **Backups to the NAS**: Save Backup copies the backups Saves keeps beside the saves, under
   `Backups/<system>/<game>/<date and time>/` in the folder picked, a folder for every game, each
   backup's name with it. Only what changed goes, in the same passes as the saves and after them;

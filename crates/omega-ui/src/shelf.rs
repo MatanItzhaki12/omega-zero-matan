@@ -219,7 +219,7 @@ impl Shelf {
         offset: f32,
     ) -> Option<(TexId, f32)> {
         let fade = 1.0 - offset.abs() / HOLO_REACH;
-        if !self.holo_shown || fade <= 0.0 || !self.clear_shell(cart) {
+        if !self.holo_shown || fade <= 0.0 || !self.shines(cart, model) {
             return None;
         }
         let frames = &self.holo[model.index()];
@@ -229,8 +229,14 @@ impl Shelf {
         Some((tex, fade))
     }
 
-    /// Whether `cart`'s shell is clear or glitter plastic, the shells the holo sheen is for: a
-    /// solid one's label has none.
+    /// Whether `cart`'s label has the holo sheen: a UMD's always, as its label is under the
+    /// disc's clear window whatever its shell; a cartridge's in a clear or glitter shell, a
+    /// solid one's having none.
+    fn shines(&self, cart: &Cart, model: CartModel) -> bool {
+        model == CartModel::Umd || self.clear_shell(cart)
+    }
+
+    /// Whether `cart`'s shell is clear or glitter plastic.
     fn clear_shell(&self, cart: &Cart) -> bool {
         let mut kept = self.clear.borrow_mut();
         if let Some((rom, shell, clear)) = kept.as_ref() {
