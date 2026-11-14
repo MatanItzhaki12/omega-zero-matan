@@ -1,0 +1,78 @@
+diff -ru a/gba_memory.c b/gba_memory.c
+--- a/gba_memory.c
++++ b/gba_memory.c
+@@ -1397,6 +1397,10 @@
+       if (++rtc_bit_count == 8) {
+         switch (rtc_command) {
+         case RTC_COMMAND_RESET:
++          /* the chip's registers back to their first state: no 24-hour clock, no power fault */
++          rtc_status = 0;
++          rtc_state = RTC_IDLE;
++          break;
+         case RTC_COMMAND_WRITE_STATUS:
+           rtc_state = RTC_INPUT_DATA;
+           rtc_data = 0;
+@@ -1444,11 +1448,15 @@
+       break;
+ 
+     case RTC_INPUT_DATA:
+-      rtc_data <<= 1;
+-      rtc_data |= ((new >> 1) & 1);
++      /* The S-3511 takes its data least significant bit first, as it sends it (see
++       * RTC_OUTPUT_DATA): shifting it in the other way round kept a game's status 0x40 (24-hour
++       * clock) as 0x02, which Pokemon Ruby, Sapphire and Emerald took, at their next boot, for a
++       * clock run dry. */
++      rtc_data |= ((u64)((new >> 1) & 1)) << (8 - rtc_data_bits);
+       rtc_data_bits--;
+       if (!rtc_data_bits) {
+-        rtc_status = rtc_data; // HACK: assuming write status here.
++        if (rtc_command == RTC_COMMAND_WRITE_STATUS)
++          rtc_status = rtc_data & 0xFF;
+         rtc_state = RTC_IDLE;
+       }
+       break;
+@@ -2549,6 +2557,18 @@
+     bson_read_int32_array(bakdoc, "rtc-data-words", rtc_data_array, 2)))
+     return false;
+ 
++  /* A state written before rtc-status-lsb holds the status a game wrote shifted in the wrong
++   * way round, 0x40 kept as 0x02: put back as it was written. */
++  {
++    u32 lsb = 0;
++    if (!bson_read_int32(bakdoc, "rtc-status-lsb", &lsb) || !lsb) {
++      u32 was = rtc_status & 0xFF, put = 0;
++      for (int b = 0; b < 8; b++)
++        put |= ((was >> b) & 1) << (7 - b);
++      rtc_status = put;
++    }
++  }
++
+   /* rtc-base-time is optional for forward-compat with states written
+    * before deterministic RTC; if absent, keep whatever load_gamepak
+    * captured at content load. */
+@@ -2616,6 +2636,8 @@
+   bson_write_int32(dst, "rtc-write-mode", rtc_write_mode);
+   bson_write_int32(dst, "rtc-cmd", rtc_command);
+   bson_write_int32(dst, "rtc-status", rtc_status);
++  /* the status as the game wrote it, least significant bit first: see memory_read_savestate */
++  bson_write_int32(dst, "rtc-status-lsb", 1);
+   bson_write_int32(dst, "rtc-data-bit-cnt", rtc_data_bits);
+   bson_write_int32(dst, "rtc-bit-cnt", rtc_bit_count);
+   bson_write_int32array(dst, "rtc-data-words", rtc_data_array, 2);
+@@ -3053,6 +3075,16 @@
+     * rtc_base_time, both of which are persisted in the savestate. */
+    rtc_init_base_time();
+ 
++   /* The clock as a cartridge's is between plays: running, in the 24-hour mode a game sets once,
++    * no transfer under way. Nothing is kept from the game or state before it, which a frontend
++    * that keeps the core loaded between games would otherwise hand on. */
++   rtc_status = 0x40;
++   rtc_state = RTC_IDLE;
++   rtc_command = 0;
++   rtc_bit_count = 0;
++   rtc_data = 0;
++   rtc_data_bits = 0;
++
+    return 0;
+ }
+ 

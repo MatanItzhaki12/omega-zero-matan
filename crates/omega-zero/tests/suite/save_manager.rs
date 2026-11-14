@@ -326,3 +326,21 @@ fn a_backup_is_named_kept_by_hand_and_its_name_is_no_part_of_the_save() {
     assert_eq!(save_manager::backup_name(d.path(), &game, NOW), None);
     assert!(save_manager::rename_backup(d.path(), &game, "not-a-stamp", "x").is_err());
 }
+
+#[test]
+fn a_blank_save_is_never_backed_up_by_itself() {
+    let d = tempfile::tempdir().unwrap();
+    let game = gba("Emerald");
+    // what a core writes for a game whose save was deleted: erased flash
+    write(d.path(), "Saves/GBA/Emerald.sav", &[0xFF; 131_072]);
+    assert!(!save_manager::auto_back_up(d.path(), &game, NOW, 5).unwrap());
+    write(d.path(), "Saves/GBA/Emerald.sav", &[0; 8192]);
+    assert!(!save_manager::auto_back_up(d.path(), &game, NOW, 5).unwrap());
+    assert!(save_manager::backups(d.path(), &game).is_empty());
+    // a save with a game in it is, as ever
+    let mut real = vec![0xFF; 131_072];
+    real[0..5].copy_from_slice(b"Matan");
+    write(d.path(), "Saves/GBA/Emerald.sav", &real);
+    assert!(save_manager::auto_back_up(d.path(), &game, NOW, 5).unwrap());
+    assert!(save_manager::is_blank(&[0xFF; 16]) && !save_manager::is_blank(b"Matan"));
+}

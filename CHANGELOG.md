@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **No more "The internal battery has run dry"** in Pokémon Ruby, Sapphire and Emerald, and the
+  other games with a clock, on gpSP. gpSP took the bits a game writes to the cartridge's clock in
+  the wrong order, so Emerald's "24-hour clock" status (0x40) was kept as 0x02, and every state
+  kept it so; the game only looks at the clock as it boots, so the next clean boot after a
+  session found the clock "run dry". A patch to gpSP (`cores/gpsp/rtc-lsb-first.patch`) takes
+  them in the chip's order, clears the status on the chip's RESET, starts each game loaded with
+  the clock as a cartridge's is, and puts right the status in states made before it.
+- An automatic backup is never made of a blank save (all erased, or all zero), as a core writes
+  for a game whose save was deleted: kept, it would push out one that holds a game.
 - The cart editor shrinks the cart a little beside its panel, the two level in the middle of the
   screen; **Undo** puts back the look the cart had as the editor opened, and **Default**
   (Original before) the cart's own.

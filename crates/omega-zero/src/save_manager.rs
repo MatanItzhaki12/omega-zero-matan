@@ -403,6 +403,12 @@ fn back_up_as(root: &Path, game: &Game, stamp: &str) -> std::io::Result<Option<S
     Ok(Some(stamp))
 }
 
+/// Whether `bytes` hold no save: all erased (`FF`, as flash and EEPROM are when new) or all
+/// zero, as a core writes the save memory of a game that has none yet.
+pub fn is_blank(bytes: &[u8]) -> bool {
+    bytes.iter().all(|&b| b == 0xFF) || bytes.iter().all(|&b| b == 0)
+}
+
 /// Whether the backup stamped `stamp` was made by itself, as its game went in.
 pub fn is_auto(root: &Path, game: &Game, stamp: &str) -> bool {
     omega_store::parse_stamp(stamp).is_some()
@@ -422,6 +428,15 @@ pub fn auto_back_up(root: &Path, game: &Game, stamp: &str, keep: usize) -> std::
     }
     let files = save_files(root, game);
     if files.is_empty() {
+        return Ok(false);
+    }
+    // a save with nothing in it, as a core writes for a game whose save was deleted, is no
+    // backup worth keeping: kept, it would push out one that holds a game
+    let saves = crate::root::saves_dir(root);
+    if files
+        .iter()
+        .all(|rel| std::fs::read(saves.join(rel)).is_ok_and(|b| is_blank(&b)))
+    {
         return Ok(false);
     }
     if backups(root, game)
