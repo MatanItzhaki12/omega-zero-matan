@@ -170,8 +170,8 @@ struct Held {
 #[derive(Clone)]
 pub struct Updater {
     state: Arc<Mutex<Held>>,
-    /// The download under way is to stop: asked from Settings, looked at before each file.
-    stop: Arc<std::sync::atomic::AtomicBool>,
+    /// Whether the install under way is to stop, or is past where it can.
+    gate: Arc<Gate>,
 }
 
 impl Default for Updater {
@@ -181,7 +181,7 @@ impl Default for Updater {
                 update: Update::Idle,
                 at: std::time::Instant::now(),
             })),
-            stop: Arc::default(),
+            gate: Arc::default(),
         }
     }
 }
@@ -211,11 +211,7 @@ impl Updater {
     /// Stops the download under way before its next file: nothing it fetched is put in place,
     /// and the card stays as it was. False where none is under way to stop.
     pub fn stop(&self) -> bool {
-        if !matches!(self.state(), Update::Downloading(_)) {
-            return false;
-        }
-        self.stop.store(true, std::sync::atomic::Ordering::Release);
-        true
+        matches!(self.state(), Update::Downloading(_)) && self.gate.ask_stop()
     }
 
     /// Forgets an update found, as Settings switches channel and the other's is looked for.
@@ -318,16 +314,16 @@ impl Updater {
         };
         let version = release.version.clone();
         self.set(Update::Downloading(version.clone()));
-        self.stop.store(false, std::sync::atomic::Ordering::Release);
+        self.gate.reset();
         let me = self.clone();
         let spawned = std::thread::Builder::new()
             .name("omega-update".into())
             .spawn(move || {
                 crate::spawn::stand_back();
-                let stop = || me.stop.load(std::sync::atomic::Ordering::Acquire);
+                let gate = &*me.gate;
                 let done = match system {
-                    Some((manifest, _)) => install_system(&root, &release, &manifest, &stop),
-                    None => install(&program(&root), &release.program, &release.sum),
+                    Some((manifest, _)) => install_system(&root, &release, &manifest, gate),
+                    None => install(&program(&root), &release.program, &release.sum, gate),
                 };
                 let done = match done {
                     Ok(()) => Update::Installed(version),
@@ -346,6 +342,49 @@ impl Updater {
         if spawned.is_err() {
             self.set(Update::Failed("FAILED"));
         }
+    }
+}
+
+/// Where an install stands for X on Update: under way, asked to stop, or putting its files in
+/// place, past where it can stop. Settings asks and the install's thread commits, each in one
+/// step, so a stop is either taken before anything is in place or refused.
+#[derive(Default)]
+pub struct Gate(std::sync::atomic::AtomicU8);
+
+const UNDER_WAY: u8 = 0;
+const STOP_ASKED: u8 = 1;
+const COMMITTED: u8 = 2;
+
+impl Gate {
+    fn reset(&self) {
+        self.0
+            .store(UNDER_WAY, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Asks the install to stop; false where it is already putting its files in place.
+    pub fn ask_stop(&self) -> bool {
+        use std::sync::atomic::Ordering;
+        match self
+            .0
+            .compare_exchange(UNDER_WAY, STOP_ASKED, Ordering::AcqRel, Ordering::Acquire)
+        {
+            Ok(_) => true,
+            Err(now) => now == STOP_ASKED,
+        }
+    }
+
+    /// Whether a stop was asked for.
+    pub fn stopped(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Acquire) == STOP_ASKED
+    }
+
+    /// The install about to put its files in place: true where no stop came first, and none
+    /// can now.
+    pub fn commit(&self) -> bool {
+        use std::sync::atomic::Ordering;
+        self.0
+            .compare_exchange(UNDER_WAY, COMMITTED, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
     }
 }
 
@@ -481,13 +520,13 @@ pub fn sum_of(sum: &str) -> Option<String> {
     (hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_hexdigit())).then_some(hex)
 }
 
-fn install(program: &Path, url: &str, sum_url: &str) -> Result<(), &'static str> {
+fn install(program: &Path, url: &str, sum_url: &str, gate: &Gate) -> Result<(), &'static str> {
     if !program.is_file() {
         return Err("NOT ON CARD");
     }
-    let sum = fetch(sum_url).body()?;
+    let sum = fetch_with(sum_url, &[], Some(gate)).body()?;
     let want = sum_of(&String::from_utf8_lossy(&sum)).ok_or("BAD RELEASE")?;
-    let bytes = fetch(url).body()?;
+    let bytes = fetch_with(url, &[], Some(gate)).body()?;
     if sha256_hex(&bytes) != want {
         return Err("BAD DOWNLOAD");
     }
@@ -498,6 +537,9 @@ fn install(program: &Path, url: &str, sum_url: &str) -> Result<(), &'static str>
     let name = program.file_name().ok_or("NOT ON CARD")?.to_string_lossy();
     let fresh = dir.join(format!("{name}.download"));
     let previous = dir.join(format!("{name}.previous"));
+    if !gate.commit() {
+        return Err(STOPPED);
+    }
     std::fs::write(&fresh, &bytes).map_err(|e| unwritten(&e))?;
     set_executable(&fresh);
     // the running one is kept to go back to; the new one takes its name in one step
@@ -573,12 +615,12 @@ fn lacking(root: &Path, release: &Release) -> Option<(Arc<Manifest>, u64)> {
 }
 
 /// The bytes `start` for `len` of the file at `url`.
-fn fetch_range(url: &str, start: u64, len: u64) -> Result<Vec<u8>, &'static str> {
+fn fetch_range(url: &str, start: u64, len: u64, gate: &Gate) -> Result<Vec<u8>, &'static str> {
     if len == 0 {
         return Ok(Vec::new());
     }
     let range = format!("{start}-{}", start + len - 1);
-    let body = fetch_with(url, &["-r", &range]).body()?;
+    let body = fetch_with(url, &["-r", &range], Some(gate)).body()?;
     match body.len() as u64 {
         // the range asked for
         n if n == len => Ok(body),
@@ -597,7 +639,7 @@ fn install_system(
     root: &Path,
     release: &Release,
     manifest: &Manifest,
-    stop: &dyn Fn() -> bool,
+    gate: &Gate,
 ) -> Result<(), &'static str> {
     let [_, files_url, patches_url] = release.system.as_ref().ok_or("BAD RELEASE")?;
     if !program(root).is_file() {
@@ -608,16 +650,17 @@ fn install_system(
     let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut make = || -> Result<(), &'static str> {
         for step in &steps {
-            // asked to stop: before the next file, nothing yet in place
-            if stop() {
+            // asked to stop: before the next file, nothing yet in place (a file downloading
+            // is stopped where it is, by `fetch_with`)
+            if gate.stopped() {
                 return Err(STOPPED);
             }
             let file = step.file();
             let to = root.join(&file.path);
             let (piece, old) = match step {
-                Step::Whole(f) => (fetch_range(files_url, f.offset, f.len)?, None),
+                Step::Whole(f) => (fetch_range(files_url, f.offset, f.len, gate)?, None),
                 Step::Patch(_, p) => (
-                    fetch_range(patches_url, p.offset, p.len)?,
+                    fetch_range(patches_url, p.offset, p.len, gate)?,
                     Some(std::fs::read(&to).map_err(|e| unwritten(&e))?),
                 ),
             };
@@ -638,7 +681,9 @@ fn install_system(
         }
         Ok(())
     };
-    if let Err(why) = make() {
+    // every file fetched: a stop asked while the last came in is taken here, and none after
+    let made = make().and_then(|()| if gate.commit() { Ok(()) } else { Err(STOPPED) });
+    if let Err(why) = made {
         for (fresh, _) in &staged {
             let _ = std::fs::remove_file(fresh);
         }
@@ -706,6 +751,8 @@ pub enum Fetched {
     Status(u16),
     /// Nothing answered: no network, or none that reaches GitHub.
     Unreachable,
+    /// X on Update stopped it as it came.
+    Stopped,
 }
 
 impl Fetched {
@@ -717,6 +764,7 @@ impl Fetched {
             Fetched::Status(403 | 429) => "GITHUB BUSY",
             Fetched::Status(_) => "GITHUB ERROR",
             Fetched::Unreachable => "NO NETWORK",
+            Fetched::Stopped => STOPPED,
         }
     }
 
@@ -746,11 +794,13 @@ pub fn answered(out: &[u8]) -> Fetched {
 
 /// What `url` answers, following redirects.
 fn fetch(url: &str) -> Fetched {
-    fetch_with(url, &[])
+    fetch_with(url, &[], None)
 }
 
 /// What `url` answers, following redirects, curl given `extra` as well.
-fn fetch_with(url: &str, extra: &[&str]) -> Fetched {
+/// With a `gate`, curl is ended as soon as a stop is asked for, however much of the file has
+/// come: a release's program is one file of some MB, which would otherwise run to its end.
+fn fetch_with(url: &str, extra: &[&str], gate: Option<&Gate>) -> Fetched {
     let child = Command::new("curl")
         .args([
             "-sL",
@@ -770,15 +820,25 @@ fn fetch_with(url: &str, extra: &[&str]) -> Fetched {
     let Ok(mut child) = child else {
         return Fetched::Unreachable;
     };
-    let mut out = Vec::new();
-    let read = child
-        .stdout
-        .take()
-        .is_some_and(|mut s| s.read_to_end(&mut out).is_ok());
+    let stdout = child.stdout.take();
+    let reader = std::thread::spawn(move || {
+        let mut out = Vec::new();
+        let read = stdout.is_some_and(|mut s| s.read_to_end(&mut out).is_ok());
+        (read, out)
+    });
+    while !reader.is_finished() {
+        if gate.is_some_and(Gate::stopped) {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = reader.join();
+            return Fetched::Stopped;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
     let _ = child.wait();
-    match read {
-        true => answered(&out),
-        false => Fetched::Unreachable,
+    match reader.join() {
+        Ok((true, out)) => answered(&out),
+        _ => Fetched::Unreachable,
     }
 }
 
@@ -1076,8 +1136,10 @@ mod tests {
                 "http://127.0.0.1:9/p".into(),
             ]),
         };
+        let gate = Gate::default();
+        assert!(gate.ask_stop());
         assert_eq!(
-            install_system(root, &release, &manifest, &|| true),
+            install_system(root, &release, &manifest, &gate),
             Err(STOPPED)
         );
         assert_eq!(std::fs::read(program(root)).unwrap(), b"the one running");
@@ -1088,5 +1150,51 @@ mod tests {
         assert_eq!(left, ["omega-zero"], "something was left staged");
         // with none under way there is nothing to stop
         assert!(!Updater::default().stop());
+    }
+
+    #[test]
+    fn a_stop_is_taken_before_anything_is_in_place_or_refused_after() {
+        let gate = Gate::default();
+        assert!(!gate.stopped());
+        assert!(gate.commit(), "nothing asked: the files go in");
+        assert!(!gate.ask_stop(), "past where it can stop, X is refused");
+        assert!(!gate.stopped());
+
+        let gate = Gate::default();
+        assert!(gate.ask_stop());
+        assert!(gate.ask_stop(), "asked twice, still stopping");
+        assert!(gate.stopped());
+        assert!(!gate.commit(), "a stop asked first keeps the files out");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_download_is_ended_where_it_is_when_a_stop_is_asked() {
+        // a server that answers and then sends nothing more: curl would wait on it to its end
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            if let Ok((mut conn, _)) = listener.accept() {
+                use std::io::Write;
+                let _ = conn
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100000000\r\n\r\nsome of it");
+                std::thread::sleep(std::time::Duration::from_secs(3));
+            }
+        });
+        let gate = Arc::new(Gate::default());
+        let asks = gate.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            asks.ask_stop();
+        });
+        let began = std::time::Instant::now();
+        let got = fetch_with(&format!("http://127.0.0.1:{port}/big"), &[], Some(&gate));
+        assert!(matches!(got, Fetched::Stopped));
+        assert!(
+            began.elapsed() < std::time::Duration::from_secs(2),
+            "the download ran on for {:?}",
+            began.elapsed()
+        );
+        let _ = server.join();
     }
 }

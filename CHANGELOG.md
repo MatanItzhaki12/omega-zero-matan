@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- X on Update stops a download where it is: curl is ended at once rather than at the file's end,
+  so an update of one file, the program alone (a test build to its release), stops too; a stop
+  asked as the last file comes in is taken before anything is put in place, and one asked once
+  the files are going in is refused rather than said and not done.
 - Fast-forward keeps a new picture every refresh on a core that fits at least three of its
   frames in one (gpSP), playing a little short of its speed where a game grows heavy, as in
   Pokémon's Viridian Forest, rather than showing every other picture; only a core slower than
