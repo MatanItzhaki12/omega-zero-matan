@@ -99,9 +99,9 @@ pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
 pub use refusal::Refusal;
 pub use settings_menu::{
-    configs_in, general_room, settings_frame, settings_panels, settings_rect, settings_row_face,
-    settings_row_rects, settings_row_width, settings_title_face, FaceAt, QuickValue, Rebake,
-    RowShown, SettingsBaked, SettingsFaces, SettingsFrame, SettingsGroup, SettingsMenu,
+    room_below, settings_frame, settings_panels, settings_rect, settings_row_face,
+    settings_row_rects, settings_row_width, settings_title_face, top_in, FaceAt, QuickValue,
+    Rebake, RowShown, SettingsBaked, SettingsFaces, SettingsFrame, SettingsGroup, SettingsMenu,
     SettingsRow,
 };
 pub use shelf::{

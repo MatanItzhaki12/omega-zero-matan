@@ -77,6 +77,56 @@ pub enum Listed {
     Search(String),
 }
 
+/// The room on the card, free and in all, measured on a thread of its own. The first `df`
+/// after a boot has the kernel count a FAT card's free clusters through its whole table, near a
+/// second on the handheld's, which held SAVES' slide in; so boot starts it, SAVES shows what the
+/// last one found, and each opening measures again behind it.
+#[derive(Clone, Default)]
+pub struct CardRoom(std::sync::Arc<CardRoomHeld>);
+
+#[derive(Default)]
+pub struct CardRoomHeld {
+    room: std::sync::Mutex<Option<(u64, u64)>>,
+    measuring: std::sync::atomic::AtomicBool,
+}
+
+impl CardRoom {
+    /// The room last measured, none before the first is done.
+    pub fn get(&self) -> Option<(u64, u64)> {
+        *self
+            .0
+            .room
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Measures it again on a thread, unless one is at it already; `warm` too, first, as the
+    /// boot's look over every game's save folders, so SAVES' own finds them read.
+    pub fn measure(&self, root: &std::path::Path, warm: Vec<Game>) {
+        use std::sync::atomic::Ordering;
+        if self.0.measuring.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let (me, root) = (self.clone(), root.to_path_buf());
+        let spawned = std::thread::Builder::new()
+            .name("card-room".into())
+            .spawn(move || {
+                if !warm.is_empty() {
+                    let _ = save_manager::index(&root, &warm);
+                }
+                let room = save_manager::card_space(&root);
+                *me.0
+                    .room
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = room;
+                me.0.measuring.store(false, Ordering::Release);
+            });
+        if spawned.is_err() {
+            self.0.measuring.store(false, Ordering::Release);
+        }
+    }
+}
+
 /// What the SAVES panels are showing.
 #[derive(Default)]
 pub struct SavesUi {
@@ -89,8 +139,6 @@ pub struct SavesUi {
     /// The game GAME is open on, by its place in `games`, and what it has.
     pub open: Option<usize>,
     pub look: GameSaves,
-    /// The room on the card, free and in all, as SAVES opened.
-    pub card: Option<(u64, u64)>,
     /// The question up over the rows, and its panel.
     pub asking: Option<Answer>,
     pub panel: Option<Lone>,
@@ -104,6 +152,19 @@ impl App {
             Phase::Options(OptionsScreen::new(OptionsPage::Saves)),
             Dir::Deeper,
         );
+    }
+
+    /// At boot, behind the shelf: the card's room measured, and every game's save folders read
+    /// once, so the first SAVES of a boot opens as quickly as the next.
+    pub(crate) fn warm_saves(&self, root: &std::path::Path) {
+        let all: Vec<Game> = self
+            .shelves
+            .iter()
+            .filter(|(kind, _)| matches!(kind, ShelfKind::System(_)))
+            .flat_map(|(_, shelf)| shelf.carts.iter())
+            .map(Game::of)
+            .collect();
+        self.card_room.measure(root, all);
     }
 
     /// The games on the card with a save, a backup or a state, by system and then name.
@@ -121,7 +182,7 @@ impl App {
             .collect();
         let all: Vec<Game> = carts.iter().map(|c| Game::of(c)).collect();
         // each folder read once for all the games in it, so the panel slides in on time
-        let mut games: Vec<(Game, String, u64)> = save_manager::index(&root, &all)
+        let games: Vec<(Game, String, u64)> = save_manager::index(&root, &all)
             .into_iter()
             .map(|(i, bytes)| (all[i].clone(), omega_ui::clean_label(&carts[i].stem), bytes))
             .collect();
@@ -130,13 +191,33 @@ impl App {
             all.len(),
             began.elapsed().as_millis()
         );
-        self.saves_ui.card = save_manager::card_space(&root);
-        games.sort_by(|(a, an, _), (b, bn, _)| {
-            (system_order(a.platform), an.to_lowercase())
-                .cmp(&(system_order(b.platform), bn.to_lowercase()))
-        });
+        // measured behind the panel: the row shows the last room found, and the new one as it
+        // comes
+        self.card_room.measure(&root, Vec::new());
         crate::log!("saves: {} games with saves or states", games.len());
         self.saves_ui.games = games;
+        self.sort_saved_games();
+    }
+
+    /// The games Saves lists, by system and then as Saves › Sort Games asks: by name, or the
+    /// most played first and the rest by name.
+    pub(crate) fn sort_saved_games(&mut self) {
+        let by_play = self.state.saves_by_play;
+        let log = &self.play_log;
+        let played = |g: &Game| {
+            if by_play {
+                log.of(g.platform, &g.stem).map_or(0, |p| p.secs)
+            } else {
+                0
+            }
+        };
+        self.saves_ui.games.sort_by_cached_key(|(g, name, _)| {
+            (
+                system_order(g.platform),
+                std::cmp::Reverse(played(g)),
+                name.to_lowercase(),
+            )
+        });
     }
 
     /// The systems with games in SAVES, as the shelves stand.
@@ -231,12 +312,13 @@ impl App {
             OptionsPage::Saves => [
                 OptionRow::SavesNas,
                 OptionRow::SavesSearch,
+                OptionRow::SavesSort,
                 OptionRow::SavesAutoBackup,
                 OptionRow::SavesBackUpAll,
             ]
             .into_iter()
             .chain(self.saved_systems().into_iter().map(OptionRow::SavesSystem))
-            .chain(ui.card.map(|_| OptionRow::SavesCardSpace))
+            .chain(self.card_room.get().map(|_| OptionRow::SavesCardSpace))
             .collect(),
             OptionsPage::SavesGames if ui.shown.is_empty() => vec![OptionRow::SavesNoMatch],
             OptionsPage::SavesGames => index(ui.shown.len())
@@ -299,7 +381,7 @@ impl App {
                 0 => "OFF".to_string(),
                 n => format!("KEEP {n}"),
             },
-            OptionRow::SavesCardSpace => match ui.card {
+            OptionRow::SavesCardSpace => match self.card_room.get() {
                 Some((free, _)) => format!("{} FREE", size(free)),
                 None => String::new(),
             },
@@ -364,7 +446,7 @@ impl App {
                 self.played_note(game)
                     .unwrap_or_else(|| "Its save and its states".to_string())
             }
-            OptionRow::SavesCardSpace => match ui.card {
+            OptionRow::SavesCardSpace => match self.card_room.get() {
                 Some((free, total)) => format!("{} free of {}", size(free), size(total)),
                 None => return None,
             },
@@ -435,7 +517,7 @@ impl App {
                 self.open_page(OptionsPage::Backup);
             }
             OptionRow::SavesSearch => self.open_typing(Step::SearchGames, String::new()),
-            OptionRow::SavesAutoBackup => self.change_option(row, true),
+            OptionRow::SavesAutoBackup | OptionRow::SavesSort => self.change_option(row, true),
             OptionRow::SavesBackUpAll => self.back_up_all(),
             OptionRow::SavesSystem(p) => self.open_games(Listed::System(p)),
             OptionRow::SavesGame(i) => self.open_game_saves(i as usize),

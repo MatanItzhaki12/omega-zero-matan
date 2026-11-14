@@ -123,19 +123,19 @@ SELECT + A / B in a game. A toast names the filter you switched to.
 
 ## Settings
 
-MENU on the shelf opens Settings. Because the Settings window has room for only a few rows,
-Slot's extra settings live in two panels that CONFIGS opens, like THEME.
+MENU on the shelf opens Settings, on its top row. Because the Settings window has room for
+only a few rows, Slot's extra settings live in panels that its rows open.
 
-**CONFIGS:** Display ›, Gameplay ›, Shelf ›, Labels ›, RetroAchievements ›, Saves › (see
-[Saves and Save Backup](#saves-and-save-backup)). On a 480-line screen the Settings window
-reaches up over the top bar to hold all six.
+**GENERAL** (on top): Date & Time, Network, Bluetooth, Update, About (see
+[Updating on the console](#updating-on-the-console)). Its panel is as tall as its rows, so it
+closes up on a handheld with no Wi-Fi or Bluetooth.
+
+**CONFIGS** (under it): Display ›, Gameplay ›, Shelf ›, RetroAchievements ›, Saves › (see
+[Saves and Save Backup](#saves-and-save-backup)).
 
 **DISPLAY ›** holds how games are drawn, as the in-game menu's DISPLAY page does, with the same
 rows, notes and values: Screen Filter, Game Boy Palette, Colour Correction, Frame Blending,
 Brightness, Blue Light Filter and PSP Screen.
-
-**GENERAL:** Date & Time, Network, Bluetooth, Theme, Update, About (see
-[Updating on the console](#updating-on-the-console)).
 
 **GAMEPLAY ›** (each row shows a line under the panel saying what it does)
 
@@ -165,7 +165,7 @@ In the core picker (START on the shelf), Y puts the game back on its system's de
 picking the default keeps no core of its own for the game, so it follows the default from then
 on. A toast says so when the picker opens on a game switched by hand.
 
-**RetroAchievements ›** (in CONFIGS, under Labels; B goes back to Settings)
+**RetroAchievements ›** (in CONFIGS, under Shelf; B goes back to Settings)
 
 | Row | Choices | Default |
 |---|---|---|
@@ -178,11 +178,14 @@ on. A toast says so when the picker opens on a game switched by hand.
 | Row | Choices | Default |
 |---|---|---|
 | Recents | Show, Hide | Hide |
+| Sort Games | Name, Play Time: each system's shelf and FAVORITES by name, or the most played first (the rest by name) | Name |
 | Game Titles | Show, Hide: the picked cart's name under the top bar | Hide |
 | Clock | 12-hour, 24-hour: the top bar and Date & Time | 24-hour |
 | Lid Power Off | 1, 3, 5, 10, 15, 30 minutes | 3 |
 | Boot Animation | On, Off: the terminal that types out before the shelf at boot | Off |
 | Sound › | Opens SOUND, below | |
+| Theme › | Opens THEME: the background, its motion, the colour and the font | |
+| Labels › | Opens LABELS: ScreenScraper, the label sync and Holo Sheen | |
 
 **SHELF › Sound ›**
 
@@ -260,7 +263,7 @@ playing when the handheld went off is picked up again, as before.
 - **The holo sheen.** The cart picked, when its shell is clear or glitter plastic, has a sheen
   over its label as on a holographic Pokémon card: a faint rainbow, and a band of light that
   slides across it on the diagonal as the cart sways. A cart in solid plastic has none, and
-  Settings › Labels › Holo Sheen turns it off for all.
+  Settings › Shelf › Labels › Holo Sheen turns it off for all.
 - **Panels slide whole.** Going from GAMEPLAY to ACHIEVEMENTS and back, the panel leaving
   keeps its own size instead of being drawn with the one arriving.
 - **Mixed shelves draw cleanly.** Carts on screen are spaced by the widest of them, and the
@@ -344,7 +347,8 @@ it on the keyboard).
 
 ## Saves and Save Backup
 
-Settings › **Saves** lists **NAS Backup ›**, **Search Games ›**, **Auto Backup**, **Back Up All
+Settings › **Saves** lists **NAS Backup ›**, **Search Games ›**, **Sort Games** (by name, or
+the most played first), **Auto Backup**, **Back Up All
 Saves**, each system with games that have a save, a backup or a state on the handheld (with how
 many), and **Card Space**, the room left on the card. A system opens its games, each with how big
 its save is and, in its note, how long it has been played and when last; Search Games types part
@@ -582,6 +586,7 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `menu_sounds`, `menu_music` | `1`, `0` |
 | `menu_sounds_volume`, `menu_music_volume` | `1` to `10` |
 | `test_updates` | `1` for Settings' Update to take test builds, `0` for releases |
+| `shelf_by_play`, `saves_by_play` | `1` for the shelves, or Saves' lists, to stand the most played games first; `0` (as it starts) by name |
 | `auto_backups` | How many automatic backups each game keeps: `0` (none made), `1`, `3`, `5` (as it starts) or `10` |
 
 `ff_speed` also takes `0` now, for OFF.

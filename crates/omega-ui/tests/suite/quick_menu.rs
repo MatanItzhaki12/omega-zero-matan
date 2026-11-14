@@ -59,7 +59,7 @@ fn over(under: &mut UndoFace, top: &UndoFace, x: u32, y: u32) {
 /// draws it.
 fn composed(shown: &[RowShown], pal: &Palette) -> UndoFace {
     let rows: Vec<SettingsRow> = shown.iter().map(|s| s.row).collect();
-    let frame = settings_frame(omega_ui::configs_in(&rows), pal);
+    let frame = settings_frame(omega_ui::top_in(&rows), pal);
     let [mx, my] = frame.at;
     let mut modal = UndoFace {
         rgba: frame.face.rgba.clone(),
@@ -112,24 +112,24 @@ fn write(path: &str, face: &UndoFace) {
 }
 
 #[test]
-fn configs_is_as_tall_as_its_rows_and_general_takes_the_rest() {
+fn general_is_as_tall_as_its_rows_and_configs_takes_the_rest() {
     // flow.html's modal at 640x480: 288 by 200
-    let [configs, general] = settings_panels(288, 200, 5);
-    assert_eq!(configs, [4, 2, 280, 88], "five rows and a panel's chrome");
+    let [general, configs] = settings_panels(288, 200, 5);
+    assert_eq!(general, [4, 2, 280, 88], "five rows and a panel's chrome");
     assert_eq!(
-        general,
+        configs,
         [4, 89, 280, 107],
-        "it shares CONFIGS' last row, its stripe"
+        "it shares GENERAL's last row, its stripe"
     );
     assert_eq!(
-        general[1] + general[3],
+        configs[1] + configs[3],
         200 - CUT,
-        "GENERAL stops at the frame"
+        "CONFIGS stops at the frame"
     );
     for size in [(328, 200), (328, 320)] {
-        let [c, g] = settings_panels(size.0, size.1, 5);
-        assert_eq!(c[3], 88, "{size:?}: CONFIGS grew with the modal");
-        assert_eq!(g[1] + g[3], size.1 - CUT, "{size:?}");
+        let [g, c] = settings_panels(size.0, size.1, 5);
+        assert_eq!(g[3], 88, "{size:?}: GENERAL grew with the modal");
+        assert_eq!(c[1] + c[3], size.1 - CUT, "{size:?}");
     }
 }
 
@@ -144,68 +144,67 @@ fn listed(bluetooth: bool) -> Vec<SettingsRow> {
 #[test]
 fn every_row_stands_in_its_own_panels_well() {
     for rows in [listed(true), listed(false)] {
-        let frame = settings_frame(omega_ui::configs_in(&rows), palette(NIGHT));
+        let frame = settings_frame(omega_ui::top_in(&rows), palette(NIGHT));
         for (row, [x, y, w, h]) in settings_row_rects(&rows, frame.wells) {
             let [wx, wy, ww, wh] = frame.wells[row.group().index()];
             assert_eq!((x, w, h), (wx - 1, ww + 2, ROW_H), "{row:?}");
             assert!(y >= wy && y + h <= wy + wh, "{row:?} is out of its well");
         }
     }
-    let general = |rows: &[SettingsRow]| {
+    let configs = |rows: &[SettingsRow]| {
         rows.iter()
-            .filter(|r| r.group() == SettingsGroup::General)
+            .filter(|r| r.group() == SettingsGroup::Configs)
             .count() as u32
     };
-    // the modal reaches up for every row, so Update stands above About beside Bluetooth too
-    let room = omega_ui::general_room(omega_ui::configs_in(&listed(true)));
+    // CONFIGS has room for every row under GENERAL holding all of its own
+    let room = omega_ui::room_below(omega_ui::top_in(&listed(true)));
     assert!(
-        general(&listed(true)) <= room,
-        "GENERAL has no room for Update"
+        configs(&listed(true)) <= room,
+        "CONFIGS has no room for Saves"
     );
-    let [_, y, _, h] = omega_ui::settings_rect(omega_ui::configs_in(&listed(true)));
+    let [_, y, _, h] = omega_ui::settings_rect(omega_ui::top_in(&listed(true)));
     let [_, my, _, mh] = modal_rect();
     assert_eq!(y + h, my + mh, "the modal's foot moved");
-    // CONFIGS' seventh row, Save Backup, takes a row's height of the margin over it on a
-    // 480-line screen
+    // five rows in each, the modal reaches no more than a row's height up into the margin
     assert!(my - y <= ROW_H + 1, "it reached up {} pixels", my - y);
-    let frame = settings_frame(omega_ui::configs_in(&listed(true)), palette(NIGHT));
+    let frame = settings_frame(omega_ui::top_in(&listed(true)), palette(NIGHT));
     let rects = settings_row_rects(&listed(true), frame.wells);
     let at = |row: SettingsRow| rects.iter().find(|(r, _)| *r == row).unwrap().1;
     assert_eq!(
-        at(SettingsRow::Display)[1],
-        frame.wells[0][1],
-        "CONFIGS' first row is not at its well's top"
-    );
-    assert_eq!(
         at(SettingsRow::DateTime)[1],
-        frame.wells[1][1],
+        frame.wells[0][1],
         "GENERAL's first row is not at its well's top"
     );
     assert_eq!(
-        at(SettingsRow::Backup)[1] + ROW_H,
+        at(SettingsRow::Display)[1],
+        frame.wells[1][1],
+        "CONFIGS' first row is not at its well's top"
+    );
+    assert_eq!(
+        at(SettingsRow::About)[1] + ROW_H,
         frame.wells[0][1] + frame.wells[0][3],
-        "CONFIGS does not hug its rows"
+        "GENERAL does not hug its rows"
     );
 }
 
 #[test]
-fn without_a_radio_the_rows_after_network_close_up_and_the_panels_stay() {
+fn without_a_radio_the_rows_after_network_close_up_and_general_with_them() {
     // with no Wi-Fi there is no Update to fetch over it either
     let rows: Vec<SettingsRow> = SettingsRow::ALL
         .into_iter()
         .filter(|r| !matches!(r, SettingsRow::Network | SettingsRow::Update))
         .collect();
-    let frame = settings_frame(omega_ui::configs_in(&rows), palette(NIGHT));
-    let all = settings_frame(omega_ui::configs_in(&SettingsRow::ALL), palette(NIGHT));
-    assert_eq!(frame.wells, all.wells, "hiding Network moved a panel");
+    let frame = settings_frame(omega_ui::top_in(&rows), palette(NIGHT));
+    let all = settings_frame(omega_ui::top_in(&SettingsRow::ALL), palette(NIGHT));
+    assert_eq!(
+        frame.wells[0][3] + 2 * ROW_H,
+        all.wells[0][3],
+        "GENERAL did not hug the three rows left"
+    );
     let rects = settings_row_rects(&rows, frame.wells);
     let y = |row: SettingsRow| rects.iter().find(|(r, _)| *r == row).unwrap().1[1];
     assert_eq!(y(SettingsRow::Bluetooth), y(SettingsRow::DateTime) + ROW_H);
-    assert_eq!(
-        y(SettingsRow::Background),
-        y(SettingsRow::DateTime) + 2 * ROW_H
-    );
-    assert_eq!(y(SettingsRow::About), y(SettingsRow::DateTime) + 3 * ROW_H);
+    assert_eq!(y(SettingsRow::About), y(SettingsRow::DateTime) + 2 * ROW_H);
     assert!(rects.iter().all(|(r, _)| *r != SettingsRow::Network));
 }
 
@@ -411,8 +410,9 @@ fn a_sync_bakes_the_frame_once_and_a_row_only_when_it_changes() {
 
     // the cursor moves: the row it leaves and the row it lands on
     let mut moved = later.clone();
-    moved[0].lit = false;
-    moved[1].lit = true;
+    for s in &mut moved {
+        s.lit = s.row == SettingsRow::Gameplay;
+    }
     let plan = baked.rebake(NIGHT, &moved);
     let rebaked: Vec<SettingsRow> = plan.rows.iter().map(|s| s.row).collect();
     assert_eq!(rebaked, [SettingsRow::Display, SettingsRow::Gameplay]);
@@ -423,15 +423,15 @@ fn a_sync_bakes_the_frame_once_and_a_row_only_when_it_changes() {
     assert!(plan.frame);
     assert_eq!(plan.rows.len(), moved.len());
 
-    // the radio goes: Network's face is dropped, nothing baked
+    // the radio goes: GENERAL closes up round the rows left, so the frame and they are baked
     let radioless: Vec<RowShown> = moved
         .iter()
         .filter(|s| s.row != SettingsRow::Network)
         .cloned()
         .collect();
     let plan = baked.rebake(AMBER, &radioless);
-    assert_eq!(plan.gone, [SettingsRow::Network]);
-    assert!(!plan.frame && plan.rows.is_empty(), "{plan:?}");
+    assert!(plan.frame, "{plan:?}");
+    assert_eq!(plan.rows.len(), radioless.len());
 }
 
 #[test]
@@ -442,7 +442,8 @@ fn the_palette_tints_every_face() {
         let frame = settings_frame(5, pal);
         assert_eq!(px(&frame.face, 3, 0), Some(pal.dark), "colour {colour}");
         assert_eq!(px(&frame.face, 3, 40), Some(pal.frame), "colour {colour}");
-        let lit = settings_row_face(settings_row_width(268), &rows[0], pal);
+        let lit = rows.iter().find(|r| r.lit).unwrap();
+        let lit = settings_row_face(settings_row_width(268), lit, pal);
         assert_eq!(px(&lit, 2, 2), Some(pal.tab), "colour {colour}");
     }
     assert_ne!(palette(NIGHT).frame, palette(AMBER).frame);
@@ -478,61 +479,56 @@ fn the_rows_run_in_the_order_the_user_chose() {
     assert_eq!(
         labels,
         [
-            "Display",
-            "Gameplay",
-            "Shelf",
-            "Labels",
-            "RetroAchievements",
-            "Saves",
             "Date & Time",
             "Network",
             "Bluetooth",
-            "Theme",
             "Update",
-            "About"
+            "About",
+            "Display",
+            "Gameplay",
+            "Shelf",
+            "RetroAchievements",
+            "Saves"
         ]
     );
     let opens: Vec<SettingsRow> = SettingsRow::ALL.into_iter().filter(|r| r.opens()).collect();
     assert_eq!(
         opens,
         [
-            SettingsRow::Display,
-            SettingsRow::Gameplay,
-            SettingsRow::Shelf,
-            SettingsRow::Labels,
-            SettingsRow::Achievements,
-            SettingsRow::Backup,
             SettingsRow::DateTime,
             SettingsRow::Network,
             SettingsRow::Bluetooth,
-            SettingsRow::Background,
-            SettingsRow::About
+            SettingsRow::About,
+            SettingsRow::Display,
+            SettingsRow::Gameplay,
+            SettingsRow::Shelf,
+            SettingsRow::Achievements,
+            SettingsRow::Backup
         ]
     );
 }
 
 #[test]
-fn the_configs_come_first_and_the_handheld_itself_after() {
+fn the_handheld_itself_comes_first_and_the_configs_after() {
     let groups = SettingsRow::ALL.map(SettingsRow::group);
-    let configs = groups
+    let general = groups
         .iter()
-        .take_while(|g| **g == SettingsGroup::Configs)
+        .take_while(|g| **g == SettingsGroup::General)
         .count();
-    assert_eq!(configs, 6, "{groups:?}");
+    assert_eq!(general, 5, "{groups:?}");
     assert!(
-        groups[configs..]
+        groups[general..]
             .iter()
-            .all(|g| *g == SettingsGroup::General),
+            .all(|g| *g == SettingsGroup::Configs),
         "{groups:?}"
     );
-    assert_eq!(SettingsRow::Labels.group(), SettingsGroup::Configs);
     assert_eq!(
         SettingsGroup::ALL.map(SettingsGroup::label),
-        ["Configs", "General"]
+        ["General", "Configs"]
     );
     assert_eq!(
         SettingsGroup::ALL.map(SettingsGroup::title),
-        ["CONFIGS", "GENERAL"]
+        ["GENERAL", "CONFIGS"]
     );
 }
 
@@ -545,6 +541,7 @@ fn a_hidden_row_is_stepped_over_both_ways() {
     assert_eq!(SettingsRow::DateTime.down_in(&rows), SettingsRow::Bluetooth);
     assert_eq!(SettingsRow::Bluetooth.up_in(&rows), SettingsRow::DateTime);
     assert_eq!(SettingsRow::About.down_in(&rows), SettingsRow::Display);
+    assert_eq!(SettingsRow::Backup.down_in(&rows), SettingsRow::DateTime);
     assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);
 }
 

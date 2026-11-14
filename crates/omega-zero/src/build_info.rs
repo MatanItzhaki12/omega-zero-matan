@@ -9,7 +9,8 @@ pub struct Build {
 impl Build {
     pub fn current() -> Build {
         Build {
-            version: env!("CARGO_PKG_VERSION"),
+            // a test build's own, `2.7.3-test.12`, as Update reads it
+            version: crate::update::VERSION,
             hash: env!("OMEGA_GIT_HASH"),
             dirty: env!("OMEGA_GIT_DIRTY") == "1",
             date: env!("OMEGA_BUILD_DATE"),

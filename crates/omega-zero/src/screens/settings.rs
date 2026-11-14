@@ -10,9 +10,7 @@ use crate::options::OptionRow;
 pub use omega_ui::{SettingsGroup, SettingsRow};
 
 use crate::app::{App, Phase};
-use crate::background_screen::BackgroundScreen;
 use crate::bluetooth_screen::{BluetoothScreen, Summary as BluetoothSummary};
-use crate::label_screen::LabelsScreen;
 use crate::nav::Dir;
 use crate::options::{OptionsPage, OptionsScreen};
 use crate::screens::clock::clock_screen;
@@ -33,13 +31,11 @@ impl App {
             SettingsRow::Display
             | SettingsRow::Gameplay
             | SettingsRow::Shelf
-            | SettingsRow::Labels
             | SettingsRow::Achievements
             | SettingsRow::Backup
             | SettingsRow::DateTime
             | SettingsRow::Network
             | SettingsRow::Bluetooth
-            | SettingsRow::Background
             | SettingsRow::Update
             | SettingsRow::About => None,
         }
@@ -101,7 +97,7 @@ impl App {
 
     /// The rows Settings lists on this handheld: Network only where there is a Wi-Fi radio,
     /// Bluetooth only where there is Bluetooth. Update is always there, the modal reaching up
-    /// for it (`settings_rect`), unless a screen too short for it leaves GENERAL no room.
+    /// for CONFIGS (`settings_rect`), unless a screen too short leaves CONFIGS no room under it.
     pub fn settings_rows(&self) -> Vec<SettingsRow> {
         let mut rows: Vec<SettingsRow> = SettingsRow::ALL
             .into_iter()
@@ -111,11 +107,11 @@ impl App {
                 _ => true,
             })
             .collect();
-        let general = rows
+        let configs = rows
             .iter()
-            .filter(|r| r.group() == SettingsGroup::General)
+            .filter(|r| r.group() == SettingsGroup::Configs)
             .count() as u32;
-        if general > omega_ui::general_room(omega_ui::configs_in(&rows)) {
+        if configs > omega_ui::room_below(omega_ui::top_in(&rows)) {
             rows.retain(|r| *r != SettingsRow::Update);
         }
         rows
@@ -146,7 +142,6 @@ impl App {
             SettingsRow::Display => Phase::Options(OptionsScreen::new(OptionsPage::Display)),
             SettingsRow::Gameplay => Phase::Options(OptionsScreen::new(OptionsPage::Gameplay)),
             SettingsRow::Shelf => Phase::Options(OptionsScreen::new(OptionsPage::Shelf)),
-            SettingsRow::Labels => Phase::Labels(LabelsScreen::default()),
             SettingsRow::Achievements => {
                 Phase::Options(OptionsScreen::new(OptionsPage::Achievements))
             }
@@ -154,7 +149,6 @@ impl App {
             SettingsRow::DateTime => clock_screen(self.utc_secs(), self.state.utc_offset_min, true),
             SettingsRow::Network => Phase::Network(WifiScreen::default()),
             SettingsRow::Bluetooth => Phase::Bluetooth(BluetoothScreen::default()),
-            SettingsRow::Background => Phase::Background(BackgroundScreen::default()),
             SettingsRow::About => Phase::About,
             SettingsRow::Update => return,
         };

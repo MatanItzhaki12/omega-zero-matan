@@ -14,8 +14,8 @@ use omega_power::SimPlatform;
 use omega_store::{read_app_state, write_app_state, BackdropStyle};
 use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::{
-    configs_in, settings_frame, settings_row_face, settings_row_rects, settings_title_face,
-    RowShown, SettingsRow, UndoFace,
+    settings_frame, settings_row_face, settings_row_rects, settings_title_face, top_in, RowShown,
+    SettingsRow, UndoFace,
 };
 use omega_zero::frontend::Frontend;
 
@@ -114,11 +114,13 @@ fn over(under: &mut UndoFace, top: &UndoFace, x: u32, y: u32) {
     }
 }
 
-/// The modal as the kit's faces make it for `shown`, at art resolution, at `omega_ui::settings_rect(6)`.
+/// The modal as the kit's faces make it for `shown`, at art resolution, where `settings_rect` puts it.
 fn expected(shown: &[RowShown], pal: &Palette) -> UndoFace {
     let rows: Vec<SettingsRow> = shown.iter().map(|s| s.row).collect();
-    let frame = settings_frame(configs_in(&rows), pal);
-    let [mx, my, ..] = omega_ui::settings_rect(6);
+    let frame = settings_frame(top_in(&rows), pal);
+    let [mx, my, ..] = omega_ui::settings_rect(omega_ui::top_in(
+        &shown.iter().map(|s| s.row).collect::<Vec<_>>(),
+    ));
     let mut modal = UndoFace {
         rgba: frame.face.rgba.clone(),
         w: frame.face.w,
@@ -135,6 +137,11 @@ fn expected(shown: &[RowShown], pal: &Palette) -> UndoFace {
     modal
 }
 
+/// How many rows GENERAL holds on `f`'s Settings.
+fn top(f: &Frontend) -> u32 {
+    omega_ui::top_in(&f.app().settings_rows())
+}
+
 /// Every pixel the modal's faces ink is on the screen, at 2x where the kit puts it.
 fn holds_the_modal(px: &[u8], f: &Frontend, name: &str) {
     holds_the_modal_in(px, f, name, None);
@@ -145,7 +152,7 @@ fn holds_the_modal(px: &[u8], f: &Frontend, name: &str) {
 fn holds_the_modal_in(px: &[u8], f: &Frontend, name: &str, within: Option<[u32; 4]>) {
     let pal = f.app().palette();
     let want = expected(&f.app().settings_shown(), pal);
-    let [mx, my, ..] = omega_ui::settings_rect(6);
+    let [mx, my, ..] = omega_ui::settings_rect(top(f));
     let [wx, wy, ww, wh] = within.unwrap_or([mx, my, want.w, want.h]);
     let mut off = Vec::new();
     for y in wy - my..wy - my + wh {
@@ -172,7 +179,7 @@ fn holds_the_modal_in(px: &[u8], f: &Frontend, name: &str, within: Option<[u32; 
 /// Where the lit row's band is, in art pixels: the row `row` of what is shown.
 fn row_rect(f: &Frontend, row: SettingsRow) -> [u32; 4] {
     let rows = f.app().settings_rows();
-    let frame = settings_frame(configs_in(&rows), f.app().palette());
+    let frame = settings_frame(top_in(&rows), f.app().palette());
     settings_row_rects(&rows, frame.wells)
         .into_iter()
         .find(|(r, _)| *r == row)
@@ -194,7 +201,7 @@ fn settings_draws_the_modal_and_the_lit_rows_band_over_the_backdrop() {
     holds_the_modal(&px, &f, "night");
 
     // the frame: its dark outline, its bright line, the frame colour the panels sit on
-    let [mx, my, mw, mh] = omega_ui::settings_rect(6);
+    let [mx, my, mw, mh] = omega_ui::settings_rect(top(&f));
     assert_eq!(art(&px, mx + 3, my), pal.dark, "the frame's top outline");
     assert_eq!(art(&px, mx, my + 3), pal.dark, "the frame's left outline");
     assert_eq!(
@@ -209,8 +216,9 @@ fn settings_draws_the_modal_and_the_lit_rows_band_over_the_backdrop() {
         "the frame's other side"
     );
 
-    // the lit row's band: a frame line with its corners left out, round the tab colour
-    let [x, y, w, h] = row_rect(&f, SettingsRow::Display);
+    // the lit row's band, Date & Time's as Settings opens: a frame line with its corners left
+    // out, round the tab colour
+    let [x, y, w, h] = row_rect(&f, SettingsRow::DateTime);
     assert_eq!(art(&px, x + 1, y), pal.frame, "the band's top line");
     assert_eq!(art(&px, x, y + 1), pal.frame, "the band's left line");
     assert_eq!(
@@ -251,7 +259,8 @@ fn the_palette_tints_settings_with_the_backdrop() {
     let Ok(mut c) = Compositor::new(&surface) else {
         return;
     };
-    let [mx, my, _, mh] = omega_ui::settings_rect(6);
+    // the sim has no radios to hide: GENERAL holds all its rows
+    let [mx, my, _, mh] = omega_ui::settings_rect(omega_ui::top_in(&SettingsRow::ALL));
     let mut sides = Vec::new();
     for (colour, name) in [(NIGHT, "night"), (AMBER, "amber")] {
         let (_d, mut f, _) = settings_over(colour, &mut c);
@@ -260,7 +269,7 @@ fn the_palette_tints_settings_with_the_backdrop() {
         holds_the_modal(&px, &f, name);
         assert_eq!(art(&px, 0, 0), pal.bg, "{name}'s backdrop");
         assert_eq!(art(&px, mx + 3, my + mh / 2), pal.frame, "{name}'s frame");
-        let [x, y, ..] = row_rect(&f, SettingsRow::Display);
+        let [x, y, ..] = row_rect(&f, SettingsRow::DateTime);
         assert_eq!(art(&px, x + 2, y + 2), pal.tab, "{name}'s band");
         sides.push(art(&px, mx + 3, my + mh / 2));
     }
@@ -285,7 +294,7 @@ fn the_cursor_in_general_lights_its_title_and_its_row() {
     holds_the_modal(&px, &f, "general");
     let pal = palette(AMBER);
     let rows = f.app().settings_rows();
-    let frame = settings_frame(configs_in(&rows), pal);
+    let frame = settings_frame(top_in(&rows), pal);
     // a title's first column of ink, cream where the cursor is and dim where it is not
     let ink = |[x, y, w, h]: [u32; 4]| {
         (0..w)
@@ -294,7 +303,7 @@ fn the_cursor_in_general_lights_its_title_and_its_row() {
             .filter(|c| *c == pal.cream || *c == pal.dim)
             .collect::<Vec<_>>()
     };
-    let (configs, general) = (ink(frame.titles[0]), ink(frame.titles[1]));
+    let (general, configs) = (ink(frame.titles[0]), ink(frame.titles[1]));
     assert!(
         !configs.is_empty() && configs.iter().all(|c| *c == pal.dim),
         "CONFIGS is lit"
@@ -318,10 +327,11 @@ fn a_new_value_is_on_the_screen_the_frame_after() {
         return;
     };
     let (_d, mut f, mut input) = settings_over(NIGHT, &mut c);
-    // the cursor opens on Display; Up wraps to About, and once more is Update, whose arrows
-    // switch between the releases and the test builds
-    tap(&mut f, &mut input, Btn::Up);
-    tap(&mut f, &mut input, Btn::Up);
+    // the cursor opens on Date & Time; down to Update, whose arrows switch between the
+    // releases and the test builds
+    while f.app().settings_row() != Some(SettingsRow::Update) {
+        tap(&mut f, &mut input, Btn::Down);
+    }
     assert_eq!(f.app().settings_row(), Some(SettingsRow::Update));
     let px = composed(&mut f, &mut c, "update-before");
     holds_the_modal(&px, &f, "before");

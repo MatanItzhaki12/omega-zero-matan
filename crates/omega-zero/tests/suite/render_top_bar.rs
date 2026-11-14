@@ -12,7 +12,7 @@ use omega_input::{Action, Btn};
 use omega_power::SimPlatform;
 use omega_store::{colour_index, read_app_state, write_app_state, THEME_FILE};
 use omega_ui::kit::palette::palette;
-use omega_ui::{SettingsRow, LINK_OFF, LINK_ON, TOP_BAR_H};
+use omega_ui::{LINK_OFF, LINK_ON, TOP_BAR_H};
 use omega_zero::app::Phase;
 use omega_zero::frontend::Frontend;
 use tempfile::TempDir;
@@ -139,9 +139,7 @@ fn a_new_colour_in_background_prints_the_top_bar_again() {
 
     f.app_mut().apply(Action::QuickMenu);
     f.app_mut().finish_slide();
-    while f.app().settings_row() != Some(SettingsRow::Background) {
-        press(&mut f, Btn::Down);
-    }
+    common::to_shelf_row(f.app_mut(), omega_zero::options::OptionRow::Theme);
     press(&mut f, Btn::A);
     for _ in 0..3 {
         if f.app().palette_colour() != 0 {
@@ -152,6 +150,8 @@ fn a_new_colour_in_background_prints_the_top_bar_again() {
     }
     let colour = f.app().palette_colour();
     assert_ne!(colour, 0, "the Background screen changed no colour");
+    // THEME, SHELF, then Settings
+    press(&mut f, Btn::B);
     press(&mut f, Btn::B);
     press(&mut f, Btn::B);
     assert!(matches!(f.app().phase(), Phase::Shelf));

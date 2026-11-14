@@ -7,7 +7,7 @@ use omega_input::Action;
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::panel_face;
 use omega_ui::kit::row::panel_height;
-use omega_ui::{Draw, SettingsRow, UndoFace};
+use omega_ui::{Draw, UndoFace};
 
 use crate::app::{App, Phase};
 use crate::background_screen::Outcome as BackgroundOutcome;
@@ -37,9 +37,10 @@ impl App {
         };
         match screen.input(look, font, wallpaper, action) {
             BackgroundOutcome::Close => self.go(
-                Phase::Settings {
-                    row: SettingsRow::Background,
-                },
+                Phase::Options(crate::options::OptionsScreen {
+                    row: crate::options::OptionRow::Theme,
+                    ..crate::options::OptionsScreen::new(crate::options::OptionsPage::Shelf)
+                }),
                 Dir::Back,
             ),
             BackgroundOutcome::Changed(b) => {

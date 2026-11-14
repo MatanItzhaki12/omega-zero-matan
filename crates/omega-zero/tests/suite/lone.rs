@@ -488,11 +488,15 @@ fn the_lone_panels_stand_on_the_backdrop_and_slide_with_their_screens() {
         w: 200,
         h: 62,
     };
-    let opened: [(Option<SettingsRow>, usize); 4] = [
+    // Settings' own row, or SHELF's
+    let opened: [(
+        Option<Result<SettingsRow, omega_zero::options::OptionRow>>,
+        usize,
+    ); 4] = [
         (None, 801),
-        (Some(SettingsRow::Background), 802),
-        (Some(SettingsRow::DateTime), 803),
-        (Some(SettingsRow::Labels), 804),
+        (Some(Err(omega_zero::options::OptionRow::Theme)), 802),
+        (Some(Ok(SettingsRow::DateTime)), 803),
+        (Some(Err(omega_zero::options::OptionRow::Labels)), 804),
     ];
     for (row, n) in opened {
         let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
@@ -510,12 +514,18 @@ fn the_lone_panels_stand_on_the_backdrop_and_slide_with_their_screens() {
         a.set_labels_panel(panel(804));
         match row {
             None => a.apply(Action::SelectTap),
-            Some(row) => {
+            Some(Ok(row)) => {
                 a.apply(Action::QuickMenu);
                 a.finish_slide();
                 while a.settings_row() != Some(row) {
                     press(&mut a, Btn::Down);
                 }
+                press(&mut a, Btn::A);
+            }
+            Some(Err(row)) => {
+                a.apply(Action::QuickMenu);
+                a.finish_slide();
+                crate::common::to_shelf_row(&mut a, row);
                 press(&mut a, Btn::A);
             }
         }

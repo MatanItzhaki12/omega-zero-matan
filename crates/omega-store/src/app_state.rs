@@ -127,6 +127,11 @@ pub struct AppState {
     /// How many automatic backups each game keeps, its save backed up by itself as it goes in:
     /// one of `AUTO_BACKUPS`, 0 for none made.
     pub auto_backups: u8,
+    /// The shelves' games by how long each has been played, the most first, rather than by
+    /// name: Settings › Shelf › Sort Games.
+    pub shelf_by_play: bool,
+    /// The same for the games Saves lists under each system.
+    pub saves_by_play: bool,
 }
 
 /// How many automatic backups a game may keep, as Saves › Auto Backup steps them: none, or
@@ -202,6 +207,8 @@ impl Default for AppState {
             menu_music_volume: MENU_VOLUME_DEFAULT,
             test_updates: false,
             auto_backups: AUTO_BACKUPS_DEFAULT,
+            shelf_by_play: false,
+            saves_by_play: false,
         }
     }
 }
@@ -529,6 +536,8 @@ const FIELDS: &[Field] = &[
             t.auto_backups = n;
         }
     ),
+    flag!("shelf_by_play", shelf_by_play),
+    flag!("saves_by_play", saves_by_play),
 ];
 
 fn menu_volume(value: &str) -> Option<u8> {

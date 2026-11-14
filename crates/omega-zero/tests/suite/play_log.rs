@@ -66,3 +66,33 @@ fn the_time_is_written_to_the_card_as_the_cart_comes_out() {
         .expect("the play log was not written");
     assert!(text.starts_with("gba/Emerald\t"), "{text}");
 }
+
+#[test]
+fn the_shelf_stands_its_games_by_name_or_the_most_played_first() {
+    use omega_input::Btn;
+    let d = tmp_root_with_carts(&["Alpha", "Beta", "Gamma"]);
+    std::fs::write(
+        d.path().join(omega_zero::play_log::FILE),
+        "gba/Beta\t100\ngba/Gamma\t500\n",
+    )
+    .unwrap();
+    let mut a = common::boot(d.path());
+    assert_eq!(a.shelf_stems(), ["Alpha", "Beta", "Gamma"]);
+    assert_eq!(a.selected_stem(), Some("Alpha"));
+    a.apply(Action::QuickMenu);
+    a.finish_slide();
+    common::to_shelf_row(&mut a, omega_zero::options::OptionRow::ShelfSort);
+    a.apply(Action::GbaDown(Btn::Right));
+    a.apply(Action::GbaUp(Btn::Right));
+    assert!(omega_store::read_app_state(d.path()).shelf_by_play);
+    assert_eq!(a.shelf_stems(), ["Gamma", "Beta", "Alpha"]);
+    assert_eq!(a.selected_stem(), Some("Alpha"), "the cart picked moved");
+    a.apply(Action::GbaDown(Btn::Left));
+    a.apply(Action::GbaUp(Btn::Left));
+    assert_eq!(a.shelf_stems(), ["Alpha", "Beta", "Gamma"]);
+    // kept: the next boot stands them the same
+    a.apply(Action::GbaDown(Btn::Right));
+    a.apply(Action::GbaUp(Btn::Right));
+    let again = common::boot(d.path());
+    assert_eq!(again.shelf_stems(), ["Gamma", "Beta", "Alpha"]);
+}

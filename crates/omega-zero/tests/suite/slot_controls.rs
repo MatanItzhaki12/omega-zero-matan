@@ -497,10 +497,9 @@ fn account_signs_in_to_retroachievements_on_the_keyboard_and_y_signs_out() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = boot(d.path());
     a.apply(Action::QuickMenu);
-    for _ in 0..4 {
+    while a.settings_row() != Some(omega_ui::SettingsRow::Achievements) {
         press(&mut a, Btn::Down);
     }
-    assert_eq!(a.settings_row(), Some(omega_ui::SettingsRow::Achievements));
     press(&mut a, Btn::A);
     a.finish_slide();
     let lit = |a: &App| a.options_view().map(|v| v.lines[v.lit].0);
@@ -562,19 +561,18 @@ fn account_signs_in_to_retroachievements_on_the_keyboard_and_y_signs_out() {
     assert!(!a.achievements_account());
 }
 
-/// RetroAchievements stands in CONFIGS under Labels, a row with only its ›, and opens its own
+/// RetroAchievements stands in CONFIGS under Shelf, a row with only its ›, and opens its own
 /// panel; B comes back to it. GAMEPLAY holds none of it.
 #[test]
-fn retroachievements_opens_from_configs_under_labels() {
+fn retroachievements_opens_from_configs_under_shelf() {
     use omega_ui::SettingsRow;
     use omega_zero::options::OptionRow;
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = boot(d.path());
     a.apply(Action::QuickMenu);
-    for _ in 0..3 {
+    while a.settings_row() != Some(SettingsRow::Shelf) {
         press(&mut a, Btn::Down);
     }
-    assert_eq!(a.settings_row(), Some(SettingsRow::Labels));
     press(&mut a, Btn::Down);
     assert_eq!(a.settings_row(), Some(SettingsRow::Achievements));
     assert_eq!(
@@ -616,7 +614,9 @@ fn emulators_set_each_systems_default_and_put_switched_games_back() {
     write_selected_core(d.path(), "Emerald", Core::Gpsp).unwrap();
     let mut a = boot(d.path());
     a.apply(Action::QuickMenu);
-    press(&mut a, Btn::Down);
+    while a.settings_row() != Some(omega_ui::SettingsRow::Gameplay) {
+        press(&mut a, Btn::Down);
+    }
     press(&mut a, Btn::A);
     a.finish_slide();
     let view = a.options_view().expect("the GAMEPLAY panel");

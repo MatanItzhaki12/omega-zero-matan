@@ -4,9 +4,7 @@ use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{read_app_state, write_app_state, AppState, BackdropStyle, Font};
 use omega_ui::kit::action::Font as BarFont;
-use omega_ui::{
-    backdrop_period, backdrop_rgb, backdrop_shift, out_h, out_w, Draw, SettingsRow, TexId,
-};
+use omega_ui::{backdrop_period, backdrop_rgb, backdrop_shift, out_h, out_w, Draw, TexId};
 use omega_zero::app::{App, Phase};
 use omega_zero::background_screen::{Backdrop, Sel};
 use omega_zero::list_view::{RowLabel, RowValue};
@@ -52,9 +50,7 @@ impl Rig {
     fn open(&mut self) {
         self.a.apply(Action::QuickMenu);
         assert!(self.a.settings_row().is_some(), "START opened no Settings");
-        while self.a.settings_row() != Some(SettingsRow::Background) {
-            self.press(Btn::Down);
-        }
+        common::to_shelf_row(&mut self.a, omega_zero::options::OptionRow::Theme);
         self.press(Btn::A);
         assert!(
             matches!(self.a.phase(), Phase::Background(_)),
@@ -138,7 +134,11 @@ fn theme_opens_from_settings_and_b_comes_back_to_its_row() {
         ]
     );
     r.press(Btn::B);
-    assert_eq!(r.a.settings_row(), Some(SettingsRow::Background));
+    assert_eq!(
+        common::shelf_row(&r.a),
+        Some(omega_zero::options::OptionRow::Theme),
+        "B came back to SHELF's Theme"
+    );
 }
 
 #[test]

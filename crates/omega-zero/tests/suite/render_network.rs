@@ -734,7 +734,7 @@ fn a_new_backdrop_colour_re_tints_the_modal() {
 
     // Settings > Background > Colour, one step back from Night round to Amber
     r.tap(Btn::B);
-    r.settings_at(SettingsRow::Background);
+    common::to_shelf_row(r.f.app_mut(), omega_zero::options::OptionRow::Theme);
     r.tap(Btn::A);
     r.tap(Btn::Down);
     r.tap(Btn::Left);
@@ -743,6 +743,9 @@ fn a_new_backdrop_colour_re_tints_the_modal() {
         AMBER,
         "the colour did not change"
     );
+    // back to SHELF, and to Settings
+    r.tap(Btn::B);
+    r.f.app_mut().finish_slide();
     r.tap(Btn::B);
     r.open_network_scanned();
     let px = r.frame(&mut c, "network-tint-after");

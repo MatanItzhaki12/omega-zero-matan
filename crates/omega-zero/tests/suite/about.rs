@@ -117,6 +117,21 @@ fn about_is_flows_pixel_for_pixel() {
 }
 
 #[test]
+fn a_test_build_says_its_run_as_update_does() {
+    let test = Build {
+        version: "2.7.3-test.12",
+        ..flow_build()
+    };
+    let view = AboutView::new(&test, Some("rg35xxsp"), None);
+    assert_eq!(view.rows[0], ("VERSION", "2.7.3-T12".to_string()));
+    // the running build's version is the one Update reads, a test build's own included
+    assert_eq!(
+        omega_zero::build_info::Build::current().version,
+        omega_zero::update::VERSION
+    );
+}
+
+#[test]
 fn the_rows_say_the_version_the_build_the_author_the_handheld_and_its_battery() {
     let rows = |view: AboutView| -> Vec<(&str, String)> { view.rows };
     assert_eq!(

@@ -18,7 +18,6 @@ use omega_ui::backdrop_rgb;
 use omega_ui::kit::action::{action_pair, Font, Side, RISE, TALL};
 use omega_ui::kit::bar::{bar_layout, hints_face, Hint};
 use omega_ui::kit::palette::Palette;
-use omega_ui::SettingsRow;
 use omega_ui::{UndoFace, SPRITE_PX};
 use omega_zero::app::Phase;
 use omega_zero::frontend::Frontend;
@@ -304,9 +303,7 @@ fn the_background_shows_between_the_bars_actions_but_for_the_hints() {
         let settings = composed(&mut f, &mut c, &format!("solid-settings-{colour}"));
         check(&settings, &[], "Settings");
 
-        while f.app().settings_row() != Some(SettingsRow::Labels) {
-            tap(&mut f, &mut input, Btn::Down);
-        }
+        common::to_shelf_row(f.app_mut(), omega_zero::options::OptionRow::Labels);
         tap(&mut f, &mut input, Btn::A);
         f.app_mut().finish_slide();
         assert!(matches!(f.app().phase(), Phase::Labels(_)), "{colour}");
@@ -343,9 +340,7 @@ fn a_new_font_redraws_the_bars_actions_in_the_next_frame() {
     let pal = f.app().palette();
     let mut input = Script(VecDeque::new());
     tap(&mut f, &mut input, Btn::Menu);
-    while f.app().settings_row() != Some(SettingsRow::Background) {
-        tap(&mut f, &mut input, Btn::Down);
-    }
+    common::to_shelf_row(f.app_mut(), omega_zero::options::OptionRow::Theme);
     tap(&mut f, &mut input, Btn::A);
     assert!(matches!(f.app().phase(), Phase::Background(_)));
     let bold = composed(&mut f, &mut c, "theme-bold");
@@ -398,9 +393,11 @@ fn a_new_font_redraws_the_bars_actions_in_the_next_frame() {
         [115, 115, 107, 107]
     );
 
-    tap(&mut f, &mut input, Btn::B);
-    f.app_mut().finish_slide();
-    tap(&mut f, &mut input, Btn::B);
+    // THEME, SHELF, then Settings
+    for _ in 0..3 {
+        tap(&mut f, &mut input, Btn::B);
+        f.app_mut().finish_slide();
+    }
     assert!(matches!(f.app().phase(), Phase::Shelf));
     let px = composed(&mut f, &mut c, "shelf-thin");
     let off = misses(&px, &kit_bar(Actions::Shelf, &[], Font::Thin, pal));

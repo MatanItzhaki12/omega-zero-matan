@@ -50,7 +50,10 @@ fn press(a: &mut App, btn: Btn) {
 
 fn open_at(a: &mut App, row: SettingsRow) {
     a.apply(Action::QuickMenu);
-    for _ in 0..row.index() {
+    for _ in 0..SettingsRow::ALL.len() {
+        if a.settings_row() == Some(row) {
+            break;
+        }
         press(a, Btn::Down);
     }
     assert_eq!(a.settings_row(), Some(row), "the bar never reached {row:?}");
@@ -61,13 +64,13 @@ fn open_at(a: &mut App, row: SettingsRow) {
 fn start_opens_settings_with_its_top_row_selected_every_time() {
     let (_d, mut a, _) = on_carousel();
     a.apply(Action::QuickMenu);
-    assert_eq!(a.settings_row(), Some(SettingsRow::Display));
+    assert_eq!(a.settings_row(), Some(SettingsRow::DateTime));
     press(&mut a, Btn::Down);
     press(&mut a, Btn::Start);
     a.apply(Action::QuickMenu);
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::Display),
+        Some(SettingsRow::DateTime),
         "the menu opened where it was last left"
     );
 }
@@ -76,7 +79,7 @@ fn start_opens_settings_with_its_top_row_selected_every_time() {
 fn menu_opens_settings_on_the_carousel_as_on_slot() {
     let (_d, mut a, _) = on_carousel();
     a.apply(Action::QuickMenu);
-    assert_eq!(a.settings_row(), Some(SettingsRow::Display));
+    assert_eq!(a.settings_row(), Some(SettingsRow::DateTime));
 }
 
 #[test]
@@ -126,24 +129,22 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
     press(&mut a, Btn::Up);
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::About),
+        Some(SettingsRow::Backup),
         "up from the top did not wrap to the bottom"
     );
     for want in [
-        SettingsRow::Display,
-        SettingsRow::Gameplay,
-        SettingsRow::Shelf,
-        SettingsRow::Labels,
-        SettingsRow::Achievements,
-        SettingsRow::Backup,
         SettingsRow::DateTime,
         SettingsRow::Network,
         SettingsRow::Bluetooth,
-        SettingsRow::Background,
         SettingsRow::Update,
         SettingsRow::About,
         SettingsRow::Display,
         SettingsRow::Gameplay,
+        SettingsRow::Shelf,
+        SettingsRow::Achievements,
+        SettingsRow::Backup,
+        SettingsRow::DateTime,
+        SettingsRow::Network,
     ] {
         press(&mut a, Btn::Down);
         assert_eq!(a.settings_row(), Some(want));
@@ -460,7 +461,7 @@ fn brightness_and_volume_still_answer_over_settings() {
 /// and 111, and each row 200 and its index.
 fn fake_faces(a: &mut App) -> SettingsFaces {
     let id = TexId::from_raw;
-    let frame = settings_frame(omega_ui::configs_in(&a.settings_rows()), palette(0));
+    let frame = settings_frame(omega_ui::top_in(&a.settings_rows()), palette(0));
     let mut faces = SettingsFaces::new(&frame, id(100), [(id(110), [42, 11]), (id(111), [42, 11])]);
     for row in a.settings_rows() {
         faces.rows[row.index()] = Some((id(200 + row.index()), [270, ROW_H]));
@@ -504,10 +505,12 @@ fn the_modal_fills_the_page_and_the_lit_title_follows_the_cursor() {
         let out = frame(&a);
         assert_eq!(
             placed(&out, 100),
-            Some(at_2x(omega_ui::settings_rect(6))),
+            Some(at_2x(omega_ui::settings_rect(omega_ui::top_in(
+                &a.settings_rows()
+            )))),
             "{row:?}: the frame"
         );
-        let (configs, general) = (drawn(&out, 110), drawn(&out, 111));
+        let (general, configs) = (drawn(&out, 110), drawn(&out, 111));
         match row.group() {
             SettingsGroup::Configs => assert!(configs && !general, "{row:?} lit GENERAL"),
             SettingsGroup::General => assert!(general && !configs, "{row:?} lit CONFIGS"),
@@ -529,8 +532,9 @@ fn the_title_lights_over_the_frame_and_the_rows_over_both() {
             .position(|d| matches!(*d, Draw::Tex { tex, .. } if tex == TexId::from_raw(id)))
             .unwrap_or_else(|| panic!("{id} is not drawn"))
     };
-    assert!(at(100) < at(110), "the lit title is under the frame");
-    assert!(at(110) < at(200), "a row is under the title");
+    // CONFIGS' title, the second
+    assert!(at(100) < at(111), "the lit title is under the frame");
+    assert!(at(111) < at(200), "a row is under the title");
 }
 
 #[test]
@@ -584,18 +588,16 @@ fn the_rows_say_what_is_set_in_flows_capitals() {
     assert_eq!(
         said(&a),
         [
-            // Display, Gameplay, Shelf, Labels, RetroAchievements and Saves open panels
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
             clock_text,
             text("OFF"),
             text("OFF"),
-            None,
             text(&format!("V{}", env!("CARGO_PKG_VERSION"))),
+            // About, Display, Gameplay, Shelf, RetroAchievements and Saves open panels
+            None,
+            None,
+            None,
+            None,
+            None,
             None,
         ]
     );
@@ -610,14 +612,14 @@ fn the_rows_say_what_is_set_in_flows_capitals() {
 #[test]
 fn only_the_cursors_row_is_shown_lit() {
     let (_d, mut a, _) = on_carousel();
-    open_at(&mut a, SettingsRow::Background);
+    open_at(&mut a, SettingsRow::Shelf);
     let shown = a.settings_shown();
     assert_eq!(
         shown.iter().map(|s| s.row).collect::<Vec<_>>(),
         a.settings_rows()
     );
     for s in &shown {
-        assert_eq!(s.lit, s.row == SettingsRow::Background, "{:?}", s.row);
+        assert_eq!(s.lit, s.row == SettingsRow::Shelf, "{:?}", s.row);
         assert_eq!(s.value, a.settings_text(s.row), "{:?}", s.row);
     }
 }
@@ -675,11 +677,7 @@ fn without_a_radio_network_is_not_listed_drawn_or_stepped_onto() {
         .settings_shown()
         .iter()
         .all(|s| s.row != SettingsRow::Network));
-    open_at(&mut a, SettingsRow::Display);
-    for _ in 0..SettingsRow::DateTime.index() {
-        press(&mut a, Btn::Down);
-    }
-    assert_eq!(a.settings_row(), Some(SettingsRow::DateTime));
+    open_at(&mut a, SettingsRow::DateTime);
     press(&mut a, Btn::Down);
     assert_eq!(
         a.settings_row(),
@@ -688,12 +686,17 @@ fn without_a_radio_network_is_not_listed_drawn_or_stepped_onto() {
     );
     let out = frame(&a);
     assert!(!drawn(&out, 200 + SettingsRow::Network.index()));
-    // Bluetooth and the rows after it close up under Date & Time; the panels stay where they were
+    // Bluetooth and the rows after it close up under Date & Time, and GENERAL round them
     let date = placed(&out, 200 + SettingsRow::DateTime.index()).unwrap();
     let bluetooth = placed(&out, 200 + SettingsRow::Bluetooth.index()).unwrap();
     assert_eq!(bluetooth[1], date[1] + (2 * ROW_H) as f32);
-    assert_eq!(placed(&out, 100), Some(at_2x(omega_ui::settings_rect(6))));
-    assert_eq!(placed(&out, 111), Some(at_2x(faces.titles[1].at)));
+    assert_eq!(
+        placed(&out, 100),
+        Some(at_2x(omega_ui::settings_rect(omega_ui::top_in(
+            &a.settings_rows()
+        ))))
+    );
+    assert_eq!(placed(&out, 110), Some(at_2x(faces.titles[0].at)));
 }
 
 #[test]

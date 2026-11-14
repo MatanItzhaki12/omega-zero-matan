@@ -66,7 +66,8 @@ impl AboutView {
     pub fn new(build: &Build, handheld: Option<&str>, battery: Option<Battery>) -> AboutView {
         AboutView {
             rows: vec![
-                ("VERSION", build.version.to_string()),
+                // as Update says it: a test build's run after a T, 2.7.3-T12
+                ("VERSION", crate::update::shown(build.version)),
                 ("BUILD", build.shown()),
                 ("AUTHOR", AUTHOR.to_string()),
                 ("HANDHELD", handheld.unwrap_or(UNKNOWN).to_uppercase()),

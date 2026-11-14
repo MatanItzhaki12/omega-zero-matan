@@ -380,6 +380,8 @@ pub struct App {
     pub(crate) backup_ui: crate::backup_settings::BackupUi,
     /// What the SAVES panels show.
     pub(crate) saves_ui: crate::saves_settings::SavesUi,
+    /// The room on the card, measured on a thread from boot on.
+    pub(crate) card_room: crate::saves_settings::CardRoom,
     pub(crate) backup_joined: bool,
     /// The passes that copied and failed, as last toasted, and whether a failure was told of
     /// since the last copy: a failure is told once, until saves copy again.
@@ -655,6 +657,7 @@ impl App {
             save_backup: None,
             backup_ui: Default::default(),
             saves_ui: Default::default(),
+            card_room: Default::default(),
             backup_joined: false,
             backup_seen: (0, 0),
             backup_fail_told: false,
@@ -741,8 +744,10 @@ impl App {
         app.labels = Labels::new(label_jobs(root), Account::load(root));
         app.start_achievements();
         app.start_save_backup();
+        app.warm_saves(root);
         app.recents = read_recents(root);
         app.play_log = crate::play_log::PlayLog::read(root);
+        app.sort_shelves();
         app.refresh_recents();
         app.refresh_marks();
         // RECENTS, when shown, is the shelf a boot comes up on, as on Slot
@@ -1577,6 +1582,11 @@ impl App {
         }
         self.link_choices.insert(reload.stem, reload.from);
         self.refuse_seated();
+    }
+
+    /// The games on the shelf in view, in the order it stands them.
+    pub fn shelf_stems(&self) -> Vec<String> {
+        self.shelf().carts.iter().map(|c| c.stem.clone()).collect()
     }
 
     pub fn selected_stem(&self) -> Option<&str> {

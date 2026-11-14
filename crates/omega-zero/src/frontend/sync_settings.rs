@@ -5,8 +5,8 @@
 
 use omega_gfx::{Compositor, TexId};
 use omega_ui::{
-    configs_in, settings_frame, settings_row_face, settings_row_width, settings_title_face,
-    SettingsBaked, SettingsFaces, SettingsGroup, SettingsRow,
+    settings_frame, settings_row_face, settings_row_width, settings_title_face, SettingsBaked,
+    SettingsFaces, SettingsGroup, SettingsRow,
 };
 
 use crate::app::App;
@@ -35,7 +35,7 @@ pub(crate) fn sync_settings(app: &mut App, compositor: &mut Compositor, state: &
     let pal = app.palette();
     if plan.frame || state.faces.is_none() {
         let rows: Vec<SettingsRow> = shown.iter().map(|s| s.row).collect();
-        let frame = settings_frame(configs_in(&rows), pal);
+        let frame = settings_frame(omega_ui::top_in(&rows), pal);
         let frame_tex = upload_nearest(compositor, &mut state.frame, &frame.face);
         let titles = SettingsGroup::ALL.map(|g| {
             let face = settings_title_face(g, pal);

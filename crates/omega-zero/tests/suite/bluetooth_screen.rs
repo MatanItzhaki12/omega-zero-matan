@@ -312,7 +312,6 @@ fn bluetooth_is_listed_under_network_and_opens_its_screen() {
             SettingsRow::DateTime,
             SettingsRow::Network,
             SettingsRow::Bluetooth,
-            SettingsRow::Background,
             SettingsRow::Update,
             SettingsRow::About,
         ]
@@ -364,7 +363,7 @@ fn a_handheld_without_bluetooth_has_no_bluetooth_row_or_icon() {
         .all(|s| s.row != SettingsRow::Bluetooth));
     r.open_menu_at(SettingsRow::Network);
     r.press(Btn::Down);
-    assert_eq!(r.a.settings_row(), Some(SettingsRow::Background));
+    assert_eq!(r.a.settings_row(), Some(SettingsRow::Update));
     r.press(Btn::Up);
     assert_eq!(r.a.settings_row(), Some(SettingsRow::Network));
     assert_eq!(r.a.links().bluetooth, None, "an icon for a radio it lacks");

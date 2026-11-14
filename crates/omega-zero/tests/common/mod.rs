@@ -600,3 +600,36 @@ fn seated(root: &Path, snapshot: Box<dyn Snapshot>, state: AppState) -> App {
     }
     a
 }
+
+/// From Settings, open SHELF and stop with the cursor on `row`: Theme and Labels are reached
+/// there. Each press is a press and a release; the panel's slide is finished.
+pub fn to_shelf_row(a: &mut App, row: omega_zero::options::OptionRow) {
+    use omega_input::{Action, Btn};
+    let press = |a: &mut App, b: Btn| {
+        a.apply(Action::GbaDown(b));
+        a.apply(Action::GbaUp(b));
+    };
+    assert!(a.settings_row().is_some(), "Settings is not open");
+    for _ in 0..omega_ui::SettingsRow::ALL.len() {
+        if a.settings_row() == Some(omega_ui::SettingsRow::Shelf) {
+            break;
+        }
+        press(a, Btn::Down);
+    }
+    assert_eq!(a.settings_row(), Some(omega_ui::SettingsRow::Shelf));
+    press(a, Btn::A);
+    a.finish_slide();
+    for _ in 0..16 {
+        if shelf_row(a) == Some(row) {
+            return;
+        }
+        press(a, Btn::Down);
+    }
+    panic!("SHELF has no {row:?}");
+}
+
+/// The row lit on SHELF, none where SHELF is not up.
+pub fn shelf_row(a: &App) -> Option<omega_zero::options::OptionRow> {
+    let view = a.options_view()?;
+    (view.title == "SHELF").then(|| view.lines[view.lit].0)
+}

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Settings, GENERAL first**: Date & Time, Network, Bluetooth, Update and About stand on top,
+  and CONFIGS under them: Display, Gameplay, Shelf, RetroAchievements and Saves. Settings opens
+  on Date & Time.
+- **Theme and Labels moved into Shelf**, at the foot of SHELF; B from either comes back to
+  SHELF, on its row.
+- **Sort Games by play time**: on SHELF, each system's shelf and FAVORITES stand the most
+  played games first (the rest by name), the cart picked staying picked, and a game played moves
+  up as its cart comes out. SAVES has its own Sort Games for the games listed under each system.
+- SAVES opens as quickly the first time after a boot as after: the card's free space, which a
+  FAT card counts through its whole table the first time it is asked (near a second on the
+  handheld), is measured on a thread from boot, and the save folders read once then too.
+- About shows a test build's version as Update does, V2.7.3-T12, not only the release's.
 - **Settings, set out as the games' menu is**: CONFIGS opens with **Display ›**, which holds how
   games are drawn: Screen Filter, Game Boy Palette, Colour Correction, Frame Blending, and now
   **Brightness** and **Blue Light Filter** as well, which were only in a game's menu or on

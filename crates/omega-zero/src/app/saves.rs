@@ -5,8 +5,12 @@ use super::*;
 
 impl App {
     pub(super) fn flush_eject(&mut self, stem: &str) {
-        // the time the game was played goes on the card as it comes out
+        // the time the game was played goes on the card as it comes out, and the shelf takes
+        // it where it is sorted by it
         self.write_play_log();
+        if self.state.shelf_by_play {
+            self.sort_shelves();
+        }
         self.settle_saves();
         let (Some(root), Some(snapshot)) = (&self.root, &self.snapshot) else {
             return;

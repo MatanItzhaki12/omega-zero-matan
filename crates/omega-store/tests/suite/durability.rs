@@ -738,6 +738,8 @@ fn the_state_file_keeps_its_keys_and_their_order() {
         "menu_music_volume=5\n",
         "test_updates=0\n",
         "auto_backups=5\n",
+        "shelf_by_play=0\n",
+        "saves_by_play=0\n",
     ]
     .concat();
     assert_eq!(app_state_text(&AppState::default()), default);
@@ -817,6 +819,8 @@ fn the_state_file_keeps_its_keys_and_their_order() {
         "menu_music_volume=5\n",
         "test_updates=0\n",
         "auto_backups=5\n",
+        "shelf_by_play=0\n",
+        "saves_by_play=0\n",
     ]
     .concat();
     assert_eq!(app_state_text(&s), sample);

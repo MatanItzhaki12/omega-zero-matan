@@ -89,9 +89,18 @@ impl Rig {
                 assert!(matches!(r.f.app().phase(), Phase::Controls));
                 return r;
             }
-            Screen::Background => SettingsRow::Background,
+            Screen::Background | Screen::Labels => {
+                r.tap(Btn::Menu);
+                r.f.app_mut().finish_slide();
+                let row = match screen {
+                    Screen::Background => omega_zero::options::OptionRow::Theme,
+                    _ => omega_zero::options::OptionRow::Labels,
+                };
+                common::to_shelf_row(r.f.app_mut(), row);
+                r.tap(Btn::A);
+                return r;
+            }
             Screen::DateTime => SettingsRow::DateTime,
-            Screen::Labels => SettingsRow::Labels,
             // POWER held on the shelf: it powers off at once
             Screen::PoweringOff => {
                 r.f.app_mut().apply(Action::PowerHold);

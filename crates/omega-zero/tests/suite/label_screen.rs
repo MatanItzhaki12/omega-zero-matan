@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState, Platform};
-use omega_ui::{SettingsRow, TexId};
+use omega_ui::TexId;
 use omega_zero::app::{App, Phase};
 use omega_zero::label_screen::{Sel, SyncState};
 use omega_zero::label_sync::{
@@ -161,14 +161,7 @@ impl Rig {
     fn open_labels(&mut self) {
         self.a.apply(Action::QuickMenu);
         assert!(self.a.settings_row().is_some(), "START opened no Settings");
-        while self.a.settings_row() != Some(SettingsRow::Labels) {
-            self.press(Btn::Down);
-            assert_ne!(
-                self.a.settings_row(),
-                Some(SettingsRow::Display),
-                "the bar went round without reaching Labels"
-            );
-        }
+        common::to_shelf_row(&mut self.a, omega_zero::options::OptionRow::Labels);
         self.press(Btn::A);
         assert!(
             matches!(self.a.phase(), Phase::Labels(_)),
@@ -213,15 +206,15 @@ fn account() -> Account {
 }
 
 #[test]
-fn labels_opens_from_settings_and_b_comes_back_to_its_row() {
+fn labels_opens_from_shelf_and_b_comes_back_to_its_row() {
     let mut r = Rig::signed_in();
     r.open_labels();
     assert_eq!(r.sel(), Sel::Account);
     r.press(Btn::B);
     assert_eq!(
-        r.a.settings_row(),
-        Some(SettingsRow::Labels),
-        "B did not go back to the Labels row: {:?}",
+        common::shelf_row(&r.a),
+        Some(omega_zero::options::OptionRow::Labels),
+        "B did not go back to SHELF's Labels row: {:?}",
         r.a.phase()
     );
 }

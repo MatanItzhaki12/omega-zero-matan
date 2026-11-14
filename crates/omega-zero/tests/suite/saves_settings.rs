@@ -99,10 +99,11 @@ fn saves_lists_the_nas_a_search_and_the_systems_with_anything_saved() {
     assert_eq!(title(&a), "SAVES");
     let shown = rows(&a);
     assert_eq!(
-        shown[..5],
+        shown[..6],
         [
             (OptionRow::SavesNas, "NAS Backup".into(), "OFF".into()),
             (OptionRow::SavesSearch, "Search Games".into(), String::new()),
+            (OptionRow::SavesSort, "Sort Games".into(), "NAME".into()),
             (
                 OptionRow::SavesAutoBackup,
                 "Auto Backup".into(),
@@ -122,7 +123,7 @@ fn saves_lists_the_nas_a_search_and_the_systems_with_anything_saved() {
         "Fusion has nothing, and is not counted"
     );
     // the room on the card closes the list, where the card can be asked
-    if let Some((row, label, value)) = shown.get(5) {
+    if let Some((row, label, value)) = shown.get(6) {
         assert_eq!(
             (*row, label.as_str()),
             (OptionRow::SavesCardSpace, "Card Space")
@@ -435,4 +436,42 @@ fn sizes_read_in_the_unit_that_suits_them() {
     assert_eq!(size(128 * 1024), "128 KB");
     assert_eq!(size(40 * 1024 * 1024), "40.0 MB");
     assert_eq!(size(29 * 1024 * 1024 * 1024), "29.0 GB");
+}
+
+#[test]
+fn sort_games_lists_a_systems_games_by_name_or_the_most_played_first() {
+    let d = tmp_root_with_carts(&["Alpha", "Beta", "Gamma"]);
+    for stem in ["Alpha", "Beta", "Gamma"] {
+        let sav = d.path().join(format!("Saves/GBA/{stem}.sav"));
+        std::fs::create_dir_all(sav.parent().unwrap()).unwrap();
+        std::fs::write(&sav, b"a save").unwrap();
+    }
+    std::fs::write(
+        d.path().join(omega_zero::play_log::FILE),
+        "gba/Beta\t100\ngba/Gamma\t500\n",
+    )
+    .unwrap();
+    let mut a = boot(d.path());
+    let listed = |a: &mut App| {
+        down_to(a, OptionRow::SavesSystem(Platform::Gba));
+        press(a, Btn::A);
+        let names: Vec<String> = rows(a).into_iter().map(|r| r.1).collect();
+        press(a, Btn::B);
+        names
+    };
+    open_saves(&mut a);
+    assert_eq!(listed(&mut a), ["Alpha", "Beta", "Gamma"]);
+    down_to(&mut a, OptionRow::SavesSort);
+    press(&mut a, Btn::A);
+    assert!(omega_store::read_app_state(d.path()).saves_by_play);
+    assert_eq!(
+        rows(&a)
+            .iter()
+            .find(|r| r.0 == OptionRow::SavesSort)
+            .unwrap()
+            .2,
+        "PLAY TIME"
+    );
+    // the most played first, and one never played after them
+    assert_eq!(listed(&mut a), ["Gamma", "Beta", "Alpha"]);
 }

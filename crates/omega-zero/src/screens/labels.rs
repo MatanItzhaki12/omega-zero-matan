@@ -11,7 +11,7 @@ use omega_ui::kit::bar::Hint;
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::panel_face;
 use omega_ui::kit::row::panel_height;
-use omega_ui::{Draw, SettingsRow, UndoFace};
+use omega_ui::{Draw, UndoFace};
 
 use crate::app::{App, Phase};
 use crate::label_screen::Outcome as LabelsOutcome;
@@ -81,9 +81,10 @@ impl App {
         }
         match outcome {
             LabelsOutcome::Close => self.go(
-                Phase::Settings {
-                    row: SettingsRow::Labels,
-                },
+                Phase::Options(crate::options::OptionsScreen {
+                    row: crate::options::OptionRow::Labels,
+                    ..crate::options::OptionsScreen::new(crate::options::OptionsPage::Shelf)
+                }),
                 Dir::Back,
             ),
             LabelsOutcome::Sync if self.online() => {

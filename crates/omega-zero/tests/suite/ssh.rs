@@ -593,19 +593,20 @@ fn how_closely_the_radio_is_watched_follows_the_screen() {
     assert_eq!(r.a.wifi_watch(), Watch::Networks, "on SSH, under Network");
     r.press(Btn::B);
     r.press(Btn::B);
-    while r.a.settings_row() != Some(SettingsRow::Labels) {
-        r.press(Btn::Up);
-    }
+    r.a.finish_slide();
+    common::to_shelf_row(&mut r.a, omega_zero::options::OptionRow::Labels);
     r.press(Btn::A);
     assert!(matches!(r.a.phase(), Phase::Labels(_)));
     assert_eq!(r.a.wifi_watch(), Watch::Glance, "on Labels");
     r.press(Btn::B);
-    while r.a.settings_row() != Some(SettingsRow::Background) {
-        r.press(Btn::Down);
+    r.a.finish_slide();
+    while common::shelf_row(&r.a) != Some(omega_zero::options::OptionRow::Theme) {
+        r.press(Btn::Up);
     }
     r.press(Btn::A);
     assert!(matches!(r.a.phase(), Phase::Background(_)));
     assert_eq!(r.a.wifi_watch(), Watch::Idle, "on Background");
+    r.press(Btn::B);
     r.press(Btn::B);
     r.press(Btn::B);
     assert!(matches!(r.a.phase(), Phase::Shelf));

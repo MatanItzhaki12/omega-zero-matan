@@ -268,6 +268,46 @@ impl App {
         }
     }
 
+    /// Stands each system's shelf, and FAVORITES, in the order Settings › Shelf › Sort Games
+    /// asks: by name, or by how long each game has been played, the most first and the rest by
+    /// name. The cart picked stays the one picked, and a shelf already in that order is left as
+    /// it is, so nothing moves under the cursor for nothing.
+    pub(crate) fn sort_shelves(&mut self) {
+        let by_play = self.state.shelf_by_play;
+        let log = &self.play_log;
+        let key = |c: &Cart| {
+            let secs = if by_play {
+                log.of(c.platform, &c.stem).map_or(0, |p| p.secs)
+            } else {
+                0
+            };
+            (std::cmp::Reverse(secs), favorite_key(c))
+        };
+        for (kind, shelf) in &mut self.shelves {
+            if !matches!(kind, ShelfKind::System(_) | ShelfKind::Favorites) {
+                continue;
+            }
+            let mut order: Vec<usize> = (0..shelf.carts.len()).collect();
+            order.sort_by_key(|&i| key(&shelf.carts[i]));
+            if order.iter().enumerate().all(|(at, &i)| at == i) {
+                continue;
+            }
+            let picked = shelf.carts.get(shelf.index).map(|c| c.stem.clone());
+            let carts: Vec<(Cart, Option<omega_ui::TexId>)> = order
+                .iter()
+                .filter_map(|&i| {
+                    let (cart, face) = shelf.find(&shelf.carts[i].stem)?;
+                    Some((cart.clone(), face))
+                })
+                .collect();
+            shelf.replace(carts);
+            if let Some(at) = picked.and_then(|p| shelf.carts.iter().position(|c| c.stem == p)) {
+                shelf.select(at);
+            }
+        }
+        self.refresh_marks();
+    }
+
     /// `cart` goes in: it is the latest game on RECENTS.
     pub(crate) fn note_recent(&mut self, cart: &Cart) {
         self.recents = with_recent(&self.recents, cart);

@@ -343,13 +343,8 @@ fn every_move_between_screens_slides_the_way_it_goes() {
         from_menu: true,
     };
     for (row, opened) in [
-        (SettingsRow::Labels, Phase::Labels(LabelsScreen::default())),
         (SettingsRow::DateTime, clock.clone()),
         (SettingsRow::Network, Phase::Network(WifiScreen::default())),
-        (
-            SettingsRow::Background,
-            Phase::Background(Default::default()),
-        ),
         (SettingsRow::About, Phase::About),
     ] {
         walk_to(&mut a, row);
@@ -364,6 +359,36 @@ fn every_move_between_screens_slides_the_way_it_goes() {
     press(&mut a, Btn::A);
     press(&mut a, Btn::A);
     slid(&a, &settings(SettingsRow::DateTime), Dir::Back, &clock);
+    a.finish_slide();
+
+    // Theme and Labels open from SHELF, and B comes back to it, on their row
+    let shelf = Phase::Options(omega_zero::options::OptionsScreen::new(
+        omega_zero::options::OptionsPage::Shelf,
+    ));
+    for (row, opened) in [
+        (
+            omega_zero::options::OptionRow::Labels,
+            Phase::Labels(LabelsScreen::default()),
+        ),
+        (
+            omega_zero::options::OptionRow::Theme,
+            Phase::Background(Default::default()),
+        ),
+    ] {
+        common::to_shelf_row(&mut a, row);
+        press(&mut a, Btn::A);
+        slid(&a, &opened, Dir::Deeper, &shelf);
+        press(&mut a, Btn::B);
+        slid(&a, &shelf, Dir::Back, &opened);
+        a.finish_slide();
+        assert_eq!(
+            common::shelf_row(&a),
+            Some(row),
+            "B came back to another row"
+        );
+        press(&mut a, Btn::B);
+        a.finish_slide();
+    }
 }
 
 #[test]
@@ -418,7 +443,7 @@ fn ssh_and_the_passphrase_slide_in_over_network_and_back() {
 fn the_account_keyboard_slides_in_and_its_password_step_does_not() {
     let (_d, mut a) = on_shelf();
     a.apply(Action::QuickMenu);
-    walk_to(&mut a, SettingsRow::Labels);
+    common::to_shelf_row(&mut a, omega_zero::options::OptionRow::Labels);
     press(&mut a, Btn::A);
     press(&mut a, Btn::A);
     let (_, dir, from) = moved(&a);
@@ -447,7 +472,7 @@ fn a_press_during_a_slide_finishes_it_and_acts() {
     assert!(a.slide().is_none(), "the press left the slide running");
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::Gameplay),
+        Some(SettingsRow::Network),
         "the press was spent on the slide"
     );
     a.apply_at(Action::GbaDown(Btn::B), 5_100);

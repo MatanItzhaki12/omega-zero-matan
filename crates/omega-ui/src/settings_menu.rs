@@ -1,6 +1,6 @@
 //! Settings, opened with START on the shelf, as assets/ui/flow.html's #screen=settings draws it:
-//! an omega-modal filling the page above the bottom bar, holding CONFIGS, as tall as its rows,
-//! and GENERAL under it, taking the rest. The panel holding the cursor has its title lit, and
+//! an omega-modal filling the page above the bottom bar, holding GENERAL, as tall as its rows,
+//! and CONFIGS under it, taking the rest. The panel holding the cursor has its title lit, and
 //! the cursor's row is lit.
 //!
 //! What it costs to draw: the modal and both panels are one face, baked once per canvas and
@@ -18,18 +18,17 @@ use crate::kit::pixel::quad;
 use crate::kit::row::{row_face, row_rect, row_width, Row, ROW_H};
 use crate::plate::UndoFace;
 
-/// The two groups the settings are listed in, one panel each.
+/// The two groups the settings are listed in, one panel each, in the order they stand.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum SettingsGroup {
-    /// How the games play: the settings left and right change in place, and the cart labels.
-    Configs,
-    /// The handheld itself: its clock, its network, its Bluetooth, its background and what it
-    /// is.
+    /// The handheld itself: its clock, its network, its Bluetooth, its updates and what it is.
     General,
+    /// How the games look and play, the shelf, RetroAchievements and the saves.
+    Configs,
 }
 
 impl SettingsGroup {
-    pub const ALL: [SettingsGroup; 2] = [SettingsGroup::Configs, SettingsGroup::General];
+    pub const ALL: [SettingsGroup; 2] = [SettingsGroup::General, SettingsGroup::Configs];
 
     pub fn index(self) -> usize {
         self as usize
@@ -54,43 +53,38 @@ impl SettingsGroup {
 /// A row of the settings START opens on the shelf, in the order they are listed.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum SettingsRow {
+    DateTime,
+    Network,
+    Bluetooth,
+    /// omega-zero updating itself from its latest release: A checks, downloads, restarts.
+    Update,
+    About,
     /// The DISPLAY panel: how games are drawn (the screen filter, the Game Boy palette, colour
     /// correction, frame blending, the PSP's picture) and the screen's brightness and blue light.
     Display,
     /// The GAMEPLAY panel: Slot's gameplay settings, and the sound and rumble ones.
     Gameplay,
-    /// The SHELF panel: Recents, Game Titles, the clock and the lid.
+    /// The SHELF panel: Recents, Game Titles, the clock, the lid, the menu sounds, and the
+    /// Labels and Theme screens.
     Shelf,
-    Labels,
     /// The ACHIEVEMENTS panel: RetroAchievements, the account and Hardcore.
     Achievements,
     /// The SAVES panel: each game's save, backups and states, and the NAS they are copied to.
     Backup,
-    DateTime,
-    Network,
-    Bluetooth,
-    /// THEME on the screen: the background, its motion and the colour everything takes, and the
-    /// bar's font.
-    Background,
-    /// omega-zero updating itself from its latest release: A checks, downloads, restarts.
-    Update,
-    About,
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 12] = [
-        SettingsRow::Display,
-        SettingsRow::Gameplay,
-        SettingsRow::Shelf,
-        SettingsRow::Labels,
-        SettingsRow::Achievements,
-        SettingsRow::Backup,
+    pub const ALL: [SettingsRow; 10] = [
         SettingsRow::DateTime,
         SettingsRow::Network,
         SettingsRow::Bluetooth,
-        SettingsRow::Background,
         SettingsRow::Update,
         SettingsRow::About,
+        SettingsRow::Display,
+        SettingsRow::Gameplay,
+        SettingsRow::Shelf,
+        SettingsRow::Achievements,
+        SettingsRow::Backup,
     ];
 
     pub fn index(self) -> usize {
@@ -102,13 +96,11 @@ impl SettingsRow {
             SettingsRow::Display => "Display",
             SettingsRow::Gameplay => "Gameplay",
             SettingsRow::Shelf => "Shelf",
-            SettingsRow::Labels => "Labels",
             SettingsRow::Achievements => "RetroAchievements",
             SettingsRow::Backup => "Saves",
             SettingsRow::DateTime => "Date & Time",
             SettingsRow::Network => "Network",
             SettingsRow::Bluetooth => "Bluetooth",
-            SettingsRow::Background => "Theme",
             SettingsRow::Update => "Update",
             SettingsRow::About => "About",
         }
@@ -116,18 +108,16 @@ impl SettingsRow {
 
     pub fn group(self) -> SettingsGroup {
         match self {
-            SettingsRow::Display
-            | SettingsRow::Gameplay
-            | SettingsRow::Shelf
-            | SettingsRow::Labels
-            | SettingsRow::Achievements
-            | SettingsRow::Backup => SettingsGroup::Configs,
             SettingsRow::DateTime
             | SettingsRow::Network
             | SettingsRow::Bluetooth
-            | SettingsRow::Background
             | SettingsRow::Update
             | SettingsRow::About => SettingsGroup::General,
+            SettingsRow::Display
+            | SettingsRow::Gameplay
+            | SettingsRow::Shelf
+            | SettingsRow::Achievements
+            | SettingsRow::Backup => SettingsGroup::Configs,
         }
     }
 
@@ -139,13 +129,11 @@ impl SettingsRow {
             SettingsRow::Display
                 | SettingsRow::Gameplay
                 | SettingsRow::Shelf
-                | SettingsRow::Labels
                 | SettingsRow::Achievements
                 | SettingsRow::Backup
                 | SettingsRow::DateTime
                 | SettingsRow::Network
                 | SettingsRow::Bluetooth
-                | SettingsRow::Background
                 | SettingsRow::About
         )
     }
@@ -272,54 +260,54 @@ pub struct SettingsFrame {
     pub wells: [[u32; 4]; 2],
 }
 
-/// Where CONFIGS and GENERAL go in a modal `w` by `h` art pixels, as `[x, y, w, h]` in it:
-/// CONFIGS as tall as its `configs` rows, as flow.css's `omega-panel.hug`, and GENERAL taking
-/// the rest. GENERAL starts on CONFIGS' last row, so the two share one stripe.
-pub fn settings_panels(w: u32, h: u32, configs: u32) -> [[u32; 4]; 2] {
+/// Where GENERAL and CONFIGS go in a modal `w` by `h` art pixels, as `[x, y, w, h]` in it, by
+/// `SettingsGroup::index`: GENERAL on top as tall as its `top` rows, as flow.css's
+/// `omega-panel.hug`, and CONFIGS taking the rest. CONFIGS starts on GENERAL's last row, so the
+/// two share one stripe.
+pub fn settings_panels(w: u32, h: u32, top: u32) -> [[u32; 4]; 2] {
     let [x, y, pw, ph] = modal_layout(w, h, &[1])[0];
-    let hug = panel_height(configs * ROW_H).min(ph);
+    let hug = panel_height(top * ROW_H).min(ph);
     [[x, y, pw, hug], [x, y + hug - 1, pw, ph + 1 - hug]]
 }
 
 /// Where Settings' modal goes, `[x, y, w, h]`: at `modal_rect()`, reaching up into the margin
-/// above it as far as GENERAL needs to hold every row it has beside CONFIGS holding `configs`.
-/// On a 480-line screen that is a pixel: CONFIGS' six rows and GENERAL's six would otherwise
-/// leave Update or About no room.
-pub fn settings_rect(configs: u32) -> [u32; 4] {
+/// above it as far as CONFIGS needs to hold every row it has under GENERAL holding `top`, where
+/// a short screen leaves it too little.
+pub fn settings_rect(top: u32) -> [u32; 4] {
     let [x, y, w, h] = modal_rect();
-    let general = SettingsRow::ALL
+    let configs = SettingsRow::ALL
         .iter()
-        .filter(|r| r.group() == SettingsGroup::General)
+        .filter(|r| r.group() == SettingsGroup::Configs)
         .count() as u32;
-    let need = panel_height(general * ROW_H);
+    let need = panel_height(configs * ROW_H);
     let rise = (0..=y)
-        .find(|rise| settings_panels(w, h + rise, configs)[1][3] >= need)
+        .find(|rise| settings_panels(w, h + rise, top)[1][3] >= need)
         .unwrap_or(y);
     [x, y - rise, w, h + rise]
 }
 
-/// How many rows GENERAL has room for on this canvas, beside CONFIGS holding `configs`.
-pub fn general_room(configs: u32) -> u32 {
-    let [_, _, mw, mh] = settings_rect(configs);
-    let [_, general] = settings_panels(mw, mh, configs);
-    general[3].saturating_sub(panel_height(0)) / ROW_H
+/// How many rows CONFIGS has room for on this canvas, under GENERAL holding `top`.
+pub fn room_below(top: u32) -> u32 {
+    let [_, _, mw, mh] = settings_rect(top);
+    let [_, below] = settings_panels(mw, mh, top);
+    below[3].saturating_sub(panel_height(0)) / ROW_H
 }
 
-/// How many of `rows` are in CONFIGS.
-pub fn configs_in(rows: &[SettingsRow]) -> u32 {
+/// How many of `rows` are in GENERAL, the panel on top.
+pub fn top_in(rows: &[SettingsRow]) -> u32 {
     rows.iter()
-        .filter(|r| r.group() == SettingsGroup::Configs)
+        .filter(|r| r.group() == SettingsGroup::General)
         .count() as u32
 }
 
-/// The modal at `settings_rect()` with CONFIGS (holding `configs` rows) and GENERAL in it,
-/// drawn in `pal`, both titles dim.
-pub fn settings_frame(configs: u32, pal: &Palette) -> SettingsFrame {
-    let [mx, my, mw, mh] = settings_rect(configs);
+/// The modal at `settings_rect()` with GENERAL (holding `top` rows) and CONFIGS in it, drawn
+/// in `pal`, both titles dim.
+pub fn settings_frame(top: u32, pal: &Palette) -> SettingsFrame {
+    let [mx, my, mw, mh] = settings_rect(top);
     let mut face = modal_face(mw, mh, pal);
     let mut titles = [[0; 4]; 2];
     let mut wells = [[0; 4]; 2];
-    let panels = settings_panels(mw, mh, configs);
+    let panels = settings_panels(mw, mh, top);
     for (group, [px, py, pw, ph]) in SettingsGroup::ALL.into_iter().zip(panels) {
         let panel = panel_face(pw, ph, group.title(), false, pal);
         over(&mut face, &panel.face, px, py);
@@ -471,7 +459,7 @@ impl SettingsMenu<'_> {
 }
 
 /// What Settings' faces were last baked from, so a sync bakes again only what has changed: the
-/// frame and the titles when the canvas, the palette or how many rows CONFIGS holds changes, and
+/// frame and the titles when the canvas, the palette or how many rows GENERAL holds changes, and
 /// a row when what it shows (`RowShown`) changes, or the frame was baked again.
 #[derive(Default)]
 pub struct SettingsBaked {
@@ -494,7 +482,7 @@ impl SettingsBaked {
     /// What to bake again to show `shown` in palette `colour`, which is then taken as baked.
     pub fn rebake(&mut self, colour: u8, shown: &[RowShown]) -> Rebake {
         let rows: Vec<SettingsRow> = shown.iter().map(|s| s.row).collect();
-        let key = (colour, [out_w(), out_h()], configs_in(&rows));
+        let key = (colour, [out_w(), out_h()], top_in(&rows));
         let frame = self.frame != Some(key);
         if frame {
             self.frame = Some(key);

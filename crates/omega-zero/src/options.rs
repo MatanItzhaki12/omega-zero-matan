@@ -166,11 +166,14 @@ impl OptionsPage {
             ],
             OptionsPage::Shelf => &[
                 OptionRow::Recents,
+                OptionRow::ShelfSort,
                 OptionRow::Titles,
                 OptionRow::Clock,
                 OptionRow::LidOff,
                 OptionRow::BootAnimation,
                 OptionRow::Sound,
+                OptionRow::Theme,
+                OptionRow::Labels,
             ],
             OptionsPage::Sound => &[
                 OptionRow::MenuSounds,
@@ -252,8 +255,15 @@ pub enum OptionRow {
     Clock,
     LidOff,
     BootAnimation,
+    /// SHELF: the games by name or by how long each was played.
+    ShelfSort,
+    /// SAVES: the same, for the games under each system.
+    SavesSort,
     /// SHELF's way into the SOUND panel.
     Sound,
+    /// SHELF: the THEME and LABELS screens, which stood in Settings.
+    Theme,
+    Labels,
     MenuSounds,
     SoundsVolume,
     MenuMusic,
@@ -340,6 +350,8 @@ impl OptionRow {
             OptionRow::Account
                 | OptionRow::Emulators
                 | OptionRow::Sound
+                | OptionRow::Theme
+                | OptionRow::Labels
                 | OptionRow::OnlinePlay
                 | OptionRow::OnlineName
                 | OptionRow::BackupNas
@@ -399,11 +411,14 @@ impl OptionRow {
             OptionRow::Blending => "Frame Blending",
             OptionRow::Palette => "Game Boy Palette",
             OptionRow::Recents => "Recents",
+            OptionRow::ShelfSort | OptionRow::SavesSort => "Sort Games",
             OptionRow::Titles => "Game Titles",
             OptionRow::Clock => "Clock",
             OptionRow::LidOff => "Lid Power Off",
             OptionRow::BootAnimation => "Boot Animation",
             OptionRow::Sound => "Sound",
+            OptionRow::Theme => "Theme",
+            OptionRow::Labels => "Labels",
             OptionRow::MenuSounds => "Menu Sounds",
             OptionRow::SoundsVolume => "Sounds Volume",
             OptionRow::MenuMusic => "Menu Music",
@@ -471,11 +486,15 @@ impl OptionRow {
             OptionRow::Blending => "Smooths flicker; ghosting is mGBA's",
             OptionRow::Palette => "Original Game Boy games only",
             OptionRow::Recents => "A shelf of your last 10 games",
+            OptionRow::ShelfSort => "By name, or the most played first",
+            OptionRow::SavesSort => "Each system's games by name or play time",
             OptionRow::Titles => "The cart's name over the shelf",
             OptionRow::Clock => "12 or 24-hour time",
             OptionRow::LidOff => "A shut lid powers off after this",
             OptionRow::BootAnimation => "The terminal before the shelf",
             OptionRow::Sound => "Menu sounds and music",
+            OptionRow::Theme => "The background, its colour and the font",
+            OptionRow::Labels => "Cart labels: ScreenScraper and the holo",
             OptionRow::MenuSounds => "Clicks and chimes in the menus",
             OptionRow::SoundsVolume => "How loud the menu sounds are",
             OptionRow::MenuMusic => "A soft tune on the shelf",
@@ -604,6 +623,15 @@ pub struct OptionsView {
     pub below: bool,
 }
 
+/// How Sort Games says which order it is.
+fn sort_word(by_play: bool) -> &'static str {
+    if by_play {
+        "PLAY TIME"
+    } else {
+        "NAME"
+    }
+}
+
 /// A panel in `pal`, every value between carets while its row is lit, and the lit row's note.
 pub fn options_panel_face(view: &OptionsView, pal: &Palette) -> UndoFace {
     let held = rows_height(view.lines.len());
@@ -718,11 +746,13 @@ impl App {
             .to_string(),
             OptionRow::Palette => s.gb_colors.label().to_uppercase(),
             OptionRow::Recents => if s.show_recents { "SHOW" } else { "HIDE" }.to_string(),
+            OptionRow::ShelfSort => sort_word(s.shelf_by_play).to_string(),
+            OptionRow::SavesSort => sort_word(s.saves_by_play).to_string(),
             OptionRow::Titles => if s.show_titles { "SHOW" } else { "HIDE" }.to_string(),
             OptionRow::Clock => if s.clock_24h { "24-HOUR" } else { "12-HOUR" }.to_string(),
             OptionRow::LidOff => format!("{} MIN", s.lid_off_min),
             OptionRow::BootAnimation => on_off(s.boot_animation),
-            OptionRow::Sound => String::new(),
+            OptionRow::Sound | OptionRow::Theme | OptionRow::Labels => String::new(),
             OptionRow::MenuSounds => on_off(s.menu_sounds),
             OptionRow::SoundsVolume => format!("{} / {MENU_VOLUME_MAX}", s.menu_sounds_volume),
             OptionRow::MenuMusic => on_off(s.menu_music),
@@ -845,6 +875,14 @@ impl App {
                 s.show_recents = !s.show_recents;
                 self.refresh_recents();
             }
+            OptionRow::ShelfSort => {
+                s.shelf_by_play = !s.shelf_by_play;
+                self.sort_shelves();
+            }
+            OptionRow::SavesSort => {
+                s.saves_by_play = !s.saves_by_play;
+                self.sort_saved_games();
+            }
             OptionRow::Titles => s.show_titles = !s.show_titles,
             OptionRow::Clock => s.clock_24h = !s.clock_24h,
             OptionRow::BootAnimation => s.boot_animation = !s.boot_animation,
@@ -864,6 +902,8 @@ impl App {
             // the keyboard signs in, not the arrows, and A opens the panel
             OptionRow::Account
             | OptionRow::Sound
+            | OptionRow::Theme
+            | OptionRow::Labels
             | OptionRow::Emulators
             | OptionRow::OnlinePlay
             | OptionRow::OnlineName => return,
@@ -1039,6 +1079,14 @@ impl App {
             ),
             Action::GbaDown(Btn::A) if row == OptionRow::Sound => self.go(
                 Phase::Options(OptionsScreen::new(OptionsPage::Sound)),
+                Dir::Deeper,
+            ),
+            Action::GbaDown(Btn::A) if row == OptionRow::Theme => self.go(
+                Phase::Background(crate::background_screen::BackgroundScreen::default()),
+                Dir::Deeper,
+            ),
+            Action::GbaDown(Btn::A) if row == OptionRow::Labels => self.go(
+                Phase::Labels(crate::label_screen::LabelsScreen::default()),
                 Dir::Deeper,
             ),
             Action::GbaDown(Btn::A) if row == OptionRow::Emulators => {

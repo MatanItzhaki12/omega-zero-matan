@@ -867,9 +867,7 @@ fn a_new_colour_in_background_retints_the_top_bar() {
 
     a.apply(Action::QuickMenu);
     a.finish_slide();
-    while a.settings_row() != Some(SettingsRow::Background) {
-        press(&mut a, Btn::Down);
-    }
+    common::to_shelf_row(&mut a, omega_zero::options::OptionRow::Theme);
     press(&mut a, Btn::A);
     a.finish_slide();
     for _ in 0..3 {
@@ -885,10 +883,11 @@ fn a_new_colour_in_background_retints_the_top_bar() {
     assert_ne!(picked, night);
     assert_eq!(a.chrome_colours(), picked);
 
-    press(&mut a, Btn::B);
-    a.finish_slide();
-    press(&mut a, Btn::B);
-    a.finish_slide();
+    // THEME, SHELF, then Settings
+    for _ in 0..3 {
+        press(&mut a, Btn::B);
+        a.finish_slide();
+    }
     assert!(matches!(a.phase(), Phase::Shelf));
     assert_eq!(
         top_bar_fill(&a),
