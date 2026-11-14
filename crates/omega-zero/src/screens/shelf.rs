@@ -31,7 +31,10 @@ impl App {
                 self.shelf()
                     .draw_row(None, self.shelf_shake(), 0.0, 1.0, out);
                 self.draw_title(out);
-                shift(&mut out[carts..], off.carts_dx, off.carts_dy);
+                // the cart editor open: the row slides to the left, the cart picked with it,
+                // to stand clear of the panel
+                let edit = self.cart_editor_openness() * crate::cart_editor::row_shift();
+                shift(&mut out[carts..], off.carts_dx - edit.round(), off.carts_dy);
             }
         }
         let bar = out.len();

@@ -91,6 +91,7 @@ fn each_system_says_what_its_buttons_do() {
             game_l2_r2: false,
             rewind: true,
             colour: false,
+            shelf: false,
         }
     );
     assert_eq!(
@@ -99,6 +100,7 @@ fn each_system_says_what_its_buttons_do() {
             game_l2_r2: true,
             rewind: false,
             colour: false,
+            shelf: false,
         }
     );
 }

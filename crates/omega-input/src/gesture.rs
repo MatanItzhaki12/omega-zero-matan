@@ -46,6 +46,8 @@ pub enum Action {
     FilterPrev,
     /// SELECT+X: the game's screen kept as a picture.
     Screenshot,
+    /// SELECT+START on the shelf: the cart picked opened in the cart editor.
+    CartEditor,
     PowerPress,
     PowerTap,
     PowerHold,
@@ -69,6 +71,9 @@ pub struct Keys {
     pub rewind: bool,
     /// SELECT+Y toggles the colour correction. Off, a Y under SELECT is the game's.
     pub colour: bool,
+    /// SELECT+START opens the cart editor: on the shelf alone, so a game's own SELECT+START
+    /// (a soft reset, in many) is always the game's.
+    pub shelf: bool,
 }
 
 impl Keys {
@@ -77,6 +82,7 @@ impl Keys {
         game_l2_r2: false,
         rewind: true,
         colour: true,
+        shelf: false,
     };
 }
 
@@ -292,6 +298,11 @@ impl Gestures {
                 self.start_for_power = false;
                 Vec::new()
             }
+            // a START that made the cart editor's chord ends it, and goes nowhere
+            Btn::Start if self.chord_held & CART_EDITOR_CHORD != 0 => {
+                self.chord_held &= !CART_EDITOR_CHORD;
+                Vec::new()
+            }
             Btn::Start => {
                 self.start_held = false;
                 vec![Action::GbaUp(Btn::Start)]
@@ -331,6 +342,7 @@ impl Gestures {
             Btn::A => (512, Action::FilterNext),
             Btn::B => (1024, Action::FilterPrev),
             Btn::X => (2048, Action::Screenshot),
+            Btn::Start if self.keys.shelf => (CART_EDITOR_CHORD, Action::CartEditor),
             // L2 joining R2 locks fast forward; its release ends the chord it began
             Btn::L2
                 if self.keys.game_l2_r2
@@ -597,5 +609,7 @@ impl Gestures {
 }
 
 /// The chord bits of SELECT+L2 and SELECT+R2, held for as long as the shoulder is.
+/// The bit SELECT+START's chord holds while START is down.
+const CART_EDITOR_CHORD: u16 = 4096;
 const L2_CHORD: u16 = 128;
 const R2_CHORD: u16 = 256;

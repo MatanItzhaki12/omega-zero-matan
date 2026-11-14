@@ -11,7 +11,7 @@ use omega_ui::{UndoFace, SPRITE_PX};
 use crate::app::App;
 use crate::frontend::faces::upload_nearest;
 use crate::frontend::lone::Baked;
-use crate::options::{options_panel_face, OptionsView};
+use crate::options::{options_panel_face, options_panel_face_w, OptionsView};
 use crate::screens::lone::{fitted, over};
 
 /// Each panel's texture, by its title.
@@ -41,6 +41,24 @@ pub(crate) fn sync_options(app: &mut App, compositor: &mut Compositor, tex: &mut
         options_panel_face(view, pal)
     }) {
         app.set_options_panel(title, panel);
+    }
+}
+
+/// The cart editor's panel, baked while it is open, again when what it shows or the palette
+/// changes: in the options panels' look, its own texture.
+pub(crate) fn sync_cart_editor(
+    app: &mut App,
+    compositor: &mut Compositor,
+    tex: &mut Baked<(OptionsView, u8)>,
+) {
+    let Some(view) = app.cart_editor_view() else {
+        return;
+    };
+    let (colour, pal) = (app.palette_colour(), app.palette());
+    if let Some(panel) = tex.bake(compositor, (view, colour), |(view, _)| {
+        options_panel_face_w(view, pal, crate::cart_editor::PANEL_W)
+    }) {
+        app.set_cart_editor_panel(panel);
     }
 }
 

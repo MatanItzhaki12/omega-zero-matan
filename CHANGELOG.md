@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The cart editor**: SELECT+START on the shelf slides the row to the left and a panel in on the
+  right, for the cart picked: its Colour (its system's classic shells first, then plain colours),
+  Hue and Shade, its Finish (solid, clear, glitter), a Game Boy pak's or an SNES cart's Shape,
+  and a PlayStation disc's own colour. Every change shows on the cart as it is made, on the label
+  workers; Save keeps it in `Labels/cart_shell.ini` as Slot's Cart Studio would, Original puts
+  back the cart's own look, and B undoes. In a game SELECT+START stays the game's.
 - **The shelf follows the card live**: a game copied onto the card or taken off it, a label added
   or drawn over, and a cart's colours set in `Config/cart_shell.ini` or the labels' own configs
   all show on the shelf within a couple of seconds, over SSH or otherwise, with no restart. A

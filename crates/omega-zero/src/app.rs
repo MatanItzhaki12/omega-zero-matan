@@ -329,6 +329,10 @@ pub struct App {
     pub(crate) power_menu_panel: Option<Lone>,
     pub(crate) going_panel: Option<Lone>,
     pub(crate) core_picker: Option<CorePicker>,
+    /// The cart editor SELECT+START opened over the shelf, while it is open or closing.
+    pub(crate) cart_editor: Option<crate::cart_editor::CartEditor>,
+    /// Its panel, once baked.
+    pub(crate) cart_editor_panel: Option<Lone>,
     pub(crate) core_board_face: Option<TexId>,
     pub(crate) core_lid_face: Option<TexId>,
     pub(crate) core_faces_stem: Option<String>,
@@ -620,6 +624,8 @@ impl App {
             power_menu_panel: None,
             going_panel: None,
             core_picker: None,
+            cart_editor: None,
+            cart_editor_panel: None,
             core_board_face: None,
             core_lid_face: None,
             core_faces_stem: None,
@@ -1244,6 +1250,11 @@ impl App {
             game_l2_r2: self.platform.game_owns_l2_r2(),
             rewind: self.platform.rewinds() && self.state.rewind && !self.hardcore(),
             colour: self.platform.colour_correction(),
+            // SELECT+START opens the cart editor on the shelf alone, with nothing over it
+            shelf: matches!(self.phase, Phase::Shelf)
+                && self.core_picker.is_none()
+                && self.cart_editor.is_none()
+                && !self.unfavorite_asked,
         }
     }
 
@@ -1692,6 +1703,11 @@ impl App {
         let now = self.now();
         match self.phase {
             Phase::Shelf if self.unfavorite_asked => self.unfavorite_input(action),
+            // the cart editor over the shelf has every press while it is up
+            Phase::Shelf if self.cart_editor.is_some() => self.cart_editor_input(action),
+            Phase::Shelf if action == Action::CartEditor && self.core_picker.is_none() => {
+                self.open_cart_editor();
+            }
             Phase::Shelf => match action {
                 // the shelf's buttons are Slot's: START picks the core (X too, as it always
                 // did, but on RECENTS, where X takes the game off it), MENU opens Settings and
@@ -2200,13 +2216,14 @@ impl App {
         if self.core_picker.is_some_and(|p| p.finished(now)) {
             self.core_picker = None;
         }
+        self.tick_cart_editor(now);
         if !self.on_shelf() {
             self.shelf_mut().release_hold();
         }
         self.tick_shelf_sound();
         // the shelf keeps swaying while it slides away or back
         if self.shelf_shown() {
-            let picking = self.core_picker.is_some();
+            let picking = self.core_picker.is_some() || self.cart_editor.is_some();
             let shelf = self.shelf_mut();
             shelf.tick(now);
             shelf.hold_still(picking);
@@ -2570,6 +2587,9 @@ impl App {
         }
         if let Some(picker) = self.core_picker_shown() {
             self.draw_core_picker(&picker, out);
+        }
+        if matches!(self.phase, Phase::Shelf) {
+            self.draw_cart_editor(out);
         }
         if let Some(menu) = self.game_menu {
             self.draw_game_menu(menu, out);

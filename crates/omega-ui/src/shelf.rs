@@ -258,6 +258,20 @@ impl Shelf {
         self.set_model_shadow(CartModel::Gb(shell), face);
     }
 
+    /// Gives the cart `stem` the shell `shell` (none for its own), and the model that shell's
+    /// shape is drawn with: the cart editor's choice, shown as it is made. Its face is drawn
+    /// again apart from this, as it is for a label. False where the shelf has no such cart.
+    pub fn set_shell(&mut self, stem: &str, shell: Option<omega_store::ShellChoice>) -> bool {
+        let Some(i) = self.carts.iter().position(|c| c.stem == stem) else {
+            return false;
+        };
+        self.carts[i].shell = shell;
+        if let Some(model) = self.models.get_mut(i) {
+            *model = model_of(&self.carts[i]);
+        }
+        true
+    }
+
     pub fn set_faces(&mut self, faces: Vec<TexId>) {
         self.faces = faces;
     }

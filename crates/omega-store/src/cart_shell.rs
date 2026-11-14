@@ -82,6 +82,24 @@ impl ShellChoice {
     }
 }
 
+/// Keeps `choice` as the look of the game `stem`, in `Labels/cart_shell.ini`, the file whose
+/// choices win over the others: none writes `auto`, the cart's own look whatever the others
+/// say. The cart editor's Save.
+pub fn write_choice(
+    root: &std::path::Path,
+    stem: &str,
+    choice: Option<ShellChoice>,
+) -> std::io::Result<()> {
+    let path = root.join(LABELS_SHELL_FILE);
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let value = choice.map_or_else(|| "auto".to_string(), |c| c.to_value());
+    let text = crate::ini::set(&text, stem, Some(&value))?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    crate::atomic_write(&path, text.as_bytes())
+}
+
 pub fn key(stem: &str) -> String {
     stem.nfc().collect()
 }

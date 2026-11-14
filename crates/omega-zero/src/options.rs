@@ -294,6 +294,8 @@ pub enum OptionRow {
     SavesBackUpAll,
     SavesSystem(Platform),
     SavesCardSpace,
+    /// A row of the cart editor's panel.
+    CartEdit(crate::cart_editor::EditRow),
     /// A game in GAMES, by its place in the list: A opens GAME. And the row of a list with none.
     SavesGame(u16),
     SavesNoMatch,
@@ -373,6 +375,9 @@ impl OptionRow {
 
     /// Left and Right step the row's value, which stands between a ◀ and a ▶ while it is lit.
     pub fn carets(self) -> bool {
+        if let OptionRow::CartEdit(row) = self {
+            return crate::cart_editor::row_carets(row);
+        }
         !self.opens()
             && !matches!(
                 self,
@@ -440,6 +445,8 @@ impl OptionRow {
             OptionRow::SavesAutoBackup => "Auto Backup",
             OptionRow::SavesBackUpAll => "Back Up All Saves",
             OptionRow::SavesCardSpace => "Card Space",
+            // the editor names its rows for the cart's system: `CartEditor::view`
+            OptionRow::CartEdit(row) => row.label(omega_store::Platform::Gba),
             OptionRow::SavesNoMatch => "No Games Found",
             OptionRow::GameSaveMenu => "Save",
             OptionRow::GameStatesMenu => "Save States",
@@ -514,6 +521,7 @@ impl OptionRow {
             OptionRow::SavesAutoBackup => "How many automatic backups each game keeps",
             OptionRow::SavesBackUpAll => "Keeps a copy of every save on the handheld",
             OptionRow::SavesCardSpace => "The room left on the card",
+            OptionRow::CartEdit(_) => "",
             OptionRow::SavesSystem(_) => "Its games' saves and states",
             OptionRow::SavesGame(_) => "Its save and its states",
             OptionRow::SavesNoMatch => "No games here",
@@ -640,9 +648,15 @@ fn sort_word(by_play: bool) -> &'static str {
 
 /// A panel in `pal`, every value between carets while its row is lit, and the lit row's note.
 pub fn options_panel_face(view: &OptionsView, pal: &Palette) -> UndoFace {
+    options_panel_face_w(view, pal, PANEL_W)
+}
+
+/// As [`options_panel_face`], `w` art pixels wide: the cart editor's narrower panel, beside the
+/// cart rather than over it.
+pub fn options_panel_face_w(view: &OptionsView, pal: &Palette, w: u32) -> UndoFace {
     let held = rows_height(view.lines.len());
     let mut panel = panel_face(
-        PANEL_W,
+        w,
         panel_height(held + notes_height(1)),
         view.title,
         true,
@@ -679,7 +693,8 @@ pub fn options_panel_face(view: &OptionsView, pal: &Palette) -> UndoFace {
     // the note stops short of the arrows
     let note = match view.above || view.below {
         true => crate::screens::lone::fitted(&view.note, ww.saturating_sub(NOTE_X + 24)),
-        false => view.note.clone(),
+        // cut to the well, as a narrow panel's may need
+        false => crate::screens::lone::fitted(&view.note, ww.saturating_sub(NOTE_X)),
     };
     notes(&mut panel, &[note], held + NOTE_GAP, pal);
     panel.face
@@ -798,6 +813,7 @@ impl App {
             | OptionRow::SavesAutoBackup
             | OptionRow::SavesBackUpAll
             | OptionRow::SavesCardSpace
+            | OptionRow::CartEdit(_)
             | OptionRow::SavesSystem(_)
             | OptionRow::SavesGame(_)
             | OptionRow::SavesNoMatch
@@ -936,6 +952,7 @@ impl App {
             | OptionRow::SavesSearch
             | OptionRow::SavesBackUpAll
             | OptionRow::SavesCardSpace
+            | OptionRow::CartEdit(_)
             | OptionRow::SavesSystem(_)
             | OptionRow::SavesGame(_)
             | OptionRow::SavesNoMatch

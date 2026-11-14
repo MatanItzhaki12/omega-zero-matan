@@ -47,6 +47,12 @@ pub const FORGET: Hint<'static> = Hint {
 };
 
 /// Y on one of Network's own rows, WI-FI, NETWORK TIME or SSH: it opens the row's panel.
+/// The cart editor's: Left and Right change the row lit.
+pub const CHANGE: Hint<'static> = Hint {
+    key: "◀▶",
+    word: "CHANGE",
+};
+
 pub const INFO: Hint<'static> = Hint {
     key: "Y",
     word: "INFO",
@@ -227,6 +233,10 @@ impl App {
                 Some(Actions::Menu),
                 picker_swap(&picker, now),
             )?,
+            // the cart editor over the shelf: a menu's B RETURN and A CONFIRM
+            (None, _) if self.cart_editor.is_some() && matches!(self.phase, Phase::Shelf) => {
+                (Actions::Menu, 0)
+            }
             // the MENU panel over a game has a menu's B RETURN and A CONFIRM
             (None, _) if self.pause_menu_shown().is_some() => (Actions::Menu, 0),
             // the switcher asking whether to delete a save: B CANCEL and A DELETE
@@ -304,6 +314,7 @@ impl App {
     pub fn bar_hints(&self, phase: &Phase) -> Vec<Hint<'static>> {
         match phase {
             Phase::Shelf if self.picker_has_bar() => vec![SWAP],
+            Phase::Shelf if self.cart_editor.is_some() => vec![CHANGE],
             Phase::Network(screen) => self.network_hints(screen),
             Phase::Bluetooth(screen) => self.bluetooth_hints(screen),
             Phase::Options(screen)
@@ -387,9 +398,10 @@ impl App {
         }
         // the shelf's system in its pill between the actions, going with them: the shelf's
         // actions are shown only with the shelf at one end of a slide, or a cart going in or out
-        if let (Actions::Shelf, None, Some(tex)) = (
+        if let (Actions::Shelf, None, None, Some(tex)) = (
             place.actions,
             self.core_picker_shown(),
+            self.cart_editor.as_ref(),
             self.shelf_platform.face,
         ) {
             // sunk all the way, it is out of the screen

@@ -162,9 +162,19 @@ fn sheen(ax: u32, ay: u32) -> bool {
     off < 9.0 || (off < 18.0 && (ax + ay).is_multiple_of(2))
 }
 
-/// The colour of a disc with no label at the art pixel `ax, ay`, `accent` its band.
-fn plain(ax: u32, ay: u32, accent: [u8; 3]) -> [u8; 4] {
+/// The colour of a disc with no label at the art pixel `ax, ay`, `accent` its band, `base` its
+/// print where the cart editor gave it one: the print in it, and a little lighter where it
+/// catches the light, as the black print is.
+fn plain(ax: u32, ay: u32, accent: [u8; 3], base: Option<[u8; 3]>) -> [u8; 4] {
     let lit = sheen(ax, ay);
+    let print = |lit: bool| match base {
+        Some([r, g, b]) => {
+            let up = |c: u8| if lit { c.saturating_add(0x20) } else { c };
+            [up(r), up(g), up(b), 0xff]
+        }
+        None if lit => PRINT_LIT,
+        None => PRINT,
+    };
     match ring(from_middle(ax, ay)) {
         Ring::Off => [0; 4],
         Ring::Lip => LIP_CLEAR,
@@ -172,8 +182,7 @@ fn plain(ax: u32, ay: u32, accent: [u8; 3]) -> [u8; 4] {
         Ring::Stacking => STACKING_CLEAR,
         Ring::Mirror if lit => MIRROR_LIT,
         Ring::Mirror => MIRROR_DARK,
-        Ring::Print if lit => PRINT_LIT,
-        Ring::Print => PRINT,
+        Ring::Print => print(lit),
         Ring::Accent => [accent[0], accent[1], accent[2], 0xff],
         Ring::Edge => EDGE_CLEAR,
     }
@@ -187,13 +196,19 @@ const NUMBER_BOX: (u32, u32, u32, u32) = (84, 202, 120, 36);
 /// One disc's face, `DISC_PX` square: disc `disc` of `discs` of the game called `title`, with
 /// the label `art` printed on it, if it has one, laid at the disc's size. The art covers the
 /// disc from the mirror band out; the clear hub, its hole and the clear edge are the disc's own.
-fn disc_face(title: &str, disc: usize, discs: usize, art: Option<&[u8]>) -> Vec<u8> {
+fn disc_face(
+    title: &str,
+    disc: usize,
+    discs: usize,
+    art: Option<&[u8]>,
+    base: Option<[u8; 3]>,
+) -> Vec<u8> {
     let accent = label_colour(title);
     let mut rgba = Vec::with_capacity((DISC_PX * DISC_PX * 4) as usize);
     for y in 0..DISC_PX {
         for x in 0..DISC_PX {
             let (ax, ay) = (x / SPRITE_PX, y / SPRITE_PX);
-            let mut c = plain(ax, ay, accent);
+            let mut c = plain(ax, ay, accent, base);
             let printed = matches!(
                 ring(from_middle(ax, ay)),
                 Ring::Mirror | Ring::Print | Ring::Accent
@@ -307,7 +322,9 @@ pub(crate) fn face(cart: &Cart, scans: bool) -> Option<CartFace> {
         let art = label_of(cart, &paths, disc)
             .filter(|_| scans)
             .and_then(|p| label_art(&p, DISC_PX, DISC_PX));
-        let one = disc_face(&title, disc, discs, art.as_deref());
+        // the disc's colour, where the cart editor gave it one
+        let base = cart.shell.map(|s| s.colour);
+        let one = disc_face(&title, disc, discs, art.as_deref(), base);
         let row = (DISC_PX * 4) as usize;
         for (y, line) in one.chunks_exact(row).enumerate() {
             let at = (y * w as usize + disc * DISC_PX as usize) * 4;

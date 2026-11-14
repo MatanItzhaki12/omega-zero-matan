@@ -116,6 +116,8 @@ pub struct Frontend {
     spin_making: Option<(String, std::sync::mpsc::Receiver<Option<SpinFaces>>)>,
     pause: PauseTex,
     options: OptionsTex,
+    /// The cart editor's panel.
+    cart_editor: crate::frontend::lone::Baked<(crate::options::OptionsView, u8)>,
     title: TitleTex,
     core_asked: Option<String>,
     core_board_tex: Option<TexId>,
@@ -232,6 +234,7 @@ impl Frontend {
             spin_making: None,
             pause: PauseTex::default(),
             options: OptionsTex::default(),
+            cart_editor: Default::default(),
             title: TitleTex::default(),
             core_asked: None,
             core_board_tex: None,
@@ -453,6 +456,7 @@ impl Frontend {
         self.make_spin_disc(compositor);
         sync_pause(self.session.app_mut(), compositor, &mut self.pause);
         sync_options(self.session.app_mut(), compositor, &mut self.options);
+        sync_options::sync_cart_editor(self.session.app_mut(), compositor, &mut self.cart_editor);
         sync_title(self.session.app_mut(), compositor, &mut self.title);
         sync_switcher(
             self.session.app_mut(),

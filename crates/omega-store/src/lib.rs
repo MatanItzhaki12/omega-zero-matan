@@ -36,7 +36,8 @@ pub use atomic::{atomic_write, atomic_write_dated, atomic_write_paced};
 pub use backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};
 pub use blending::Blending;
 pub use cart_shell::{
-    Outline, ShellChoice, ShellFinish, CART_SHELL_FILE, LABELS_SHELL_FILE, SLOT_SHELL_FILE,
+    write_choice, Outline, ShellChoice, ShellFinish, CART_SHELL_FILE, LABELS_SHELL_FILE,
+    SLOT_SHELL_FILE,
 };
 pub use config::{move_config, CONFIG_DIR};
 pub use core::{

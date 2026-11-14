@@ -46,6 +46,33 @@ you are on.
 | **X on Recents** | Take the game off Recents, as on Slot; it stays on its own shelf |
 | **MENU** | Settings |
 | SELECT | CONTROLS |
+| **SELECT + START** | The cart editor: change the cart's look (below) |
+
+### The cart editor
+
+SELECT + START on the shelf opens the cart picked in the cart editor: the row slides to the
+left, the cart with it, and a panel slides in on the right. Every change shows on the cart as it
+is made. ▲ ▼ move between the rows, ◀ ▶ change the one lit, **A on Save** keeps the look and
+**B** puts the cart back as it was.
+
+| Cart | Panel | Rows |
+|---|---|---|
+| GBA | GBA CART | Colour, Hue, Shade, Finish |
+| Game Boy, Game Boy Color | GAME PAK | **Shape** (notched, or the Color's rounded pak), Colour, Hue, Shade, Finish |
+| SNES | SNES CART | **Shape** (American, or Super Famicom), Colour, Hue, Shade, Finish |
+| PSP | UMD | Case Colour, Hue, Shade, Finish |
+| PlayStation | DISC | **Disc Colour**, the disc's own print where its label leaves it bare, Hue, Shade |
+
+- **Colour** steps through the system's own classic shells first (the Pokémon GBA colours,
+  Game Boy grey and black, the Color's clear pak, the SNES and Super Famicom greys, the UMD's
+  smoke), each with its finish, then plain colours. **Hue** turns any colour round by 15°, and
+  **Shade** makes it lighter or darker; a colour so changed shows as CUSTOM.
+- **Finish**: solid, clear or glitter plastic. A clear or glitter cart has the holo sheen.
+- **Original**: the cart's own look again, whatever the label configs say.
+- **Save** writes the look to `Labels/cart_shell.ini`, the file whose choices win, in the format
+  Slot's Cart Studio writes (`Name = shape colour finish`, or `auto` for Original).
+- SELECT + START is the editor's on the shelf alone: in a game it stays the game's, as many games
+  soft-reset on it.
 
 ### In a game
 

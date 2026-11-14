@@ -20,6 +20,7 @@ mod bootlogo;
 mod build_info;
 mod cable;
 mod cable_session;
+mod cart_editor;
 mod clock;
 mod controls;
 mod core_options;

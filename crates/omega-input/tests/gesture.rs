@@ -589,6 +589,7 @@ const PS1: Keys = Keys {
     game_l2_r2: true,
     rewind: false,
     colour: false,
+    shelf: false,
 };
 
 /// The SNES's keys: L2 rewinds and R2 fast-forwards as on the handhelds, and a television's
@@ -597,6 +598,7 @@ const SNES: Keys = Keys {
     game_l2_r2: false,
     rewind: true,
     colour: false,
+    shelf: false,
 };
 
 fn with_keys(keys: Keys) -> Gestures {
@@ -830,4 +832,30 @@ fn start_after_the_hold_has_fired_is_too_late() {
         g.feed(Down(Btn::Start), POWER_HOLD_MS + 50),
         vec![PowerRestart]
     );
+}
+
+/// SELECT+START opens the cart editor on the shelf; in a game it is the game's, as many games
+/// soft-reset on it, and START reaches the game.
+#[test]
+fn select_and_start_open_the_cart_editor_on_the_shelf_alone() {
+    let mut shelf = with_keys(Keys {
+        shelf: true,
+        ..Keys::HANDHELD
+    });
+    assert!(shelf.feed(Down(Select), 0).is_empty());
+    assert_eq!(shelf.feed(Down(Btn::Start), 80), vec![CartEditor]);
+    assert!(shelf.feed(Up(Btn::Start), 140).is_empty());
+    assert!(
+        shelf.feed(Up(Select), 200).is_empty(),
+        "SELECT was a chord, no tap"
+    );
+
+    let mut game = with_keys(Keys::HANDHELD);
+    assert!(game.feed(Down(Select), 0).is_empty());
+    let pressed = game.feed(Down(Btn::Start), 80);
+    assert!(
+        pressed.contains(&GbaDown(Btn::Start)),
+        "the game lost START: {pressed:?}"
+    );
+    assert!(!pressed.contains(&CartEditor));
 }
