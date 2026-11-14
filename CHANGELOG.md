@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## omega-zero 2.7.3
 
 - A UMD's sheen leaves its hub bare: the white middle with "UMD" on it is moulded plastic, not
   the disc's foil print, so only the printed ring round it shines.
