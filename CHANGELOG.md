@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Backups can be named**: A on a backup in a game's SAVE panel brings up the keyboard, its name
+  already typed; the row then shows the name, and its note the date and time it was made. A
+  blank name goes back to the date. A named automatic backup is kept by hand from then on, so the
+  newest automatic ones never replace it. The name is kept in a `.name` file inside the backup's
+  folder, which keeps its date and time, and is no part of the save it puts back.
 - **Achievements checked on a core of their own**: a game whose memory is small enough to copy
   every frame (a GBA's 352 KB, a SNES's, a Game Boy's) has it copied as each frame ends, and a
   thread of its own checks every achievement against the copy, frame by frame in order, while

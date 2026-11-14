@@ -357,7 +357,7 @@ system. A game opens GAME, with two panels of its own:
 
 | Panel | Rows |
 |---|---|
-| **Save ›** | Current Save (its size, and when it was saved), **Back Up Now** (a copy kept on the handheld, under `Backups/<system>/<game>/<time>/`), and under the Backups heading each backup, named for the date and time it was made |
+| **Save ›** | Current Save (its size, and when it was saved), **Back Up Now** (a copy kept on the handheld, under `Backups/<system>/<game>/<time>/`), and under the Backups heading each backup, named for the date and time it was made or for the name A gave it (blank goes back to the date; a named automatic backup is kept by hand) |
 | **Save States ›** | The Resume Point written as the game stops, any Old Resume Point set aside, and each Saved State, with its size and the core it is for. X on the Save States row deletes them all |
 
 **Auto Backup** (on to start) backs a game's save up by itself as the game goes in, where it

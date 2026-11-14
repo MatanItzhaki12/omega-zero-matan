@@ -225,7 +225,55 @@ fn backups_stand_under_their_heading_named_for_when_they_were_made() {
         OptionRow::GameBackup(0),
         "the cursor stood on the heading"
     );
-    assert_eq!(note(&a), "Y restores it, X deletes it");
+    assert_eq!(note(&a), "A renames it, Y restores it, X deletes it");
+}
+
+#[test]
+fn a_on_a_backup_names_it_on_the_keyboard_and_a_blank_name_goes_back_to_its_date() {
+    let d = card();
+    let mut a = boot(d.path());
+    open_emerald(&mut a);
+    press(&mut a, Btn::A);
+    down_to(&mut a, OptionRow::GameBackUp);
+    press(&mut a, Btn::A);
+    down_to(&mut a, OptionRow::GameBackup(0));
+    let dated = rows(&a)[3].1.clone();
+
+    press(&mut a, Btn::A);
+    let prompt = a.typing().map(|t| t.prompt);
+    assert_eq!(
+        prompt.as_deref(),
+        Some("A name for this backup, blank for its date")
+    );
+    press(&mut a, Btn::A);
+    press(&mut a, Btn::A);
+    let typed = a.typing().unwrap().keys.text.clone();
+    press(&mut a, Btn::Start);
+    assert!(a.typing().is_none(), "the keyboard stayed up");
+    let stamp = save_manager::backups(d.path(), &emerald())[0].clone();
+    assert_eq!(
+        save_manager::backup_name(d.path(), &emerald(), &stamp).as_deref(),
+        Some(typed.as_str())
+    );
+    assert_eq!(rows(&a)[3].1, typed, "the row did not take the name");
+    assert!(
+        note(&a).ends_with(": A renames, Y restores, X deletes"),
+        "{}",
+        note(&a)
+    );
+
+    // the keyboard opens on the name; rubbed out and given, the backup is dated again
+    press(&mut a, Btn::A);
+    assert_eq!(a.typing().unwrap().keys.text, typed);
+    for _ in 0..typed.chars().count() {
+        press(&mut a, Btn::B);
+    }
+    press(&mut a, Btn::Start);
+    assert_eq!(
+        save_manager::backup_name(d.path(), &emerald(), &stamp),
+        None
+    );
+    assert_eq!(rows(&a)[3].1, dated);
 }
 
 #[test]

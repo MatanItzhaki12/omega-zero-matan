@@ -24,6 +24,56 @@ pub const BACKUPS: &str = "Backups";
 /// The file in a backup's folder that says it was made by itself, as its game went in.
 const AUTO_MARK: &str = ".auto";
 
+/// The name given to a backup, kept in a file of its own inside it: the folder keeps its stamp,
+/// which orders the backups and names them where none was given.
+const NAME_FILE: &str = ".name";
+
+/// Whether `rel`, a file inside a backup, is a mark the backup keeps of itself rather than part
+/// of the save.
+fn is_mark(rel: &str) -> bool {
+    rel == AUTO_MARK || rel == NAME_FILE
+}
+
+/// The longest name a backup is given, in characters.
+pub const NAME_MOST: usize = 40;
+
+/// The name `game`'s backup stamped `stamp` was given; none where it has only its stamp.
+pub fn backup_name(root: &Path, game: &Game, stamp: &str) -> Option<String> {
+    omega_store::parse_stamp(stamp)?;
+    let text = std::fs::read_to_string(backups_dir(root, game).join(stamp).join(NAME_FILE)).ok()?;
+    let name = text.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
+/// Names `game`'s backup stamped `stamp` `name`, cut to [`NAME_MOST`] characters; a blank name
+/// takes the name away, and the backup goes by its stamp again. A backup given a name is kept by
+/// hand from then on: an automatic one is no longer among those the newest replace.
+pub fn rename_backup(root: &Path, game: &Game, stamp: &str, name: &str) -> std::io::Result<()> {
+    let dir = backups_dir(root, game).join(stamp);
+    if omega_store::parse_stamp(stamp).is_none() || !dir.is_dir() {
+        return Err(missing(stamp));
+    }
+    let name: String = name
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(NAME_MOST)
+        .collect();
+    let name = name.trim();
+    let file = dir.join(NAME_FILE);
+    if name.is_empty() {
+        match std::fs::remove_file(&file) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+            _ => return Ok(()),
+        }
+    }
+    // written at once, not through the card's writer, so the panel shows the name as it closes
+    std::fs::write(&file, format!("{name}\n"))?;
+    match std::fs::remove_file(dir.join(AUTO_MARK)) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+        _ => Ok(()),
+    }
+}
+
 /// Where PPSSPP keeps a PSP game's saves in Saves, a folder each.
 const PSP_SAVES: &str = "PSP/SAVEDATA";
 
@@ -400,7 +450,7 @@ fn holds(root: &Path, game: &Game, stamp: &str, files: &[String]) -> bool {
     let kept = backups_dir(root, game).join(stamp);
     let mut in_backup = Vec::new();
     files_under(&kept, "", &mut in_backup);
-    in_backup.retain(|f| f != AUTO_MARK);
+    in_backup.retain(|f| !is_mark(f));
     in_backup.len() == files.len()
         && files.iter().all(|rel| {
             matches!(
@@ -452,8 +502,8 @@ pub fn restore(root: &Path, game: &Game, stamp: &str, now: &str) -> std::io::Res
     }
     let mut files = Vec::new();
     files_under(&from, "", &mut files);
-    // the mark of an automatic backup is no part of the save
-    files.retain(|f| f != AUTO_MARK);
+    // the marks a backup keeps of itself are no part of the save
+    files.retain(|f| !is_mark(f));
     back_up(root, game, now)?;
     remove_save(root, game)?;
     let saves = crate::root::saves_dir(root);

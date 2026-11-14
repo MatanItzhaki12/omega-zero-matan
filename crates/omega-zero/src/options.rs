@@ -552,6 +552,8 @@ pub enum Step {
     OnlineName,
     /// Saves: what to look for in the games' names.
     SearchGames,
+    /// Saves: a backup's name, blank to go by its date and time again.
+    RenameBackup,
     /// Save Backup: the NAS's user and password, a NAS's address, and a new folder's name.
     BackupUser,
     BackupPassword,
@@ -562,7 +564,10 @@ pub enum Step {
 impl Step {
     /// Typing nothing is an answer: no user is a guest, no password is none.
     fn may_be_empty(self) -> bool {
-        matches!(self, Step::BackupUser | Step::BackupPassword)
+        matches!(
+            self,
+            Step::BackupUser | Step::BackupPassword | Step::RenameBackup
+        )
     }
 }
 
@@ -585,6 +590,7 @@ impl SignIn {
             Step::NasAddress => "The NAS's name or address".to_string(),
             Step::NewFolder => "The new folder's name".to_string(),
             Step::SearchGames => "Part of a game's name".to_string(),
+            Step::RenameBackup => "A name for this backup, blank for its date".to_string(),
             Step::Password => format!("RetroAchievements password for {}", self.user),
         }
     }
@@ -1259,6 +1265,11 @@ impl App {
                 screen.typing = None;
                 self.slide_from(before, Dir::Back);
                 self.search_typed(&typed);
+            }
+            Step::RenameBackup => {
+                screen.typing = None;
+                self.slide_from(before, Dir::Back);
+                self.rename_typed(&typed);
             }
             // from the user name to the password the keyboard stays where it is
             Step::User => {

@@ -288,3 +288,41 @@ fn the_room_on_the_card_is_read_from_df() {
     );
     assert_eq!(save_manager::df_space("nothing"), None);
 }
+
+#[test]
+fn a_backup_is_named_kept_by_hand_and_its_name_is_no_part_of_the_save() {
+    let d = tempfile::tempdir().unwrap();
+    let game = gba("Emerald");
+    write(d.path(), "Saves/GBA/Emerald.sav", b"before the elite four");
+    assert!(save_manager::auto_back_up(d.path(), &game, NOW, 5).unwrap());
+    assert!(save_manager::is_auto(d.path(), &game, NOW));
+    assert_eq!(save_manager::backup_name(d.path(), &game, NOW), None);
+
+    save_manager::rename_backup(d.path(), &game, NOW, "  Before E4\n").unwrap();
+    assert_eq!(
+        save_manager::backup_name(d.path(), &game, NOW).as_deref(),
+        Some("Before E4")
+    );
+    // named, it is kept by hand: the newest automatic backups never replace it
+    assert!(!save_manager::is_auto(d.path(), &game, NOW));
+
+    // put back, the save is the save alone, the name left behind
+    write(d.path(), "Saves/GBA/Emerald.sav", b"lost to lance");
+    save_manager::restore(d.path(), &game, NOW, LATER).unwrap();
+    assert_eq!(
+        fs::read(d.path().join("Saves/GBA/Emerald.sav")).unwrap(),
+        b"before the elite four"
+    );
+    assert!(!d.path().join("Saves/GBA/.name").exists());
+
+    // a long name is cut, and a blank one goes back to the date
+    let long = "x".repeat(save_manager::NAME_MOST + 10);
+    save_manager::rename_backup(d.path(), &game, NOW, &long).unwrap();
+    assert_eq!(
+        save_manager::backup_name(d.path(), &game, NOW).map(|n| n.chars().count()),
+        Some(save_manager::NAME_MOST)
+    );
+    save_manager::rename_backup(d.path(), &game, NOW, "   ").unwrap();
+    assert_eq!(save_manager::backup_name(d.path(), &game, NOW), None);
+    assert!(save_manager::rename_backup(d.path(), &game, "not-a-stamp", "x").is_err());
+}

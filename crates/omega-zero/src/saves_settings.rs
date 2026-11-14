@@ -139,6 +139,8 @@ pub struct SavesUi {
     /// The game GAME is open on, by its place in `games`, and what it has.
     pub open: Option<usize>,
     pub look: GameSaves,
+    /// The backup the keyboard is naming, by its place in `look.backups`.
+    pub renaming: Option<u16>,
     /// The question up over the rows, and its panel.
     pub asking: Option<Answer>,
     pub panel: Option<Lone>,
@@ -249,6 +251,44 @@ impl App {
         );
     }
 
+    /// A on a backup: the keyboard slides in, its name typed, to name it.
+    fn rename_backup(&mut self, i: u16) {
+        let Some(stamp) = self.saves_ui.look.backups.get(i as usize) else {
+            return self.refuse();
+        };
+        let name = self
+            .open_game()
+            .zip(self.root.as_deref())
+            .and_then(|(game, root)| save_manager::backup_name(root, game, stamp))
+            .unwrap_or_default();
+        self.saves_ui.renaming = Some(i);
+        self.open_typing(Step::RenameBackup, name);
+    }
+
+    /// What the keyboard typed for a backup's name: the backup renamed, or going by its date
+    /// again where the name is blank.
+    pub fn rename_typed(&mut self, typed: &str) {
+        let Some(i) = self.saves_ui.renaming.take() else {
+            return;
+        };
+        let (Some(root), Some(game)) = (self.root.clone(), self.open_game().cloned()) else {
+            return self.refuse();
+        };
+        let Some(stamp) = self.saves_ui.look.backups.get(i as usize).cloned() else {
+            return self.refuse();
+        };
+        match save_manager::rename_backup(&root, &game, &stamp, typed) {
+            Ok(()) => {
+                crate::log!("saves: backup {stamp} of {} named {typed:?}", game.stem);
+                self.saves_ui.look = save_manager::look(&root, &game);
+            }
+            Err(e) => {
+                crate::log!("saves: rename {stamp}: {e}");
+                self.saves_toast("Could not rename it");
+            }
+        }
+    }
+
     /// What the keyboard typed for Search Games: GAMES on what holds it.
     pub fn search_typed(&mut self, typed: &str) {
         let text = typed.trim();
@@ -356,10 +396,14 @@ impl App {
                 let stamp = ui.look.backups.get(i as usize)?;
                 let made = made_at(stamp, self.state.clock_24h);
                 match self.open_game().zip(self.root.as_deref()) {
-                    Some((game, root)) if save_manager::is_auto(root, game, stamp) => {
-                        format!("{made} (Auto)")
-                    }
-                    _ => made,
+                    Some((game, root)) => match save_manager::backup_name(root, game, stamp) {
+                        Some(name) => name,
+                        None if save_manager::is_auto(root, game, stamp) => {
+                            format!("{made} (Auto)")
+                        }
+                        None => made,
+                    },
+                    None => made,
                 }
             }
             OptionRow::GameState(i) => match &ui.look.states.get(i as usize)?.kind {
@@ -473,7 +517,21 @@ impl App {
                 }
                 None => "X deletes it".to_string(),
             },
-            OptionRow::GameBackup(_) => "Y restores it, X deletes it".to_string(),
+            OptionRow::GameBackup(i) => {
+                let stamp = look.backups.get(i as usize)?;
+                let named = self
+                    .open_game()
+                    .zip(self.root.as_deref())
+                    .and_then(|(game, root)| save_manager::backup_name(root, game, stamp));
+                match named {
+                    // the name stands for the date on the row: the note keeps it
+                    Some(_) => format!(
+                        "{}: A renames, Y restores, X deletes",
+                        made_at(stamp, self.state.clock_24h)
+                    ),
+                    None => "A renames it, Y restores it, X deletes it".to_string(),
+                }
+            }
             OptionRow::GameState(i) => match look.states.get(i as usize) {
                 Some(s) if s.kind == StateKind::Resume => {
                     format!("Where it stopped, on {}: X deletes it", s.core.name())
@@ -524,6 +582,7 @@ impl App {
             OptionRow::GameSaveMenu => self.open_page(OptionsPage::SaveMenu),
             OptionRow::GameStatesMenu => self.open_page(OptionsPage::StatesMenu),
             OptionRow::GameBackUp => self.back_up_open_game(),
+            OptionRow::GameBackup(i) => self.rename_backup(i),
             _ => self.refuse(),
         }
     }
