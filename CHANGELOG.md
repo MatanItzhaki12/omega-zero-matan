@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A UMD's sheen leaves its hub bare: the white middle with "UMD" on it is moulded plastic, not
+  the disc's foil print, so only the printed ring round it shines.
 - **No more "The internal battery has run dry"** in Pokémon Ruby, Sapphire and Emerald, and the
   other games with a clock, on gpSP. gpSP took the bits a game writes to the cartridge's clock in
   the wrong order, so Emerald's "24-hour clock" status (0x40) was kept as 0x02, and every state

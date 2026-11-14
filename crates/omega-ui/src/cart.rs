@@ -922,6 +922,11 @@ pub fn holo_frames(model: CartModel) -> Vec<CartFace> {
                         continue;
                     }
                     let (u, v) = ((x - lx) as f32 / lw as f32, (y - ly) as f32 / lh as f32);
+                    // a UMD's hub, "UMD" printed on it, is moulded plastic over the disc, not its
+                    // foil print: it has none
+                    if model == CartModel::Umd && (u - 0.5).hypot(v - 0.5) * 2.0 < umd::HUB_SHARE {
+                        continue;
+                    }
                     let along = u * 0.75 + v * 0.45;
                     // the light's band, from past the top left to past the bottom right
                     let light = -0.15 + 1.35 * t;

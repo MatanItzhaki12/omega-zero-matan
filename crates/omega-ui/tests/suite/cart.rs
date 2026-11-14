@@ -1488,6 +1488,22 @@ fn the_holo_sheen_is_over_the_label_and_its_light_moves() {
     );
 }
 
+/// A UMD's sheen is on its disc's printed ring alone: the hub in its middle, "UMD" printed on
+/// it, is moulded plastic and has none.
+#[test]
+fn a_umds_sheen_leaves_its_hub_bare() {
+    use omega_ui::{holo_frames, CartModel};
+    let frames = holo_frames(CartModel::Umd);
+    let alpha = |f: &omega_ui::CartFace, x: u32, y: u32| f.rgba[((y * f.w + x) * 4 + 3) as usize];
+    // the window's middle, the top's half circle's, at the sheen's half resolution: 276 / 2 / 2
+    let (cx, cy) = (69, 69);
+    for f in &frames {
+        assert_eq!(alpha(f, cx, cy), 0, "the hub's middle shines");
+        assert_eq!(alpha(f, cx + 20, cy), 0, "the hub's edge shines");
+        assert!(alpha(f, cx, cy - 45) > 0, "the printed ring is bare");
+    }
+}
+
 #[test]
 fn a_spinning_disc_s_blur_is_the_same_all_the_way_round_and_keeps_its_edge() {
     // a disc with a label on one side only: the blur spreads it round each ring

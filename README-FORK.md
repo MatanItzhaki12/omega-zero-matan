@@ -298,7 +298,7 @@ playing when the handheld went off is picked up again, as before.
 - **The holo sheen.** The cart picked, when its shell is clear or glitter plastic, has a sheen
   over its label as on a holographic Pokémon card: a faint rainbow, and a band of light that
   slides across it on the diagonal as the cart sways. A PSP game's UMD always has it, its rings
-  running round the disc, as its label is under the clear window whatever the shell. A cart in
+  running round the disc's printed ring (its hub, "UMD" on it, has none), as its label is under the clear window whatever the shell. A cart in
   solid plastic has none, and Settings › Shelf › Labels › Holo Sheen turns it off for all.
 - **Panels slide whole.** Going from GAMEPLAY to ACHIEVEMENTS and back, the panel leaving
   keeps its own size instead of being drawn with the one arriving.
