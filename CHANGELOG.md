@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Backups to the NAS**: Save Backup copies the backups Saves keeps beside the saves, under
+  `Backups/<system>/<game>/<date and time>/` in the folder picked, a folder for every game, each
+  backup's name with it. Only what changed goes, in the same passes as the saves and after them;
+  a backup the handheld deletes stays on the NAS; and Sync From Backup never offers one as a save.
 - **Backups can be named**: A on a backup in a game's SAVE panel brings up the keyboard, its name
   already typed; the row then shows the name, and its note the date and time it was made. A
   blank name goes back to the date. A named automatic backup is kept by hand from then on, so the

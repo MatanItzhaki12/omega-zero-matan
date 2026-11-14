@@ -398,6 +398,10 @@ How it works:
   files and whatever a core keeps there, a PlayStation's memory cards included. A system or an
   emulator added later is backed up with no change. On the NAS it goes under the folder picked,
   as on the card: `<folder>/GBA/Pokemon - Emerald Version (USA, Europe).sav`.
+- **The backups go too**, beside the saves: `Backups/<system>/<game>/<date and time>/` in the
+  folder, a folder for every game as on the card, each backup's name with it. Once on the NAS a
+  backup stays there, whatever the handheld deletes after, so the NAS holds every backup ever
+  made. Sync From Backup offers saves alone, never these.
 - **When**: after every save the game makes (the autosave, a save state, ejecting, powering off),
   when Wi-Fi comes back, and every few minutes besides, for a save a core wrote by itself.
 - **Only what changed** is copied: `Config/save_backup.list` keeps the size and CRC of each
