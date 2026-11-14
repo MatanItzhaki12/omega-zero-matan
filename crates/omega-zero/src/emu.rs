@@ -41,6 +41,10 @@ const AHEAD_TRIAL: u32 = 8;
 
 const COST_BLEND: u32 = 4;
 
+/// The fewest frames a fast-forward present must hold to keep a new picture every refresh:
+/// below it, a present plans across two (`FrameCost::span`).
+const SMOOTH_FRAMES: u32 = 3;
+
 const SNAPSHOT_EVERY: u32 = 2;
 
 const STALL: Duration = Duration::from_millis(25);
@@ -841,6 +845,9 @@ impl Worker {
         let mut cable_core = Duration::ZERO;
         let mut cable_wait = Duration::ZERO;
         let mut ff = (0u32, 0u32, Duration::ZERO, Instant::now());
+        // each hold of fast-forward: its presents, the frames they ran, those across two
+        // refreshes, and when it began, said once it is let go
+        let mut held_ff = (0u32, 0u32, 0u32, Instant::now());
         while !self.shared.stop.load(Ordering::Relaxed) {
             for cmd in self.cmds.try_iter() {
                 self.apply(cmd, core.as_mut(), &mut transport, &mut cable, &link);
@@ -1100,6 +1107,20 @@ impl Worker {
                     }
                 }
                 fast_span = Some((began, core_time));
+                if speed == Speed::Fast {
+                    if held_ff.0 == 0 {
+                        held_ff.3 = began;
+                    }
+                    held_ff = (
+                        held_ff.0 + 1,
+                        held_ff.1 + ran,
+                        held_ff.2 + u32::from(span > 1),
+                        held_ff.3,
+                    );
+                } else if held_ff.0 > 0 {
+                    log_fast_forward(held_ff);
+                    held_ff = (0, 0, 0, Instant::now());
+                }
                 if speed != Speed::Fast {
                     ff = (0, 0, Duration::ZERO, Instant::now());
                 } else if crate::session::trace() {
@@ -1446,6 +1467,21 @@ impl Worker {
     }
 }
 
+/// One line for a hold of fast-forward: how fast it played, and how often a present had to plan
+/// across two refreshes, which shows as a picture every other refresh.
+fn log_fast_forward((presents, frames, doubled, began): (u32, u32, u32, Instant)) {
+    let secs = began.elapsed().as_secs_f32();
+    if presents < 30 || secs <= 0.0 {
+        return;
+    }
+    crate::log!(
+        "ff: {:.1} s at {:.0} game frames a second, {:.1} frames a present, {doubled} of {presents} presents across two refreshes",
+        secs,
+        frames as f32 / secs,
+        frames as f32 / presents as f32,
+    );
+}
+
 fn flush_outbound(transport: &mut Option<Box<dyn LinkChannel>>, link: &Link) {
     let Some(t) = transport.as_deref_mut() else {
         return;
@@ -1491,11 +1527,15 @@ impl FrameCost {
         }
     }
 
+    /// How many refreshes a fast-forward present plans across: two for a core so slow that one
+    /// refresh holds fewer than [`SMOOTH_FRAMES`] of its frames (mGBA's two), which plays faster
+    /// over two; one for the rest, which fast-forwards a little short of its ceiling where the
+    /// game grows heavy (gpSP in Pokémon's forests) rather than showing every other picture.
     fn span(&self, budget: Duration, ceiling: u32) -> u32 {
         if self.seeded {
             return 1;
         }
-        if self.frames(budget, ceiling) < ceiling {
+        if self.frames(budget, ceiling) < ceiling.min(SMOOTH_FRAMES) {
             2
         } else {
             1
@@ -1588,6 +1628,20 @@ mod tests {
         };
         assert_eq!(cost.span(ms(11.9), 6), 2);
         assert!(frames_in(&cost, ms(11.9) + PRESENT, 12) >= 5);
+    }
+
+    #[test]
+    fn a_core_that_fits_most_of_its_ceiling_keeps_a_picture_every_refresh() {
+        // gpSP where a game grows heavy: five of six frames in a refresh
+        let cost = FrameCost {
+            skip: ms(2.0),
+            draw: ms(3.0),
+            seeded: false,
+        };
+        assert_eq!(frames_in(&cost, ms(11.9), 6), 5);
+        assert_eq!(cost.span(ms(11.9), 6), 1);
+        // and at 2X, a core that fits both frames
+        assert_eq!(cost.span(ms(11.9), 2), 1);
     }
 
     #[test]

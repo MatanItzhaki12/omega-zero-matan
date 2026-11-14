@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fast-forward keeps a new picture every refresh on a core that fits at least three of its
+  frames in one (gpSP), playing a little short of its speed where a game grows heavy, as in
+  Pokémon's Viridian Forest, rather than showing every other picture; only a core slower than
+  that (mGBA in a heavy scene) still plans a present across two refreshes. Each hold of
+  fast-forward logs how fast it played, and how often it took two refreshes.
 - **Settings, GENERAL first**: Date & Time, Network, Bluetooth, Update and About stand on top,
   and CONFIGS under them: Display, Gameplay, Shelf, RetroAchievements and Saves. Settings opens
   on Date & Time.
