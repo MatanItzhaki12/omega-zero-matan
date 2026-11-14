@@ -847,7 +847,9 @@ impl Worker {
         let mut ff = (0u32, 0u32, Duration::ZERO, Instant::now());
         // each hold of fast-forward: its presents, the frames they ran, those across two
         // refreshes, and when it began, said once it is let go
-        let mut held_ff = (0u32, 0u32, 0u32, Instant::now());
+        let mut held_ff = FastHold::new();
+        // the time RetroAchievements took over this present's frames
+        let mut cheevos_took;
         while !self.shared.stop.load(Ordering::Relaxed) {
             for cmd in self.cmds.try_iter() {
                 self.apply(cmd, core.as_mut(), &mut transport, &mut cable, &link);
@@ -967,6 +969,7 @@ impl Worker {
                 }
                 let began = Instant::now();
                 let mut ran = 0u32;
+                cheevos_took = Duration::ZERO;
                 let (mut skipped, mut drawn) = (None::<Duration>, Duration::ZERO);
                 loop {
                     ran += 1;
@@ -1054,7 +1057,9 @@ impl Worker {
                         None => core.run_frame(input),
                     }
                     if cheevos {
+                        let began = Instant::now();
                         omega_cheevos::frame();
+                        cheevos_took += began.elapsed();
                     }
                     let took = frame_began.elapsed();
                     crate::latency::ran(took);
@@ -1108,18 +1113,10 @@ impl Worker {
                 }
                 fast_span = Some((began, core_time));
                 if speed == Speed::Fast {
-                    if held_ff.0 == 0 {
-                        held_ff.3 = began;
-                    }
-                    held_ff = (
-                        held_ff.0 + 1,
-                        held_ff.1 + ran,
-                        held_ff.2 + u32::from(span > 1),
-                        held_ff.3,
-                    );
-                } else if held_ff.0 > 0 {
-                    log_fast_forward(held_ff);
-                    held_ff = (0, 0, 0, Instant::now());
+                    held_ff.add(began, ran, span > 1, core_time, cheevos_took);
+                } else if held_ff.presents > 0 {
+                    held_ff.log();
+                    held_ff = FastHold::new();
                 }
                 if speed != Speed::Fast {
                     ff = (0, 0, Duration::ZERO, Instant::now());
@@ -1467,19 +1464,65 @@ impl Worker {
     }
 }
 
-/// One line for a hold of fast-forward: how fast it played, and how often a present had to plan
-/// across two refreshes, which shows as a picture every other refresh.
-fn log_fast_forward((presents, frames, doubled, began): (u32, u32, u32, Instant)) {
-    let secs = began.elapsed().as_secs_f32();
-    if presents < 30 || secs <= 0.0 {
-        return;
+/// A hold of fast-forward, said in one line once it is let go: how fast it played, how often a
+/// present had to plan across two refreshes (a picture every other refresh), and what a frame
+/// cost: the core's and RetroAchievements' share of it.
+struct FastHold {
+    presents: u32,
+    frames: u32,
+    doubled: u32,
+    core: Duration,
+    cheevos: Duration,
+    began: Instant,
+}
+
+impl FastHold {
+    fn new() -> Self {
+        FastHold {
+            presents: 0,
+            frames: 0,
+            doubled: 0,
+            core: Duration::ZERO,
+            cheevos: Duration::ZERO,
+            began: Instant::now(),
+        }
     }
-    crate::log!(
-        "ff: {:.1} s at {:.0} game frames a second, {:.1} frames a present, {doubled} of {presents} presents across two refreshes",
-        secs,
-        frames as f32 / secs,
-        frames as f32 / presents as f32,
-    );
+
+    fn add(
+        &mut self,
+        began: Instant,
+        frames: u32,
+        doubled: bool,
+        core: Duration,
+        cheevos: Duration,
+    ) {
+        if self.presents == 0 {
+            self.began = began;
+        }
+        self.presents += 1;
+        self.frames += frames;
+        self.doubled += u32::from(doubled);
+        self.core += core;
+        self.cheevos += cheevos;
+    }
+
+    fn log(&self) {
+        let secs = self.began.elapsed().as_secs_f32();
+        if self.presents < 30 || secs <= 0.0 || self.frames == 0 {
+            return;
+        }
+        let per_frame = |d: Duration| d.as_secs_f32() * 1000.0 / self.frames as f32;
+        crate::log!(
+            "ff: {:.1} s at {:.0} game frames a second, {:.1} frames a present, {} of {} presents across two refreshes; a frame {:.2} ms, {:.2} ms of it achievements",
+            secs,
+            self.frames as f32 / secs,
+            self.frames as f32 / self.presents as f32,
+            self.doubled,
+            self.presents,
+            per_frame(self.core),
+            per_frame(self.cheevos),
+        );
+    }
 }
 
 fn flush_outbound(transport: &mut Option<Box<dyn LinkChannel>>, link: &Link) {
