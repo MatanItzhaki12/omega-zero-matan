@@ -158,6 +158,13 @@ const COPIES: usize = 4;
 /// short enough that a client held up (taking in a game's achievements) never stalls the game.
 const COPY_WAIT: std::time::Duration = std::time::Duration::from_millis(3);
 
+/// The checking thread is inside a check, rather than waiting for the client.
+static CHECKING: AtomicBool = AtomicBool::new(false);
+
+/// The longest the game waits on a check under way before it goes on without it: a check that
+/// takes this long has gone wrong.
+const STUCK: std::time::Duration = std::time::Duration::from_millis(500);
+
 /// What the checking thread is handed, in the order the core ran it.
 enum Job {
     /// A frame's memory, to be checked and its copy handed back.
@@ -190,7 +197,11 @@ impl Checker {
                     match job {
                         Job::Frame(copy) => {
                             // SAFETY: under the lock; the copy is read only through the call
-                            with_client(|| unsafe { oc_frame_on(copy.as_ptr(), copy.len()) });
+                            with_client(|| {
+                                CHECKING.store(true, Ordering::Release);
+                                unsafe { oc_frame_on(copy.as_ptr(), copy.len()) };
+                                CHECKING.store(false, Ordering::Release);
+                            });
                             let _ = give.send(copy);
                             done();
                         }
@@ -214,7 +225,22 @@ impl Checker {
     /// Copies this frame's memory for the check, waiting a moment for a copy to come free; false
     /// where none did, and the frame goes unchecked.
     fn frame(&mut self) -> bool {
-        let Ok(mut copy) = self.free.recv_timeout(COPY_WAIT) else {
+        // a check under way only slower than the game holds the game back until it is done, so
+        // no frame goes unchecked for fast-forward; a check that cannot get at the client (its
+        // achievements still coming in) lets the frame go, so the game never stands still
+        let began = std::time::Instant::now();
+        let copy = loop {
+            match self.free.recv_timeout(COPY_WAIT) {
+                Ok(copy) => break Some(copy),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+                    if CHECKING.load(Ordering::Acquire) && began.elapsed() < STUCK =>
+                {
+                    continue
+                }
+                Err(_) => break None,
+            }
+        };
+        let Some(mut copy) = copy else {
             self.skipped += 1;
             if self.skipped.is_power_of_two() {
                 trace(&format!(
@@ -1359,6 +1385,29 @@ mod tests {
         assert!(took < std::time::Duration::from_millis(500), "{took:?}");
         settle();
         assert_eq!(QUEUED.load(Ordering::Acquire), 0);
+
+        // a check under way that is only slow: the game waits for it, and no frame is let go
+        let skipped = lock(&CHECKER).as_ref().unwrap().skipped;
+        let (taken, wait) = std::sync::mpsc::channel();
+        let release = std::thread::spawn(move || {
+            let held = lock(&CLIENT);
+            CHECKING.store(true, Ordering::Release);
+            let _ = taken.send(());
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            CHECKING.store(false, Ordering::Release);
+            drop(held);
+        });
+        wait.recv().unwrap();
+        for _ in 0..(COPIES + 2) {
+            frame();
+        }
+        release.join().unwrap();
+        settle();
+        assert_eq!(
+            lock(&CHECKER).as_ref().unwrap().skipped,
+            skipped,
+            "a slow check let frames go unchecked"
+        );
 
         end_game();
         assert!(lock(&CHECKER).is_none(), "the thread outlived its game");
