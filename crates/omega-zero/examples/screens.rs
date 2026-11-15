@@ -644,10 +644,28 @@ fn card(dir: &Path) {
         dir,
         &AppState {
             clock_set: true,
-            ..Default::default()
+            ..themed()
         },
     )
     .expect("write omega-zero.state");
+    // a favorite, so the shelf shows its mark
+    if std::env::var_os("SCREENS_BACKDROP").is_some() {
+        std::fs::write(dir.join("Config/favorites.txt"), "gba/Emerald\n").expect("a favorite");
+    }
+}
+
+/// The settings a card starts with: the defaults, but for the background and its colour where
+/// SCREENS_BACKDROP and SCREENS_COLOUR name them by the keys omega-zero.state keeps
+/// (`capture`, `crimson`), to shoot a theme.
+fn themed() -> AppState {
+    let key = |var: &str| std::env::var(var).ok();
+    AppState {
+        backdrop: key("SCREENS_BACKDROP").and_then(|k| omega_store::BackdropStyle::from_key(&k)),
+        backdrop_colour: key("SCREENS_COLOUR")
+            .and_then(|k| omega_store::colour_index(&k))
+            .unwrap_or(0),
+        ..Default::default()
+    }
 }
 
 /// The mock core's pattern moves with however many frames its thread ran, so every shot shows
@@ -752,7 +770,7 @@ fn notice_shots(
             clock_set: true,
             cart: Some(stem.into()),
             cart_platform: Some(Platform::Snes),
-            ..Default::default()
+            ..themed()
         },
     )
     .expect("write omega-zero.state");

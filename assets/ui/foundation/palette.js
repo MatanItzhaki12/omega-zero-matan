@@ -27,7 +27,30 @@ window.OmegaPalette = (() => {
     plum: '#291431',
     crimson: '#300f16',
     amber: '#302208',
+    trainer: '#171719',
+    ruby: '#25171c',
+    sapphire: '#181c28',
+    emerald: '#17231f',
+    firered: '#281c1a',
+    leafgreen: '#1d251b',
   };
+
+  // The colour a backdrop colour's menus take their hue from, where it is not its own: Trainer's
+  // dark grey takes a capture ball's red, and each game's grey that game's colour. omega-zero's
+  // custom colours, one every 10 degrees of hue, are not offered here.
+  const TONES = {
+    trainer: '#d83030',
+    ruby: '#c0183c',
+    sapphire: '#2058d0',
+    emerald: '#18a860',
+    firered: '#e85020',
+    leafgreen: '#68c038',
+  };
+  // How light the menus of a colour with a tone are next to the ramp, but for their two text
+  // colours: deeper, so Trainer's are a capture ball's red rather than the pink the ramp's light
+  // steps make of it.
+  const DEPTH = 0.84;
+  const TEXT = ['--oz-label', '--oz-cream'];
 
   // Mega Man Zero's menu colours, darkest first: the ramp every backdrop colour turns.
   const RAMP = {
@@ -95,12 +118,13 @@ window.OmegaPalette = (() => {
   // Every --oz-* property for the backdrop colour `name` (Night when it is not one).
   function palette(name) {
     const base = BACKDROPS[name] ?? BACKDROPS.night;
-    const [, chroma, hue] = oklch(base);
+    const [, chroma, hue] = oklch(TONES[name] ?? base);
     const [, rampChroma, rampHue] = oklch(BACKDROPS.amber);
     const take = Math.min(1, Math.max(0, (chroma - GREY) / (rampChroma - GREY)));
     const out = { '--oz-bg': base };
     for (const [token, colour] of Object.entries(RAMP)) {
-      const [L, C, H] = oklch(colour);
+      const [l, C, H] = oklch(colour);
+      const L = TEXT.includes(token) || !(name in TONES) ? l : l * DEPTH;
       const lean = Math.max(-LEAN, Math.min(LEAN, ((H - rampHue + 540) % 360) - 180));
       out[token] = fit(L, C * take, take ? hue + lean : 0);
     }

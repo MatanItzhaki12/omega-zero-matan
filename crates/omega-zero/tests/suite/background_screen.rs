@@ -109,11 +109,11 @@ fn a_card_that_never_picked_drifts_a_night_grid_or_shows_its_wallpaper() {
         "a wallpaper picked and since deleted left nothing to draw"
     );
     assert_eq!(
-        Backdrop::resolve(Some(BackdropStyle::Bits), false, 99, true),
+        Backdrop::resolve(Some(BackdropStyle::Bits), false, 200, true),
         Backdrop {
             style: BackdropStyle::Bits,
             moving: false,
-            colour: 7
+            colour: omega_store::COLOUR_COUNT - 1
         },
         "a colour off the end of the palette was kept"
     );
@@ -151,6 +151,8 @@ fn left_and_right_go_round_the_styles_and_each_shows_only_the_rows_it_uses() {
         BackdropStyle::Dither,
         BackdropStyle::Rivets,
         BackdropStyle::Bits,
+        BackdropStyle::Grass,
+        BackdropStyle::Capture,
     ] {
         r.press(Btn::Right);
         assert_eq!(r.a.backdrop().style, style);
@@ -205,7 +207,10 @@ fn motion_and_colour_change_and_every_change_is_kept_in_app_state() {
     r.press(Btn::Down);
     assert_eq!(r.sel(), Sel::Colour);
     r.press(Btn::Left);
-    assert_eq!(r.a.backdrop().colour, 7, "the colours did not wrap");
+    assert!(
+        omega_store::custom_hue(r.a.backdrop().colour).is_some(),
+        "the colours did not wrap round to Custom"
+    );
     r.press(Btn::A);
     r.press(Btn::A);
     assert_eq!(r.a.backdrop().colour, 1);
@@ -322,8 +327,8 @@ fn a_row_a_style_has_no_use_for_stays_faint_so_the_panel_keeps_its_size() {
     let dim: Vec<bool> = view.rows.iter().map(|row| row.dim).collect();
     assert_eq!(
         dim,
-        [false, true, false, false],
-        "Solid's Motion is faint, not gone"
+        [false, true, false, true, false],
+        "Solid's Motion is faint, not gone, and a named colour's Hue"
     );
 }
 
@@ -388,8 +393,8 @@ fn the_font_is_never_faint_and_the_cursor_always_reaches_it() {
         let style = r.a.backdrop().style;
         seen.push(style);
         let view = r.a.background_view().expect("the list is showing");
-        assert_eq!(view.rows.len(), 4, "{style:?}");
-        assert!(!view.rows[3].dim, "{style:?} made the font faint");
+        assert_eq!(view.rows.len(), 5, "{style:?}");
+        assert!(!view.rows[4].dim, "{style:?} made the font faint");
         r.press(Btn::Up);
         assert_eq!(r.sel(), Sel::Font, "{style:?} kept the cursor off FONT");
         r.press(Btn::Down);
@@ -425,5 +430,70 @@ fn up_and_down_go_round_all_four_rows() {
     assert_eq!(
         r.a.background_view().expect("the list is showing").lit,
         Some(0)
+    );
+}
+
+/// Past the last named colour is Custom: its Hue row comes alive and turns it round the hue
+/// circle a step at a time, both ways and round, and omega-zero.state keeps it by its hue.
+#[test]
+fn custom_takes_a_hue_of_its_own_and_is_kept_by_it() {
+    let mut r = Rig::new();
+    r.open();
+    r.press(Btn::Down);
+    r.press(Btn::Down);
+    assert_eq!(r.sel(), Sel::Colour);
+    r.press(Btn::Left);
+    assert_eq!(r.rows()[2], choice("Color", "Custom"));
+    let first = omega_store::custom_hue(r.a.backdrop().colour).expect("a custom colour");
+    assert_eq!(r.rows()[3], choice("Hue", "260°"), "{first}");
+    r.press(Btn::Down);
+    assert_eq!(
+        r.sel(),
+        Sel::Hue,
+        "the cursor passed over a custom colour's Hue"
+    );
+    r.press(Btn::Right);
+    assert_eq!(r.rows()[3], choice("Hue", "270°"));
+    for _ in 0..10 {
+        r.press(Btn::Right);
+    }
+    assert_eq!(
+        r.rows()[3],
+        choice("Hue", "10°"),
+        "the hue did not go round"
+    );
+    r.press(Btn::Left);
+    r.press(Btn::Left);
+    assert_eq!(r.rows()[3], choice("Hue", "350°"), "Left did not go round");
+    let kept = read_app_state(r.d.path());
+    assert_eq!(omega_store::custom_hue(kept.backdrop_colour), Some(350));
+    assert_eq!(omega_store::colour_key(kept.backdrop_colour), "custom-350");
+
+    // back on a named colour, the Hue row is faint and passed over again
+    r.press(Btn::Up);
+    r.press(Btn::Right);
+    assert_eq!(r.a.backdrop().colour, 0, "Right from Custom is Night");
+    let view = r.a.background_view().expect("the list is showing");
+    assert!(view.rows[3].dim, "a named colour's Hue is not faint");
+    r.press(Btn::Down);
+    assert_eq!(r.sel(), Sel::Font);
+}
+
+/// Each of the handheld's monster-catching games has a colour by its name, after Trainer.
+#[test]
+fn every_game_has_a_colour_by_its_name() {
+    let names: Vec<&str> = (0..omega_store::BACKDROP_COLOURS.len() as u8)
+        .map(omega_ui::backdrop_colour_name)
+        .collect();
+    assert_eq!(
+        names[8..],
+        [
+            "Trainer",
+            "Ruby",
+            "Sapphire",
+            "Emerald",
+            "Fire Red",
+            "Leaf Green"
+        ]
     );
 }

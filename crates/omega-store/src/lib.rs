@@ -33,7 +33,10 @@ pub use app_state::{
     UTC_OFFSET_MAX, UTC_OFFSET_MIN, VOLUME_MAX,
 };
 pub use atomic::{atomic_write, atomic_write_dated, atomic_write_paced};
-pub use backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};
+pub use backdrop::{
+    colour_index, colour_key, custom_colour, custom_hue, BackdropStyle, BACKDROP_COLOURS,
+    COLOUR_COUNT, CUSTOM_HUES, CUSTOM_STEP,
+};
 pub use blending::Blending;
 pub use cart_shell::{
     write_choice, Outline, ShellChoice, ShellFinish, CART_SHELL_FILE, LABELS_SHELL_FILE,

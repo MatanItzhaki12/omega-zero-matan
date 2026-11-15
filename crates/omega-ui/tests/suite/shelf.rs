@@ -1125,3 +1125,28 @@ fn the_holo_sheen_turned_off_is_drawn_on_no_cart() {
         .count();
     assert_eq!(sheens, 0, "the sheen was drawn while turned off");
 }
+
+/// The Trainer style's mark is a capture ball the star's size: red over cream, a dark band and
+/// outline, clear round it.
+#[test]
+fn the_trainer_mark_is_a_ball_the_stars_size() {
+    let (star, ball) = (omega_ui::star_face(), omega_ui::ball_face());
+    assert_eq!((ball.w, ball.h), (star.w, star.h));
+    let px = |x: u32, y: u32| {
+        let i = ((y * ball.w + x) * 4) as usize;
+        [
+            ball.rgba[i],
+            ball.rgba[i + 1],
+            ball.rgba[i + 2],
+            ball.rgba[i + 3],
+        ]
+    };
+    assert_eq!(px(0, 0)[3], 0, "the corner is clear");
+    let (top, foot) = (px(5, 2), px(5, 8));
+    assert!(top[0] > top[2] + 80, "the top is not red: {top:?}");
+    assert!(
+        foot[0] > 200 && foot[2] > 180,
+        "the foot is not cream: {foot:?}"
+    );
+    assert!(px(0, 5)[0] < 0x40, "no dark band across the middle");
+}

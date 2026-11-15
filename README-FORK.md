@@ -213,7 +213,7 @@ on. A toast says so when the picker opens on a game switched by hand.
 | Lid Power Off | 1, 3, 5, 10, 15, 30 minutes | 3 |
 | Boot Animation | On, Off: the terminal that types out before the shelf at boot | Off |
 | Sound › | Opens SOUND, below | |
-| Theme › | Opens THEME: the background, its motion, the color and the font | |
+| Theme › | Opens THEME: the background, its motion, the color, a custom color's hue and the font | |
 | Labels › | Opens LABELS: ScreenScraper, the label sync and Holo Sheen | |
 
 **SHELF › Sound ›**
@@ -628,6 +628,8 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `test_updates` | `1` for Settings' Update to take test builds, `0` for releases |
 | `shelf_by_play`, `saves_by_play` | `1` for the shelves, or Saves' lists, to stand the most played games first; `0` (as it starts) by name |
 | `auto_backups` | How many automatic backups each game keeps: `0` (none made), `1`, `3`, `5` (as it starts) or `10` |
+| `backdrop_colour` | Also `trainer`, `ruby`, `sapphire`, `emerald`, `firered`, `leafgreen`, and `custom-<hue>`, the hue in degrees, a multiple of 10 under 360 |
+| `backdrop` | Also `grass` (Tall Grass) and `capture` |
 
 `ff_speed` also takes `0` now, for OFF.
 

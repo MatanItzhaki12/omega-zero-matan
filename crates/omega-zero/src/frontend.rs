@@ -89,6 +89,8 @@ pub struct Frontend {
     watch: Option<crate::card_watch::CardWatch>,
     /// Faces of games gone from the card, for games added later to be drawn on.
     spare_faces: Vec<TexId>,
+    /// The favorites' mark, uploaded, and whether it is the Trainer style's ball.
+    mark: Option<(TexId, bool)>,
     start: Instant,
     last: Instant,
     /// When the last two frames reached the screen, as the panel shows them: what the next
@@ -218,6 +220,7 @@ impl Frontend {
             session,
             watch,
             spare_faces: Vec::new(),
+            mark: None,
             start: now,
             last: now,
             shown: (None, None),
@@ -318,10 +321,9 @@ impl Frontend {
             }
         }
         self.session.app_mut().set_faces(faces);
-        // the star every favorite wears, a texel to an art pixel
-        let star = omega_ui::star_face();
-        let star = compositor.create_texture_nearest(star.w, star.h, &star.rgba);
-        self.session.app_mut().set_mark_face(star);
+        // the mark every favorite wears, a texel to an art pixel: the star, or the Trainer
+        // style's capture ball
+        self.sync_mark(compositor);
         // the core picker's parts are pixel art, a texel to an art pixel, kept sharp at 2x
         let mut sprite = |f: CartFace| compositor.create_texture_nearest(f.w, f.h, &f.rgba);
         let sockets = omega_store::Core::ALL
@@ -441,6 +443,7 @@ impl Frontend {
         sync_opening(self.session.app_mut(), compositor, &mut self.opening);
         sync_start_notice(self.session.app_mut(), compositor, &mut self.start_notice);
         self.restock(compositor);
+        self.sync_mark(compositor);
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),
@@ -470,6 +473,29 @@ impl Frontend {
         self.draws.clear();
         self.session.app().draw(&mut self.draws);
         compositor.draw_list(&self.draws);
+    }
+
+    /// The favorites' mark as the shelf's style has it, uploaded again only when the style
+    /// moves in or out of the Trainer backgrounds: the star, or a capture ball.
+    fn sync_mark(&mut self, compositor: &mut Compositor) {
+        let trainer = self.session.app().trainer();
+        if self.mark.is_some_and(|(_, was)| was == trainer) {
+            return;
+        }
+        let face = if trainer {
+            omega_ui::ball_face()
+        } else {
+            omega_ui::star_face()
+        };
+        let tex = match self.mark {
+            Some((tex, _)) => {
+                compositor.update_texture(tex, face.w, face.h, &face.rgba);
+                tex
+            }
+            None => compositor.create_texture_nearest(face.w, face.h, &face.rgba),
+        };
+        self.mark = Some((tex, trainer));
+        self.session.app_mut().set_mark_face(tex);
     }
 
     /// Takes what the card's watcher found changed, where the shelf may be stood again now: the

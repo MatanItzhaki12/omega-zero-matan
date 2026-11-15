@@ -55,6 +55,9 @@ window.FlowScreens = (() => {
   }
   const onChange = listener => listeners.add(listener);
 
+  // The colours whose names are two words, as the Theme's Color row writes them.
+  const COLOUR_NAMES = { firered: 'FIRE RED', leafgreen: 'LEAF GREEN' };
+
   // How a row with data-set shows a setting, and reads it back. A switch is ON or OFF.
   const SWITCH = { show: on => (on ? 'ON' : 'OFF'), read: value => value === 'ON' };
   const CODECS = {
@@ -64,7 +67,7 @@ window.FlowScreens = (() => {
     bluetooth: SWITCH,
     moving: { show: on => (on ? 'MOVING' : 'STILL'), read: value => value === 'MOVING' },
     style: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
-    colour: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
+    colour: { show: name => COLOUR_NAMES[name] ?? name.toUpperCase(), read: value => value.toLowerCase().replace(' ', '') },
     font: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
   };
 

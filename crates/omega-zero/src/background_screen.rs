@@ -2,7 +2,10 @@
 //! as it is changed, and the font the bar's actions write their words in.
 
 use omega_input::{Action, Btn};
-use omega_store::{BackdropStyle, Font, BACKDROP_COLOURS};
+use omega_store::{
+    custom_colour, custom_hue, BackdropStyle, Font, BACKDROP_COLOURS, COLOUR_COUNT, CUSTOM_HUES,
+    CUSTOM_STEP,
+};
 use omega_ui::backdrop_colour_name;
 
 use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
@@ -32,7 +35,7 @@ impl Backdrop {
         Backdrop {
             style,
             moving,
-            colour: colour.min(BACKDROP_COLOURS.len() as u8 - 1),
+            colour: colour.min(COLOUR_COUNT - 1),
         }
     }
 }
@@ -43,12 +46,32 @@ pub enum Sel {
     Style,
     Motion,
     Colour,
+    /// A custom colour's hue, on the row named Hue.
+    Hue,
     Font,
 }
 
 impl Sel {
     /// The panel's rows, top to bottom.
-    pub const ALL: [Sel; 4] = [Sel::Style, Sel::Motion, Sel::Colour, Sel::Font];
+    pub const ALL: [Sel; 5] = [Sel::Style, Sel::Motion, Sel::Colour, Sel::Hue, Sel::Font];
+}
+
+/// The custom colours' hues as the Hue row shows them, one every [`CUSTOM_STEP`] degrees.
+const HUES: [&str; CUSTOM_HUES as usize] = [
+    "0°", "10°", "20°", "30°", "40°", "50°", "60°", "70°", "80°", "90°", "100°", "110°", "120°",
+    "130°", "140°", "150°", "160°", "170°", "180°", "190°", "200°", "210°", "220°", "230°", "240°",
+    "250°", "260°", "270°", "280°", "290°", "300°", "310°", "320°", "330°", "340°", "350°",
+];
+
+/// The hue a custom colour starts on, picked from the named ones: a blue none of them is.
+const FIRST_HUE: u16 = 260;
+
+/// The Colour row's choices: every named colour, then Custom, standing for every custom one.
+fn colour_choices() -> Vec<Option<u8>> {
+    (0..BACKDROP_COLOURS.len() as u8)
+        .map(Some)
+        .chain([None])
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -97,6 +120,7 @@ impl BackgroundScreen {
             Sel::Style | Sel::Font => true,
             Sel::Motion => look.style.moves(),
             Sel::Colour => look.style.coloured(),
+            Sel::Hue => look.style.coloured() && custom_hue(look.colour).is_some(),
         }
     }
 
@@ -138,8 +162,20 @@ impl BackgroundScreen {
             Sel::Style => next.style = step(&styles(wallpaper), look.style, forward),
             Sel::Motion => next.moving = !look.moving,
             Sel::Colour => {
-                let colours: Vec<u8> = (0..BACKDROP_COLOURS.len() as u8).collect();
-                next.colour = step(&colours, look.colour, forward);
+                let at = custom_hue(look.colour).is_none().then_some(look.colour);
+                next.colour = match step(&colour_choices(), at, forward) {
+                    Some(named) => named,
+                    None => custom_colour(FIRST_HUE),
+                };
+            }
+            Sel::Hue => {
+                let hue = custom_hue(look.colour).unwrap_or(FIRST_HUE);
+                let turned = if forward {
+                    hue + CUSTOM_STEP
+                } else {
+                    hue + 360 - CUSTOM_STEP
+                };
+                next.colour = custom_colour(turned);
             }
             Sel::Font => return Outcome::Font(step(&Font::ALL, font, forward)),
         }
@@ -167,6 +203,13 @@ impl BackgroundScreen {
                 label: RowLabel::Setting("Color"),
                 value: Some(RowValue::Choice(backdrop_colour_name(look.colour))),
                 dim: !Self::applies(look, Sel::Colour),
+            },
+            Sel::Hue => ViewRow {
+                label: RowLabel::Setting("Hue"),
+                value: Some(RowValue::Choice(
+                    custom_hue(look.colour).map_or("-", |hue| HUES[(hue / CUSTOM_STEP) as usize]),
+                )),
+                dim: !Self::applies(look, Sel::Hue),
             },
             Sel::Font => ViewRow {
                 label: RowLabel::Setting("Font"),

@@ -217,11 +217,17 @@ fn a_new_colour_re_tints_the_background_panel_in_the_next_frame() {
     let night = r.frame(&mut c, "background-night");
     r.tap(Btn::Down);
     r.tap(Btn::Down);
-    r.tap(Btn::Left);
+    // back from Night, past Custom and the colours after Amber
+    for _ in 0..omega_store::BACKDROP_COLOURS.len() {
+        if r.f.app().palette_colour() == amber() {
+            break;
+        }
+        r.tap(Btn::Left);
+    }
     assert_eq!(
         r.f.app().palette_colour(),
         amber(),
-        "Left from Night is Amber"
+        "Left from Night never came to Amber"
     );
     let px = r.frame(&mut c, "background-retinted");
     let face = r.face(Screen::Background, amber());

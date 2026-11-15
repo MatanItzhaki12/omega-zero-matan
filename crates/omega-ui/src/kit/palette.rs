@@ -13,9 +13,9 @@
 use std::f64::consts::PI;
 use std::sync::OnceLock;
 
-use omega_store::{colour_index, BACKDROP_COLOURS};
+use omega_store::{colour_index, COLOUR_COUNT};
 
-use crate::backdrop::BACKDROP_PALETTE;
+use crate::backdrop::{backdrop_rgb, backdrop_tone, BACKDROP_PALETTE};
 
 /// Every colour the kit draws in for one backdrop colour: the backdrop's own, then the ramp
 /// turned to its hue, darkest first. The comments name each one's --oz-* property in the kit.
@@ -72,11 +72,20 @@ impl Palette {
     }
 }
 
-/// The palette for backdrop colour `colour` (an index in the [`BACKDROP_COLOURS`] order:
-/// night, slate, navy, teal, green, plum, crimson, amber); out of range gives Night.
+/// The palette for backdrop colour `colour` (an index in the [`omega_store::BACKDROP_COLOURS`]
+/// order, then the custom colours); out of range gives Night.
 pub fn palette(colour: u8) -> &'static Palette {
-    static PALETTES: OnceLock<[Palette; BACKDROP_COLOURS.len()]> = OnceLock::new();
-    let all = PALETTES.get_or_init(|| BACKDROP_PALETTE.map(turned));
+    static PALETTES: OnceLock<[Palette; COLOUR_COUNT as usize]> = OnceLock::new();
+    let all = PALETTES.get_or_init(|| {
+        std::array::from_fn(|i| {
+            let colour = i as u8;
+            let base = backdrop_rgb(colour);
+            match backdrop_tone(colour) {
+                Some(tone) => turned(base, tone, TONED_DEPTH),
+                None => turned(base, base, 1.0),
+            }
+        })
+    });
     all.get(colour as usize).unwrap_or(&all[0])
 }
 
@@ -116,15 +125,26 @@ const fn hex(rgb: u32) -> [u8; 3] {
     [(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]
 }
 
-/// The ramp turned to the hue of backdrop colour `base`, with as much of the ramp's colour as
-/// `base` has next to Amber, whose ramp it is.
-fn turned(base: [u8; 3]) -> Palette {
+/// How light a colour's menus are next to the ramp, but for their two text colours, where they
+/// wear a colour not the backdrop's own (see [`backdrop_tone`]): deeper, so Trainer's are a
+/// capture ball's red rather than the pink the ramp's light steps make of it.
+const TONED_DEPTH: f64 = 0.84;
+/// The ramp's steps from which on are its text colours, which keep their lightness.
+const TEXT: usize = 10;
+
+/// The ramp turned to the hue of `tone`, with as much of the ramp's colour as `tone` has next to
+/// Amber, whose ramp it is, its steps but the text `depth` as light, over the backdrop colour
+/// `base`.
+fn turned(base: [u8; 3], tone: [u8; 3], depth: f64) -> Palette {
     let amber = colour_index("amber").expect("amber is a backdrop colour") as usize;
-    let [_, chroma, hue] = oklch(base);
+    let [_, chroma, hue] = oklch(tone);
     let [_, ramp_chroma, ramp_hue] = oklch(BACKDROP_PALETTE[amber]);
     let take = ((chroma - GREY) / (ramp_chroma - GREY)).clamp(0.0, 1.0);
+    let mut step = 0;
     let steps = RAMP.map(|colour| {
         let [l, c, h] = oklch(colour);
+        let l = if step < TEXT { l * depth } else { l };
+        step += 1;
         let lean = ((h - ramp_hue + 540.0) % 360.0 - 180.0).clamp(-LEAN, LEAN);
         fit(l, c * take, if take != 0.0 { hue + lean } else { 0.0 })
     });
@@ -200,7 +220,7 @@ fn linear(lightness: f64, chroma: f64, hue: f64) -> [f64; 3] {
 }
 
 /// An OKLCH colour in sRGB, its chroma cut back as far as it takes to fit.
-fn fit(lightness: f64, chroma: f64, hue: f64) -> [u8; 3] {
+pub(crate) fn fit(lightness: f64, chroma: f64, hue: f64) -> [u8; 3] {
     let fits = |c: f64| {
         linear(lightness, c, hue)
             .iter()

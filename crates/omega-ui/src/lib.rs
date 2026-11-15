@@ -85,7 +85,7 @@ pub use kit::gauge::GaugeIcon;
 pub use label_cut::{
     cut_label, cut_path, keep_size, label_uncut, shrink_label, wears_label, CUT_DIR,
 };
-pub use mark::{star_face, STAR_PX};
+pub use mark::{ball_face, star_face, STAR_PX};
 pub use models::disc::{
     push_disc, push_disc_alone, push_stack, stack_of, DiscStack, StackDive, StackMeshes, DISC_PX,
     MAX_STACK, STACK_DIVE,

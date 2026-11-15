@@ -732,12 +732,17 @@ fn a_new_backdrop_colour_re_tints_the_modal() {
     let px = r.frame(&mut c, "network-tint-before");
     assert_eq!(frame_at(&px), palette(NIGHT).frame);
 
-    // Settings > Background > Colour, one step back from Night round to Amber
+    // Settings > Background > Colour, back from Night, past Custom and the colours after Amber
     r.tap(Btn::B);
     common::to_shelf_row(r.f.app_mut(), omega_zero::options::OptionRow::Theme);
     r.tap(Btn::A);
     r.tap(Btn::Down);
-    r.tap(Btn::Left);
+    for _ in 0..omega_store::BACKDROP_COLOURS.len() {
+        if r.f.app().palette_colour() == AMBER {
+            break;
+        }
+        r.tap(Btn::Left);
+    }
     assert_eq!(
         r.f.app().palette_colour(),
         AMBER,

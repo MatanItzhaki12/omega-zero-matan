@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::atomic::atomic_write;
-use crate::backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};
+use crate::backdrop::{colour_index, colour_key, BackdropStyle};
 use crate::blending::Blending;
 use crate::font::Font;
 use crate::gb_palette::GbColors;
@@ -54,7 +54,8 @@ pub struct AppState {
     pub backdrop: Option<BackdropStyle>,
     /// The pattern drifts.
     pub backdrop_moving: bool,
-    /// Which of [`BACKDROP_COLOURS`] the pattern is in.
+    /// Which colour the pattern is in: one of [`crate::BACKDROP_COLOURS`], or past them a
+    /// custom one (see [`crate::custom_hue`]).
     pub backdrop_colour: u8,
     /// The font the bar's actions write their big words in.
     pub font: Font,
@@ -429,8 +430,7 @@ const FIELDS: &[Field] = &[
     flag!("backdrop_moving", backdrop_moving),
     may!(
         "backdrop_colour",
-        |s| BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)]
-            .to_string(),
+        |s| colour_key(s.backdrop_colour),
         |t, v| if let Some(c) = colour_index(v) {
             t.backdrop_colour = c;
         }

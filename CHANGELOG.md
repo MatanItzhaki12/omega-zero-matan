@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **A Trainer look for the shelf**, in Settings › Shelf › Theme, as the rest of omega-zero in
+  pixels and dark, with nods to the monster-catching games:
+  - Two backgrounds: **Capture**, rows of small red-and-white capture balls, every other row half
+    a ball over, and **Tall Grass**, tufts of a route's grass.
+  - Six colors: **Trainer**, a dark grey with menus in a capture ball's red, and one for each of
+    the Game Boy Advance's games, **Ruby**, **Sapphire**, **Emerald**, **Fire Red** and **Leaf
+    Green**, a dark grey leaning toward the game's color with menus in it.
+  - **Custom**, past the last named color: the Theme's new **Hue** row turns it round the hue
+    circle 10° at a time, and every screen's menus take it. `backdrop_colour` keeps it as
+    `custom-<hue>`.
+  - Over Capture or Tall Grass a favorite wears a little capture ball rather than the star.
+
 ## omega-zero 2.7.3
 
 - A UMD's sheen leaves its hub bare: the white middle with "UMD" on it is moulded plastic, not

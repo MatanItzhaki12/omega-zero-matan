@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use omega_store::{colour_index, BACKDROP_COLOURS};
+use omega_store::{colour_index, BACKDROP_COLOURS, COLOUR_COUNT};
 use omega_ui::kit::palette::{palette, rgba, Palette};
 use omega_ui::BACKDROP_PALETTE;
 
@@ -20,7 +20,7 @@ use omega_ui::BACKDROP_PALETTE;
 ///   console.log(`("${name}", [${hex.join(", ")}]),`);
 /// }'
 /// ```
-const PALETTE_JS: [(&str, [&str; 13]); 8] = [
+const PALETTE_JS: [(&str, [&str; 13]); 14] = [
     (
         "night",
         [
@@ -75,6 +75,48 @@ const PALETTE_JS: [(&str, [&str; 13]); 8] = [
         [
             "#302208", "#261300", "#6a3d01", "#4f300d", "#765020", "#845a1a", "#a57221", "#b0731b",
             "#be9732", "#e6ab47", "#f8b83f", "#f2c87d", "#f5e5bb",
+        ],
+    ),
+    (
+        "trainer",
+        [
+            "#171719", "#22060b", "#5e202c", "#451b22", "#693136", "#793538", "#984447", "#a0444d",
+            "#b95d49", "#d66c68", "#ea726a", "#ffbbb2", "#ffddd4",
+        ],
+    ),
+    (
+        "ruby",
+        [
+            "#25171c", "#21060e", "#5c2034", "#441a27", "#68303d", "#783441", "#974351", "#9e4359",
+            "#ba5a56", "#d56b75", "#e9707a", "#ffbaba", "#ffddd8",
+        ],
+    ),
+    (
+        "sapphire",
+        [
+            "#181c28", "#001124", "#013a64", "#092c49", "#21466f", "#274e80", "#3462a1", "#2a68a9",
+            "#5e76c5", "#5f90e1", "#6799f7", "#b7cfff", "#dde5ff",
+        ],
+    ),
+    (
+        "emerald",
+        [
+            "#17231f", "#041501", "#1c4310", "#173210", "#275027", "#235b2d", "#2c733b", "#327734",
+            "#179163", "#46a766", "#3db66e", "#95e4b1", "#c4f3dc",
+        ],
+    ),
+    (
+        "firered",
+        [
+            "#281c1a", "#220607", "#5f2122", "#461b1b", "#6a322d", "#79362d", "#984639", "#a0453f",
+            "#b7603a", "#d56f57", "#e87557", "#ffbda8", "#ffdecf",
+        ],
+    ),
+    (
+        "leafgreen",
+        [
+            "#1d251b", "#0e1300", "#313e00", "#252f03", "#3a4c17", "#3c5718", "#4b6f22", "#537212",
+            "#498e48", "#6da248", "#6fb04c", "#addf9c", "#cef1d0",
         ],
     ),
 ];
@@ -143,7 +185,7 @@ fn night_turns_the_ramp_to_plain_greys() {
 
 #[test]
 fn a_colour_past_the_last_is_night() {
-    for colour in [BACKDROP_COLOURS.len() as u8, 9, 200, u8::MAX] {
+    for colour in [COLOUR_COUNT, 60, 200, u8::MAX] {
         assert_eq!(palette(colour), named("night"), "{colour}");
     }
 }

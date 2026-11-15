@@ -328,7 +328,16 @@ impl App {
         self.favorites = favorites;
     }
 
-    /// The star every favorite wears, uploaded.
+    /// Whether the shelf is drawn in the Trainer style: over one of its backgrounds, Capture or
+    /// Tall Grass. Its favorites wear a capture ball rather than the star.
+    pub fn trainer(&self) -> bool {
+        matches!(
+            self.backdrop().style,
+            omega_store::BackdropStyle::Capture | omega_store::BackdropStyle::Grass
+        )
+    }
+
+    /// The mark every favorite wears, uploaded: the star, or the Trainer style's capture ball.
     pub fn set_mark_face(&mut self, tex: omega_ui::TexId) {
         for (_, shelf) in &mut self.shelves {
             shelf.set_mark(tex);
