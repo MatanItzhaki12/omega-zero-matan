@@ -4,14 +4,10 @@ name: pages
 # site/logo are links to those two folders, so the page opens straight from disk; the job copies
 # site/ with the links followed, and that copy is what GitHub Pages serves.
 
+# Not published for now: the site stays in the repository, and goes out only when this is run by
+# hand (Actions > pages > Run workflow), once GitHub Pages is switched on for the repository
+# (Settings > Pages > Source: GitHub Actions). A push never runs it.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'site/**'
-      - 'assets/ui/**'
-      - 'assets/logo/**'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
