@@ -34,7 +34,7 @@ const PATTERN: TexId = TexId::from_raw(700);
 /// The build flow.html's About shows.
 fn flow_build() -> Build {
     Build {
-        version: "0.0.2",
+        version: "0.0.2".into(),
         hash: "68cdbc4",
         dirty: false,
         date: "2026-10-11",
@@ -119,7 +119,7 @@ fn about_is_flows_pixel_for_pixel() {
 #[test]
 fn a_test_build_says_its_run_as_update_does() {
     let test = Build {
-        version: "2.7.3-test.12",
+        version: "2.7.3-test.12".into(),
         ..flow_build()
     };
     let view = AboutView::new(&test, Some("rg35xxsp"), None);
@@ -127,7 +127,7 @@ fn a_test_build_says_its_run_as_update_does() {
     // the running build's version is the one Update reads, a test build's own included
     assert_eq!(
         omega_zero::build_info::Build::current().version,
-        omega_zero::update::VERSION
+        omega_zero::update::running()
     );
 }
 

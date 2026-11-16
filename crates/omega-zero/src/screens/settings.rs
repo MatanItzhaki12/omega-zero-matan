@@ -201,10 +201,10 @@ impl App {
     /// What the Update row says: where the update stands, and, on test builds while a release
     /// runs, TEST before the version, so the channel is never taken for the releases.
     fn update_text(&self) -> String {
-        use crate::update::{Channel, Update, VERSION};
+        use crate::update::{running, Channel, Update};
         let state = self.updater.state();
         let switched = self.update_channel() == Channel::Test
-            && Channel::of_version(VERSION) == Channel::Stable;
+            && Channel::of_version(&running()) == Channel::Stable;
         match state {
             Update::Idle if switched => format!("TEST {}", state.text()),
             _ => state.text(),

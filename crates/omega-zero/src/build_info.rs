@@ -1,6 +1,7 @@
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Build {
-    pub version: &'static str,
+    /// The version it goes by: the one it was released as, or the name it took since.
+    pub version: String,
     pub hash: &'static str,
     pub dirty: bool,
     pub date: &'static str,
@@ -10,7 +11,7 @@ impl Build {
     pub fn current() -> Build {
         Build {
             // a test build's own, `2.7.3-test.12`, as Update reads it
-            version: crate::update::VERSION,
+            version: crate::update::running(),
             hash: env!("OMEGA_GIT_HASH"),
             dirty: env!("OMEGA_GIT_DIRTY") == "1",
             date: env!("OMEGA_BUILD_DATE"),

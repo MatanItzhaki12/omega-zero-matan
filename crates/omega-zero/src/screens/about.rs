@@ -67,7 +67,7 @@ impl AboutView {
         AboutView {
             rows: vec![
                 // as Update says it: a test build's run after a T, 2.7.3-T12
-                ("VERSION", crate::update::shown(build.version)),
+                ("VERSION", crate::update::shown(&build.version)),
                 ("BUILD", build.shown()),
                 ("AUTHOR", AUTHOR.to_string()),
                 ("HANDHELD", handheld.unwrap_or(UNKNOWN).to_uppercase()),

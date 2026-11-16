@@ -13,6 +13,15 @@
     circle 10° at a time, and every screen's menus take it. `backdrop_colour` keeps it as
     `custom-<hue>`.
   - Over Capture or Tall Grass a favorite wears a little capture ball rather than the star.
+- **Update is smarter about channels.** Before offering a release, it asks GitHub how the
+  release's commit stands to the running build's:
+  - A release of the very same build, as a test build is once `main` takes it with only its
+    version number moved, is not downloaded again: the console takes its name (kept in
+    `System/.version`), and Update and About say it.
+  - A release the running build already holds all of, as the releases' latest is to a newer test
+    build, is not offered, so switching from test builds to releases and back no longer asks to
+    reinstall.
+  - Where GitHub cannot be asked, Update offers as it did.
 
 ## omega-zero 2.7.3
 

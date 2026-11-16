@@ -14,6 +14,12 @@
 //! A release with no manifest, from before, is installed as it was: its `omega-zero-aarch64`
 //! alone, checked against the SHA-256 published beside it and that it is an aarch64 program.
 //!
+//! Before offering a release, the check asks GitHub how its commit stands to the one this build
+//! was made from. A release of the very same build, as a test build is once `main` takes it
+//! and only the version number moves, is not installed again: the card takes its name, kept in
+//! `System/.version`, and the Update row and About say it. A release this build already holds
+//! all of, older on the other channel, is not offered as an update.
+//!
 //! The work runs on a thread of its own, through `curl`, as the label downloads do; the row
 //! reads where it stands each frame.
 
@@ -21,7 +27,7 @@ use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use omega_pack::{Manifest, Step};
 
@@ -40,6 +46,133 @@ pub const VERSION: &str = match option_env!("OMEGA_VERSION") {
     Some(v) => v,
     None => env!("CARGO_PKG_VERSION"),
 };
+
+/// Where the card keeps the name this build took from a release of the same build: the version,
+/// then the commit the build was made from, so a later omega-zero, another build, ignores it.
+pub const NAME_FILE: &str = "System/.version";
+
+/// The name this build took, where it took one.
+static NAME: RwLock<Option<String>> = RwLock::new(None);
+
+/// The version this build goes by: the one it was released as, or the name it took since from a
+/// release of the same build.
+pub fn running() -> String {
+    NAME.read()
+        .ok()
+        .and_then(|name| name.clone())
+        .unwrap_or_else(|| VERSION.to_string())
+}
+
+/// The commit this build was made from, as its short hash: none for a build made with changes
+/// not committed, which no release is.
+fn built_from() -> Option<&'static str> {
+    let build = crate::build_info::Build::current();
+    (!build.dirty && build.hash != "unknown").then_some(build.hash)
+}
+
+/// Takes the name the card rooted at `root` keeps for this build, as omega-zero starts: one
+/// kept for another build is left alone.
+pub fn adopt_name(root: &Path) {
+    let Some(hash) = built_from() else {
+        return;
+    };
+    let kept = std::fs::read_to_string(root.join(NAME_FILE)).unwrap_or_default();
+    if let Some(version) = name_for(&kept, hash) {
+        set_name(version);
+    }
+}
+
+/// The version `kept` (as [`NAME_FILE`] holds it) names the build of commit `hash` by.
+pub fn name_for(kept: &str, hash: &str) -> Option<String> {
+    let mut words = kept.split_whitespace();
+    let (version, commit) = (words.next()?, words.next()?);
+    (commit == hash).then(|| version.to_string())
+}
+
+fn set_name(version: String) {
+    if let Ok(mut name) = NAME.write() {
+        *name = (version != VERSION).then_some(version);
+    }
+}
+
+/// This build takes `version` as its name, a release of the very same build, kept on the card
+/// rooted at `root` for the next start.
+fn take_name(root: Option<&Path>, version: &str) {
+    crate::log!(
+        "update: v{version} is this same build, v{}: renamed, nothing installed",
+        running()
+    );
+    if let (Some(root), Some(hash)) = (root, built_from()) {
+        if let Err(e) = std::fs::write(root.join(NAME_FILE), format!("{version} {hash}\n")) {
+            crate::log!("update: could not keep the name v{version}: {e}");
+        }
+    }
+    set_name(version.to_string());
+}
+
+/// How a release stands to this build, by their commits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kin {
+    /// The same build: the same commit, or one after it that changes no more than the version
+    /// number and the documents.
+    Same,
+    /// Older: this build holds all of it.
+    Older,
+    /// Another build, newer or off on a branch of its own.
+    Other,
+}
+
+/// How the release made from `commit` stands to this build, from GitHub's comparison of the two
+/// commits: none where it cannot say.
+fn kin(commit: &str) -> Option<Kin> {
+    let base = built_from()?;
+    let url = format!("https://api.github.com/repos/{REPO}/compare/{base}...{commit}");
+    let Fetched::Body(body) = fetch(&url) else {
+        return None;
+    };
+    kin_of(&String::from_utf8_lossy(&body))
+}
+
+/// How a release stands to this build, from GitHub's comparison of this build's commit with
+/// the release's.
+pub fn kin_of(body: &str) -> Option<Kin> {
+    let compared = Json::parse(body)?;
+    Some(match compared.get("status")?.text()? {
+        "identical" => Kin::Same,
+        "behind" => Kin::Older,
+        "ahead" if compared.get("files")?.list().iter().all(|f| !builds(f)) => Kin::Same,
+        _ => Kin::Other,
+    })
+}
+
+/// Whether a file changed between two commits, as GitHub's comparison lists it, changes the
+/// build: anything but a document, the repository's workflows, and a crate's version number.
+fn builds(file: &Json) -> bool {
+    let Some(name) = file.get("filename").and_then(Json::text) else {
+        return true;
+    };
+    if name.ends_with(".md") || name.starts_with(".github/") || name.starts_with("docs/") {
+        return false;
+    }
+    let manifest = name.ends_with("Cargo.toml") || name == "Cargo.lock";
+    let Some(patch) = file.get("patch").and_then(Json::text) else {
+        return true;
+    };
+    !manifest || !only_versions(patch)
+}
+
+/// Whether every line `patch` takes away or adds is a version number, as scripts/version.sh
+/// moves a crate's.
+pub fn only_versions(patch: &str) -> bool {
+    patch
+        .lines()
+        .filter(|l| {
+            (l.starts_with('+') || l.starts_with('-'))
+                && !l.starts_with("+++")
+                && !l.starts_with("---")
+        })
+        .all(|l| l[1..].trim_start().starts_with("version = \""))
+}
 
 /// Where updates come from: the releases, or the test builds of the `test` branch, each a
 /// prerelease of its own.
@@ -119,7 +252,7 @@ impl Update {
     /// What the Update row says on its right.
     pub fn text(&self) -> String {
         match self {
-            Update::Idle => format!("V{}", shown(VERSION)),
+            Update::Idle => format!("V{}", shown(&running())),
             Update::Checking => "CHECKING…".to_string(),
             Update::Latest => "UP TO DATE".to_string(),
             Update::Available { release, .. } => format!("INSTALL V{}", shown(&release.version)),
@@ -133,7 +266,7 @@ impl Update {
     pub fn note(&self) -> String {
         match self {
             Update::Idle | Update::Latest | Update::Failed(_) => {
-                format!("A checks for a newer omega-zero-matan than v{VERSION}")
+                format!("A checks for a newer omega-zero-matan than v{}", running())
             }
             Update::Checking => "Asking GitHub for the latest release".to_string(),
             Update::Available {
@@ -255,10 +388,18 @@ impl Updater {
                     return;
                 };
                 crate::log!("update: {channel:?} has {}", release.version);
-                if !offered(channel, &release.version, VERSION) {
+                if !offered(channel, &release.version, &running()) {
                     return;
                 }
-                let system = root.and_then(|root| lacking(&root, &release));
+                let system = root.as_deref().and_then(|root| lacking(root, &release));
+                match release.commit.as_deref().and_then(kin) {
+                    Some(Kin::Same) if !wants(root.as_deref(), &system) => {
+                        take_name(root.as_deref(), &release.version);
+                        return;
+                    }
+                    Some(Kin::Older) => return,
+                    _ => {}
+                }
                 // a check asked for meanwhile has the say
                 if matches!(me.state(), Update::Idle) {
                     me.set(Update::Available { release, system });
@@ -280,13 +421,22 @@ impl Updater {
                 crate::spawn::stand_back();
                 let found = match fetch(&channel.url()) {
                     Fetched::Body(body) => match channel.newest(&String::from_utf8_lossy(&body)) {
-                        Some(release) if offered(channel, &release.version, VERSION) => {
-                            let system = root.and_then(|root| lacking(&root, &release));
-                            Update::Available { release, system }
+                        Some(release) if offered(channel, &release.version, &running()) => {
+                            let system = root.as_deref().and_then(|root| lacking(root, &release));
+                            match release.commit.as_deref().and_then(kin) {
+                                // the same build by another name: it takes the name
+                                Some(Kin::Same) if !wants(root.as_deref(), &system) => {
+                                    take_name(root.as_deref(), &release.version);
+                                    Update::Latest
+                                }
+                                // this build already holds all of it
+                                Some(Kin::Older) => Update::Latest,
+                                _ => Update::Available { release, system },
+                            }
                         }
                         // this release, where the card lacks some of it: an update from before
                         // 2.6.1 brought omega-zero alone
-                        Some(release) if release.version == VERSION => {
+                        Some(release) if release.version == running() => {
                             match root.and_then(|root| lacking(&root, &release)) {
                                 Some((manifest, bytes)) if bytes > 0 => Update::Available {
                                     release,
@@ -388,10 +538,26 @@ impl Gate {
     }
 }
 
+/// Whether the card rooted at `root` lacks any of a release's files, as [`lacking`] read its
+/// manifest, but omega-zero itself: a build by another name differs from this one only in
+/// the version written into it. A release with no manifest, or no card, cannot say, so it is
+/// taken to.
+fn wants(root: Option<&Path>, system: &Option<(Arc<Manifest>, u64)>) -> bool {
+    let (Some(root), Some((manifest, _))) = (root, system) else {
+        return true;
+    };
+    let had = read_installed(root);
+    omega_pack::plan(manifest, |rel| sum_on_card(root, rel, &had))
+        .iter()
+        .any(|step| step.file().path != PROGRAM)
+}
+
 /// A release, as GitHub lists it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Release {
     pub version: String,
+    /// The commit it was made from, where GitHub says it.
+    pub commit: Option<String>,
     /// Its omega-zero-aarch64, and that one's sum.
     pub program: String,
     pub sum: String,
@@ -435,8 +601,15 @@ fn release_of(release: &Json) -> Option<Release> {
             asset(omega_pack::PATCHES_ASSET)?,
         ])
     })();
+    // the release workflow makes each tag at the commit it built
+    let commit = release
+        .get("target_commitish")
+        .and_then(Json::text)
+        .filter(|c| c.len() == 40 && c.bytes().all(|b| b.is_ascii_hexdigit()))
+        .map(str::to_string);
     Some(Release {
         version,
+        commit,
         program: asset(ASSET)?,
         sum: asset(ASSET_SUM)?,
         system,
@@ -927,6 +1100,7 @@ mod tests {
     fn the_row_names_the_version_it_installs() {
         let release = Release {
             version: "2.7.3-test.12".into(),
+            commit: None,
             program: String::new(),
             sum: String::new(),
             system: None,
@@ -949,6 +1123,7 @@ mod tests {
             latest(body),
             Some(Release {
                 version: "1.3.0".to_string(),
+                commit: None,
                 program: "https://x/bin".to_string(),
                 sum: "https://x/sum".to_string(),
                 system: None,
@@ -1019,6 +1194,7 @@ mod tests {
         let found = Update::Available {
             release: Release {
                 version: "2.7.0".into(),
+                commit: None,
                 program: String::new(),
                 sum: String::new(),
                 system: None,
@@ -1128,6 +1304,7 @@ mod tests {
         // nothing answers here: a stop has to come before any fetch
         let release = Release {
             version: "9.9.9".into(),
+            commit: None,
             program: String::new(),
             sum: String::new(),
             system: Some([
@@ -1196,5 +1373,113 @@ mod tests {
             began.elapsed()
         );
         let _ = server.join();
+    }
+
+    #[test]
+    fn a_release_names_the_commit_it_was_made_from() {
+        let body = r#"{"tag_name":"v2.7.4","target_commitish":"df8183d43892d0d07dc2cb93299fefaa2a90bc1d","assets":[
+            {"name":"omega-zero-aarch64","browser_download_url":"https://x/bin"},
+            {"name":"omega-zero-aarch64.sha256","browser_download_url":"https://x/sum"}]}"#;
+        assert_eq!(
+            latest(body).and_then(|r| r.commit).as_deref(),
+            Some("df8183d43892d0d07dc2cb93299fefaa2a90bc1d")
+        );
+        // a branch's name is no commit
+        let branch = body.replace("df8183d43892d0d07dc2cb93299fefaa2a90bc1d", "main");
+        assert_eq!(latest(&branch).and_then(|r| r.commit), None);
+    }
+
+    /// GitHub's comparison of this build's commit with a release's, with `status` and `files`.
+    fn compared(status: &str, files: &str) -> String {
+        format!(r#"{{"status":"{status}","files":[{files}]}}"#)
+    }
+
+    #[test]
+    fn a_release_of_the_same_commit_or_one_moving_only_the_version_is_the_same_build() {
+        assert_eq!(kin_of(&compared("identical", "")), Some(Kin::Same));
+        let version = r#"{"filename":"crates/omega-zero/Cargo.toml","patch":"@@ -1,4 +1,4 @@\n [package]\n name = \"omega-zero\"\n-version = \"2.7.3\"\n+version = \"2.7.4\"\n edition = \"2021\""},
+            {"filename":"Cargo.lock","patch":"@@ -9 +9 @@\n-version = \"2.7.3\"\n+version = \"2.7.4\""},
+            {"filename":"CHANGELOG.md"},
+            {"filename":".github/workflows/pages.yml"}"#;
+        assert_eq!(kin_of(&compared("ahead", version)), Some(Kin::Same));
+    }
+
+    #[test]
+    fn a_release_changing_anything_built_is_another_build() {
+        let code = r#"{"filename":"crates/omega-zero/src/app.rs","patch":"@@ -1 +1 @@\n-a\n+b"}"#;
+        assert_eq!(kin_of(&compared("ahead", code)), Some(Kin::Other));
+        let dependency = r#"{"filename":"Cargo.lock","patch":"@@ -9,2 +9,2 @@\n name = \"libc\"\n-version = \"0.2.1\"\n+version = \"0.2.2\"\n-checksum = \"aa\"\n+checksum = \"bb\""}"#;
+        assert_eq!(kin_of(&compared("ahead", dependency)), Some(Kin::Other));
+        // too big a change for GitHub to show its patch
+        let unseen = r#"{"filename":"crates/omega-zero/Cargo.toml"}"#;
+        assert_eq!(kin_of(&compared("ahead", unseen)), Some(Kin::Other));
+        assert_eq!(kin_of(&compared("diverged", "")), Some(Kin::Other));
+    }
+
+    #[test]
+    fn a_release_this_build_holds_all_of_is_older() {
+        assert_eq!(kin_of(&compared("behind", "")), Some(Kin::Older));
+        assert_eq!(kin_of("not json"), None);
+        assert_eq!(kin_of(r#"{"message":"Not Found"}"#), None);
+    }
+
+    #[test]
+    fn only_version_lines_moving_is_a_version_bump() {
+        assert!(only_versions(
+            "@@ -1 +1 @@\n name = \"x\"\n-version = \"1\"\n+version = \"2\""
+        ));
+        assert!(!only_versions(
+            "@@ -1 +1 @@\n-edition = \"2018\"\n+edition = \"2021\""
+        ));
+    }
+
+    #[test]
+    fn the_name_kept_is_taken_only_by_the_build_it_was_kept_for() {
+        assert_eq!(
+            name_for("2.7.4 df8183d\n", "df8183d").as_deref(),
+            Some("2.7.4")
+        );
+        assert_eq!(
+            name_for("2.7.4 df8183d\n", "5d01d4d"),
+            None,
+            "another build's"
+        );
+        assert_eq!(name_for("", "df8183d"), None);
+        assert_eq!(name_for("2.7.4", "df8183d"), None, "no commit");
+    }
+
+    #[test]
+    fn a_build_by_another_name_wants_nothing_but_its_own_omega_zero() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path();
+        std::fs::create_dir_all(root.join("System")).unwrap();
+        std::fs::write(root.join("System/wifi.sh"), b"echo wifi").unwrap();
+        std::fs::write(root.join(PROGRAM), b"this build").unwrap();
+        let entry = |path: &str, body: &[u8]| omega_pack::FileEntry {
+            path: path.into(),
+            sha: omega_pack::sha256::hex(body),
+            size: body.len() as u64,
+            exec: true,
+            offset: 0,
+            len: body.len() as u64,
+        };
+        let release = |wifi: &[u8]| {
+            let m = Manifest {
+                version: "2".into(),
+                files: vec![entry("System/wifi.sh", wifi), entry(PROGRAM, b"that build")],
+                patches: vec![],
+            };
+            Some((Arc::new(m), 0))
+        };
+        assert!(
+            !wants(Some(root), &release(b"echo wifi")),
+            "only omega-zero differs"
+        );
+        assert!(
+            wants(Some(root), &release(b"echo wi-fi")),
+            "the card lacks a script"
+        );
+        assert!(wants(None, &release(b"echo wifi")), "no card to look at");
+        assert!(wants(Some(root), &None), "no manifest to say");
     }
 }

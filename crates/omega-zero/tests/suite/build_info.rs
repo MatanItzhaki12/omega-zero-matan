@@ -2,7 +2,7 @@ use omega_zero::build_info::Build;
 
 fn sample() -> Build {
     Build {
-        version: "0.1.0",
+        version: "0.1.0".into(),
         hash: "9e11a10",
         dirty: false,
         date: "2026-08-12",

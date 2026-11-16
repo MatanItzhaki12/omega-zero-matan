@@ -742,6 +742,7 @@ impl App {
         app.root = Some(root.to_path_buf());
         app.theme = Theme::read_override(root);
         app.state = read_app_state(root);
+        crate::update::adopt_name(root);
         crate::time_zone::follow(app.state.utc_offset_min);
         app.show_holo();
         app.wifi.start(app.state.wifi);
