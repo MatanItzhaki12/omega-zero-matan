@@ -17,13 +17,14 @@ vars:
   SNES9X_COMMIT: fae2fea08f74180759ef540ee94259213f503480
   SUPAFAUST_COMMIT: 642d1d1b6684aa7e306a02a89885f3f5456a5157
   PCSX_COMMIT: c8816799b50388e61cfe237fe2cdbb7d8175f20a
+  MELONDS_COMMIT: 4081e8358e66f1ea11879560be6b813dfeaab75a
   # a release of PPSSPP: its own source tarball carries the submodules a build needs
   PPSSPP_VERSION: 1.20.4
   # The libretro names of the cores the device bundle ships, <name>_libretro.so in System/
-  DEVICE_CORES: mgba gpsp snes9x mednafen_supafaust pcsx_rearmed ppsspp
+  DEVICE_CORES: mgba gpsp snes9x mednafen_supafaust pcsx_rearmed ppsspp melonds
   # The cores built by cores/<name>/build.sh whose source archive ships in System/licenses/
   # beside them, as <name>:<libretro name>. gpSP's ships too, the way it always has
-  SOURCE_CORES: snes9x:snes9x supafaust:mednafen_supafaust pcsx_rearmed:pcsx_rearmed
+  SOURCE_CORES: snes9x:snes9x supafaust:mednafen_supafaust pcsx_rearmed:pcsx_rearmed melonds:melonds
 
 tasks:
   default:
@@ -489,6 +490,42 @@ tasks:
         vendor/pcsx_rearmed-src.tar.gz vendor/pcsx_rearmed-src.sha
       - task: core:pcsx
 
+  core:melonds:
+    desc: >-
+      Build the aarch64 linux melonDS core, with its ARM64 JIT and cores/melonds's patches, from
+      its pinned source archive, which ships beside it as its GPL-3.0 corresponding source
+    status:
+      - test -f vendor/melonds_libretro.so
+      - test "$(cat vendor/melonds-src.sha 2>/dev/null)" = "{{.MELONDS_COMMIT}}"
+      - test "$(cat vendor/melonds_libretro.so.meta 2>/dev/null)" = "$(sh cores/melonds/build.sh stamp {{.MELONDS_COMMIT}})"
+    cmds:
+      # (core:src's names are the repository's: libretro/melonDS's archive unpacks to melonDS-<commit>)
+      - |
+        set -euo pipefail
+        mkdir -p vendor
+        if [ "$(cat vendor/melonds-src.sha 2>/dev/null)" != "{{.MELONDS_COMMIT}}" ]; then
+          rm -f vendor/melonds-src.tar.gz vendor/melonds-src.sha
+          curl -fsSL -o vendor/melonds-src.tar.gz \
+            "https://github.com/libretro/melonDS/archive/{{.MELONDS_COMMIT}}.tar.gz"
+          tar -tzf vendor/melonds-src.tar.gz | grep "^melonDS-{{.MELONDS_COMMIT}}/src/libretro/libretro.cpp$" >/dev/null
+          echo "{{.MELONDS_COMMIT}}" > vendor/melonds-src.sha
+        fi
+      - task: device:sh
+        vars:
+          CMD: >-
+            sh cores/melonds/build.sh build {{.MELONDS_COMMIT}} vendor/melonds-src.tar.gz
+            target-device/melonds vendor/melonds_libretro.so
+      - file vendor/melonds_libretro.so | grep -q aarch64
+      - 'echo "built vendor/melonds_libretro.so from vendor/melonds-src.tar.gz @ {{.MELONDS_COMMIT}}"'
+
+  core:melonds:update:
+    desc: Refetch melonDS's source archive and rebuild the device core from it, even if the set is current
+    cmds:
+      - >-
+        rm -f vendor/melonds_libretro.so vendor/melonds_libretro.so.meta
+        vendor/melonds-src.tar.gz vendor/melonds-src.sha
+      - task: core:melonds
+
   core:ppsspp:
     desc: >-
       Build the aarch64 linux PPSSPP core, for OpenGL ES with its ARM64 JIT, and its assets, from
@@ -521,9 +558,9 @@ tasks:
 
   cores:device:
     desc: >-
-      Build every core the device bundle ships, mGBA, gpSP, Snes9x, Supafaust, pcsx_rearmed and
-      PPSSPP
-    deps: [core:device, core:gpsp, core:snes9x, core:supafaust, core:pcsx, core:ppsspp]
+      Build every core the device bundle ships, mGBA, gpSP, Snes9x, Supafaust, pcsx_rearmed,
+      PPSSPP and melonDS
+    deps: [core:device, core:gpsp, core:snes9x, core:supafaust, core:pcsx, core:ppsspp, core:melonds]
 
   device:sh:
     desc: >-
@@ -706,7 +743,7 @@ tasks:
       repo's root (git ignores it), else root; the console shows its password under Settings >
       Network, Y on SSH. PROFILE defaults to device-dev, quick to build; PROFILE=device
       copies the shipping build. SCRIPTS=1 copies card/System's scripts too. CORES=1 builds
-      the five cores the bundle ships and copies them into System/ too. A game still running
+      every core the bundle ships and copies them into System/ too. A game still running
       loses whatever it has not saved
     vars:
       PROFILE: '{{.PROFILE | default "device-dev"}}'

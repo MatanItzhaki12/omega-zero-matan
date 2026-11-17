@@ -1,0 +1,42 @@
+# Pokemon Platinum (USA, CPUE): the functions the one-screen layouts watch, cut from Pokemon
+# Fulldex's tools/platinum/CPUE.txt (mamesj/pokemon-fulldex, GPL-3.0), itself made from a build of
+# the pokeplatinum decompilation. Each line: address, a (ARM) or t (Thumb), module, the
+# function's first four bytes in hex where they tell overlays loaded at one address apart
+# (- for code always there, ? to read them from the player's own ROM), and its name.
+021d0f68 t ov5 ? FieldMap_Main
+0203ac44 t main - StartMenu_Main
+021d0e3c t ov21 ? PokedexMain_Main
+0207e2a8 t main - PartyMenu_Main
+0223b76c t ov84 ? BagApplication_Main
+0223b388 t ov71 ? TrainerCaseApp_Main
+021d0f60 t ov74 ? OptionsMenu_Main
+0208c488 t main - PokemonSummaryScreen_Main
+021d0dd8 t ov80 ? TownMap_Main
+021d0dec t ov19 ? BoxAppMan_Main
+02086b64 t main - NamingScreen_Main
+021d0e3c t ov77 ? TitleScreen_Main
+0222be24 t ov97 ? MainMenu_Main
+021d0e20 t ov73 ? RowanIntro_Main
+021d0ef4 t ov78 ? ChooseStarter_Main
+021d0e70 t ov81 ? JournalController_Main
+021d0e08 t ov91 ? MoveReminder_Main
+0207b180 t main - Evolution_Main
+02098304 t main - EggHatch_Main
+0223b394 t ov86 ? HallOfFameManager_Main
+021d1028 t ov99 ? EndCreditsApp_Main
+0223b140 t ov16 ? Battle_Main
+0226925c t ov16 ? BattleSystem_MenuInput
+02226590 t ov13 ? BattleBagTask_Tick
+0221fcac t ov13 ? BattlePartyTask_Tick
+02269668 t ov16 ? BattleSubscreen_DrawActionMenu
+022698bc t ov16 ? BattleSubscreen_DrawFirstBattleMenu
+022699ac t ov16 ? BattleSubscreen_DrawMoveSelectMenu
+02269938 t ov16 ? BattleSubscreen_DrawPalParkMenu
+02269c7c t ov16 ? BattleSubscreen_DrawYesNoMenu
+02269d14 t ov16 ? BattleSubscreen_DrawForgetMoveMenu
+02269db0 t ov16 ? BattleSubscreen_DrawGiveUpMoveMenu
+02269e94 t ov16 ? BattleSubscreen_DrawStopMenu
+02269f68 t ov16 ? BattleSubscreen_DrawUseNextMonMenu
+0226a04c t ov16 ? BattleSubscreen_DrawSwitchMonMenu
+0226a12c t ov16 ? BattleSubscreen_DrawTargetSelectMenu
+02025bb8 t main - SaveData_CardSave_Main

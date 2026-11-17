@@ -1,0 +1,111 @@
+diff --git a/src/NDSCart.cpp b/src/NDSCart.cpp
+index d0affcb..cf02469 100644
+--- a/src/NDSCart.cpp
++++ b/src/NDSCart.cpp
+@@ -18,6 +18,11 @@
+ 
+ #include <stdio.h>
+ #include <string.h>
++#ifndef _WIN32
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <unistd.h>
++#endif
+ #include "NDS.h"
+ #include "DSi.h"
+ #include "NDSCart.h"
+@@ -1399,6 +1404,23 @@ void CartHomebrew::ReadROM_B7(u32 addr, u32 len, u8* data, u32 offset)
+ 
+ 
+ 
++// omega-zero: whether CartROM is mapped from the game's file (LoadROM from a path) rather than
++// allocated (CartROMSize long either way).
++static bool CartROMMapped = false;
++
++// Lets CartROM go, however it was had.
++static void FreeCartROM()
++{
++    if (!CartROM) return;
++#ifndef _WIN32
++    if (CartROMMapped) munmap(CartROM, CartROMSize);
++    else
++#endif
++        delete[] CartROM;
++    CartROM = nullptr;
++    CartROMMapped = false;
++}
++
+ bool Init()
+ {
+     CartROM = nullptr;
+@@ -1409,15 +1431,14 @@ bool Init()
+ 
+ void DeInit()
+ {
+-    if (CartROM) delete[] CartROM;
++    FreeCartROM();
+     if (Cart) delete Cart;
+ }
+ 
+ void Reset()
+ {
+     CartInserted = false;
+-    if (CartROM) delete[] CartROM;
+-    CartROM = nullptr;
++    FreeCartROM();
+     CartROMSize = 0;
+     CartID = 0;
+     CartIsHomebrew = false;
+@@ -1684,10 +1705,33 @@ bool LoadROM(const char* path, const char* sram, bool direct)
+     while (CartROMSize < len)
+         CartROMSize <<= 1;
+ 
+-    CartROM = new u8[CartROMSize];
+-    memset(CartROM, 0, CartROMSize);
+-    fseek(f, 0, SEEK_SET);
+-    fread(CartROM, 1, len, f);
++#ifndef _WIN32
++    // omega-zero: the file mapped in rather than read in, a private copy of each page made only
++    // where the cart writes one (its secure area, decrypted). A game of 512 MB is read from the
++    // card as the game asks for it, and the pages the kernel can drop again, where the read
++    // would hold a handheld's whole memory. The rest of the cart's size past the file is zeros.
++    // (Opened again by its path: a libretro build's FILE is libretro-common's own stream.)
++    int fd = open(path, O_RDONLY);
++    void* area = fd < 0 ? MAP_FAILED : mmap(nullptr, CartROMSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++    if (area != MAP_FAILED &&
++        mmap(area, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd, 0) != MAP_FAILED)
++    {
++        CartROM = (u8*)area;
++        CartROMMapped = true;
++        ::close(fd);
++    }
++    else
++    {
++        if (area != MAP_FAILED) munmap(area, CartROMSize);
++        if (fd >= 0) ::close(fd);
++#endif
++        CartROM = new u8[CartROMSize];
++        memset(CartROM, 0, CartROMSize);
++        fseek(f, 0, SEEK_SET);
++        fread(CartROM, 1, len, f);
++#ifndef _WIN32
++    }
++#endif
+ 
+     fclose(f);
+ 
+diff --git a/src/libretro/libretro.cpp b/src/libretro/libretro.cpp
+index 2d90603..5cfb58d 100644
+--- a/src/libretro/libretro.cpp
++++ b/src/libretro/libretro.cpp
+@@ -120,7 +120,9 @@ void retro_get_system_info(struct retro_system_info *info)
+ #define GIT_VERSION ""
+ #endif
+    info->library_version  = MELONDS_VERSION GIT_VERSION;
+-   info->need_fullpath    = false;
++   // omega-zero: the game from its path, mapped by the cart rather than read into memory by
++   // the frontend and copied again by the core
++   info->need_fullpath    = true;
+    info->valid_extensions = "nds|ids|dsi";
+ }
+ 

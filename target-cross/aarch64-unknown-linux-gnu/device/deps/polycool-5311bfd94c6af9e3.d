@@ -1,0 +1,12 @@
+/src/target-cross/aarch64-unknown-linux-gnu/device/deps/polycool-5311bfd94c6af9e3.d: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/cubic.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly_dyn.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/quadratic.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/yuksel.rs
+
+/src/target-cross/aarch64-unknown-linux-gnu/device/deps/libpolycool-5311bfd94c6af9e3.rlib: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/cubic.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly_dyn.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/quadratic.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/yuksel.rs
+
+/src/target-cross/aarch64-unknown-linux-gnu/device/deps/libpolycool-5311bfd94c6af9e3.rmeta: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/cubic.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly_dyn.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/quadratic.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/yuksel.rs
+
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/lib.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/cubic.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/poly_dyn.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/quadratic.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/polycool-0.4.0/src/yuksel.rs:

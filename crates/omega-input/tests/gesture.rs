@@ -590,6 +590,8 @@ const PS1: Keys = Keys {
     rewind: false,
     colour: false,
     shelf: false,
+    touch_l2: false,
+    swap: false,
 };
 
 /// The SNES's keys: L2 rewinds and R2 fast-forwards as on the handhelds, and a television's
@@ -599,6 +601,8 @@ const SNES: Keys = Keys {
     rewind: true,
     colour: false,
     shelf: false,
+    touch_l2: false,
+    swap: false,
 };
 
 fn with_keys(keys: Keys) -> Gestures {

@@ -127,6 +127,9 @@ pub struct Rules {
     pub rewinds: bool,
     /// The console RetroAchievements checks the game as, 0 for none.
     pub cheevos: u32,
+    /// A DS game's screen layout: its two screens laid out on the handheld's one. None for
+    /// any other system's game, which has one screen.
+    pub ds: Option<omega_ds::Layout>,
 }
 
 impl Rules {
@@ -135,6 +138,7 @@ impl Rules {
             turbo: platform.turbo_xy(),
             rewinds: platform.rewinds(),
             cheevos: 0,
+            ds: platform.two_screens().then(omega_ds::Layout::default),
         }
     }
 }
@@ -190,6 +194,9 @@ enum Cmd {
     SetOption(String, String),
     SetDisc(usize),
     Reset,
+    /// A DS game's screens laid out another way, or swapped.
+    DsLayout(omega_ds::Layout),
+    DsSwap,
 }
 
 struct Shared {
@@ -349,6 +356,7 @@ impl EmuHandle {
             frames: frames.clone(),
             shared: shared.clone(),
             gpu: std::cell::RefCell::new(None),
+            ds: std::cell::RefCell::new(None),
             cmds: rx,
             player,
             rules,
@@ -411,6 +419,16 @@ impl EmuHandle {
 
     pub fn end_link(&self) {
         request(&self.cmds, &self.shared, Cmd::EndLink);
+    }
+
+    /// Lays a DS game's screens out `layout` from the next frame.
+    pub fn set_ds_layout(&self, layout: omega_ds::Layout) {
+        let _ = self.cmds.send(Cmd::DsLayout(layout));
+    }
+
+    /// Makes a DS game's other screen the large one, or back.
+    pub fn swap_ds_screens(&self) {
+        let _ = self.cmds.send(Cmd::DsSwap);
     }
 
     pub fn set_option(&self, key: &str, value: &str) {
@@ -725,6 +743,8 @@ struct Worker {
     shared: Arc<Shared>,
     /// The GPU, for a core that draws on it.
     gpu: std::cell::RefCell<Option<crate::gpu_core::GpuCore>>,
+    /// A DS game's screens, laid out on the handheld's one.
+    ds: std::cell::RefCell<Option<crate::ds_screen::DsScreens>>,
     cmds: Receiver<Cmd>,
     player: Option<u8>,
     rules: Rules,
@@ -770,7 +790,8 @@ impl Worker {
             // a core that draws in memory lets the GPU go
             *self.gpu.borrow_mut() = None;
         }
-        if let Some(sav) = sav {
+        // (melonDS reads a DS game's save itself, from Saves/NDS, as it writes it)
+        if let Some(sav) = sav.filter(|_| self.rules.ds.is_none()) {
             if let Err(e) = core.load_save_ram(&sav) {
                 crate::log!("save ram: {e}");
                 self.shared.sav_refused.store(true, Ordering::Release);
@@ -781,6 +802,10 @@ impl Worker {
                 crate::log!("resume: {e}");
                 self.shared.resume_refused.store(true, Ordering::Release);
             }
+        }
+        if let Some(layout) = self.rules.ds {
+            let screens = crate::ds_screen::DsScreens::start(&mut *core, &rom, layout);
+            *self.ds.borrow_mut() = Some(screens);
         }
         self.shared
             .discs
@@ -832,6 +857,9 @@ impl Worker {
         let mut deadline = Instant::now();
         let mut served = 0u64;
         let mut ticked = false;
+        // a DS game that missed a present catches it up: the next present runs one frame more,
+        // first and not drawn, so the game keeps its speed and a picture is dropped instead
+        let mut behind = 0u32;
         let mut paced = 0u64;
         let mut scale = 0.0f64;
         let mut rate = TickRate::new(Instant::now(), 0);
@@ -930,7 +958,7 @@ impl Worker {
             let ceiling = match speed {
                 Speed::Paused => 0,
                 Speed::Normal if (lock && !ticked) || rewinding => 0,
-                Speed::Normal => pace.due(),
+                Speed::Normal => pace.due() + std::mem::take(&mut behind),
                 Speed::Fast => pace.fast(self.shared.fast_steps.load(Ordering::Relaxed)),
             };
             if let (true, Some(rewind)) = (rewinding, rewind.as_ref()) {
@@ -973,7 +1001,9 @@ impl Worker {
                 let (mut skipped, mut drawn) = (None::<Duration>, Duration::ZERO);
                 loop {
                     ran += 1;
-                    let last = ran >= ceiling || cost.last(began.elapsed(), budget);
+                    // (a frame owed is run whatever the budget: the present is late already)
+                    let catching = speed == Speed::Normal && ceiling > 1 && self.rules.ds.is_some();
+                    let last = ran >= ceiling || (!catching && cost.last(began.elapsed(), budget));
                     // the buttons as held, before turbo pulses them, which run-ahead compares
                     let held = input;
                     let input = if self.shared.turbo.load(Ordering::Relaxed) {
@@ -982,6 +1012,11 @@ impl Worker {
                         input
                     };
                     turbo_frame = turbo_frame.wrapping_add(1);
+                    // a DS game's buttons, its touch screen touched as its screens answer for it
+                    let input = match self.ds.borrow_mut().as_mut() {
+                        Some(ds) => ds.input(&mut *core, input),
+                        None => input,
+                    };
                     core.set_frame_skip(!last);
                     let frame_began = Instant::now();
                     let mut replayed = false;
@@ -1055,6 +1090,9 @@ impl Worker {
                             core.run_frame(input);
                         }
                         None => core.run_frame(input),
+                    }
+                    if let Some(ds) = self.ds.borrow_mut().as_mut() {
+                        ds.ran();
                     }
                     if cheevos {
                         let began = Instant::now();
@@ -1214,6 +1252,9 @@ impl Worker {
                 loop {
                     match self.next_tick(served, until) {
                         Wait::Tick(tick) => {
+                            if self.rules.ds.is_some() && served > 0 {
+                                behind = u32::from(tick > served + 1);
+                            }
                             served = tick;
                             stalled = false;
                             if let Some(measured) = rate.served(Instant::now(), tick) {
@@ -1292,10 +1333,26 @@ impl Worker {
                 }
                 // no achievement is earned by the jump a load makes
                 omega_cheevos::reset();
+                if let Some(ds) = self.ds.borrow_mut().as_mut() {
+                    ds.forget();
+                }
             }
             Cmd::Reset => {
                 core.reset();
                 omega_cheevos::reset();
+                if let Some(ds) = self.ds.borrow_mut().as_mut() {
+                    ds.forget();
+                }
+            }
+            Cmd::DsLayout(layout) => {
+                if let Some(ds) = self.ds.borrow_mut().as_mut() {
+                    ds.set_layout(layout);
+                }
+            }
+            Cmd::DsSwap => {
+                if let Some(ds) = self.ds.borrow_mut().as_mut() {
+                    ds.swap();
+                }
             }
             Cmd::Sav(reply) => {
                 let _ = reply.send(core.save_ram());
@@ -1425,6 +1482,12 @@ impl Worker {
     /// The frame the core just drew, published as it drew it: from memory, or from the GPU,
     /// as pixels read back or as a texture for the compositor.
     fn publish_core(&self, core: &dyn RetroCore) {
+        // a DS game's two screens, laid out on the handheld's one
+        if let Some(ds) = self.ds.borrow_mut().as_mut() {
+            if let Some((view, size)) = ds.view(core) {
+                return self.publish(view, size);
+            }
+        }
         let mut gpu = self.gpu.borrow_mut();
         let Some(g) = gpu.as_mut() else {
             drop(gpu);
@@ -1904,7 +1967,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_handhelds_have_turbo_and_only_the_playstations_have_no_rewind() {
+    fn only_the_handhelds_have_turbo_and_the_playstations_and_the_ds_have_no_rewind() {
         for platform in Platform::ALL {
             let rules = Rules::of(platform);
             assert_eq!(
@@ -1914,7 +1977,12 @@ mod tests {
             );
             assert_eq!(
                 rules.rewinds,
-                !matches!(platform, Platform::Ps1 | Platform::Psp),
+                !matches!(platform, Platform::Ps1 | Platform::Psp | Platform::Nds),
+                "{platform:?}"
+            );
+            assert_eq!(
+                rules.ds.is_some(),
+                platform == Platform::Nds,
                 "{platform:?}"
             );
         }

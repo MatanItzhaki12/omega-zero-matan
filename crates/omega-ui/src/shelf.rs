@@ -5,7 +5,7 @@ use crate::cart::{cart_box, label_colour, label_text, model_box, model_of, CART_
 use crate::chrome::BAR_H;
 use crate::hud::Millis;
 use crate::models::disc::{self, DiscStack};
-use crate::models::{snes, umd};
+use crate::models::{ds, snes, umd};
 use crate::motion::ease;
 use crate::silhouette::GbShell;
 use crate::spin::{self, CartMeshes, CartModel, Pose};
@@ -26,6 +26,7 @@ pub fn shelf_scale(platform: Platform) -> f32 {
         Platform::Snes => snes::SHELF_SCALE,
         Platform::Ps1 => disc::SHELF_SCALE,
         Platform::Psp => umd::SHELF_SCALE,
+        Platform::Nds => ds::SHELF_SCALE,
     }
 }
 
@@ -37,6 +38,7 @@ pub fn model_scale(model: CartModel) -> f32 {
         CartModel::Snes(_) => snes::SHELF_SCALE,
         CartModel::Disc => disc::SHELF_SCALE,
         CartModel::Umd => umd::SHELF_SCALE,
+        CartModel::Ds => ds::SHELF_SCALE,
     }
 }
 

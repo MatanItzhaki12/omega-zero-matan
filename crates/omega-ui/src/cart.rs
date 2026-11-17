@@ -4,7 +4,7 @@ use omega_store::gb::Class;
 use omega_store::{Cart, Outline, Platform};
 
 use crate::label_cut::label_art;
-use crate::models::{disc, snes, snes::SnesShell, umd};
+use crate::models::{disc, ds, snes, snes::SnesShell, umd};
 use crate::shell::{shell_for, Finish, Shell};
 use crate::silhouette::{
     cart_depth, cart_mask, detail_mask, gb_cart_depth, gb_cart_mask, gb_detail_mask, Detail,
@@ -73,6 +73,9 @@ pub(crate) struct Spec {
     /// How round the label's corners are, in pixels, its well's bevel round with them: none, a
     /// square label, but on the Super Famicom cart.
     pub(crate) label_round: u32,
+    /// How far the label's lower left corner is cut back at 45 degrees, in pixels, its well's
+    /// with it: none, a square corner, but on the DS Game Card.
+    pub(crate) label_cut: u32,
     pub(crate) mask: &'static [u8],
     pub(crate) depth: &'static [u8],
     pub(crate) detail: &'static Detail,
@@ -101,7 +104,7 @@ pub(crate) struct Board {
 
 pub fn gb_shell_of(cart: &Cart) -> Option<GbShell> {
     match cart.platform {
-        Platform::Gba | Platform::Snes | Platform::Ps1 | Platform::Psp => None,
+        Platform::Gba | Platform::Snes | Platform::Ps1 | Platform::Psp | Platform::Nds => None,
         Platform::Gb | Platform::Gbc => Some(match cart.shell.map(|c| c.outline) {
             Some(Outline::Notched) => GbShell::Notched,
             Some(Outline::Rounded) => GbShell::Rounded,
@@ -123,6 +126,7 @@ pub fn model_of(cart: &Cart) -> CartModel {
         Platform::Snes => CartModel::Snes(snes::shell_of(cart)),
         Platform::Ps1 => CartModel::Disc,
         Platform::Psp => CartModel::Umd,
+        Platform::Nds => CartModel::Ds,
     }
 }
 
@@ -143,11 +147,13 @@ pub(crate) fn spec(model: CartModel) -> Spec {
         CartModel::Snes(shell) => snes::spec(shell),
         CartModel::Disc => disc::spec(),
         CartModel::Umd => umd::spec(),
+        CartModel::Ds => ds::spec(),
         CartModel::Gba => Spec {
             w: CART_W,
             h: CART_H,
             label: (LABEL_X, LABEL_Y, LABEL_W, LABEL_H),
             label_round: 0,
+            label_cut: 0,
             mask: cart_mask(),
             depth: cart_depth(),
             detail: detail_mask(),
@@ -168,6 +174,7 @@ pub(crate) fn spec(model: CartModel) -> Spec {
             h: GB_CART_H,
             label: (GB_LABEL_X, GB_LABEL_Y, GB_LABEL_W, GB_LABEL_H),
             label_round: 0,
+            label_cut: 0,
             mask: gb_cart_mask(shell),
             depth: gb_cart_depth(shell),
             detail: gb_detail_mask(shell),
@@ -204,6 +211,8 @@ pub fn seated_box(platform: Platform) -> (u32, u32) {
             let (_, (w, h)) = crate::spin::outline(model);
             (w.round() as u32, h.round() as u32)
         }
+        // (the card is drawn in tenths of a millimetre: seated, it shows the size its face is)
+        Platform::Nds => (ds::DS_W, ds::DS_H),
     }
 }
 
@@ -215,6 +224,7 @@ pub fn cart_box(platform: Platform) -> (u32, u32) {
         Platform::Snes => CartModel::Snes(SnesShell::Famicom),
         Platform::Ps1 => CartModel::Disc,
         Platform::Psp => CartModel::Umd,
+        Platform::Nds => CartModel::Ds,
     })
 }
 
@@ -255,6 +265,7 @@ pub fn face_labels(platform: Platform) -> Vec<(u32, u32)> {
             CartModel::Snes(_) => platform == Platform::Snes,
             CartModel::Disc => platform == Platform::Ps1,
             CartModel::Umd => platform == Platform::Psp,
+            CartModel::Ds => platform == Platform::Nds,
         })
         .map(|model| match model {
             CartModel::Disc => (disc::DISC_PX, disc::DISC_PX),
@@ -294,6 +305,7 @@ fn face_of(cart: &Cart, scans: bool) -> CartFace {
         Some(rgba) if model == CartModel::Umd => umd::with_hub(rgba, lw, lh),
         Some(rgba) => rgba,
         None if model == CartModel::Umd => umd::generated_label(&s, &label_text(cart)),
+        None if model == CartModel::Ds => ds::generated_label(&s, &label_text(cart)),
         None => generated_label(&s, &label_text(cart)),
     };
     mould_detail(&s, &mut face);
@@ -824,11 +836,11 @@ fn recess_label(s: &Spec, face: &mut CartFace, shell: &Shell) {
     let round = s.label_round;
     for y in y0..y1 {
         for x in x0..x1 {
-            let inside = match round {
-                0 => (lx..lx + lw).contains(&x) && (ly..ly + lh).contains(&y),
-                _ => in_round_rect(x, y, s.label, round),
-            };
-            if inside {
+            if in_label(s, x, y) {
+                continue;
+            }
+            // a cut corner's well is cut with it, as far out as its sides
+            if s.label_cut > 0 && cut_off(x, y, (x0, y0, x1 - x0, y1 - y0), s.label_cut + bevel) {
                 continue;
             }
             // a round label's well is round with it, its corners as far out as its sides
@@ -844,6 +856,25 @@ fn recess_label(s: &Spec, face: &mut CartFace, shell: &Shell) {
             put(x, y, upper <= lower);
         }
     }
+}
+
+/// Whether the face's pixel `x, y` is on `s`'s label: inside its rect, its corners rounded or
+/// its lower left corner cut as the model's are.
+fn in_label(s: &Spec, x: u32, y: u32) -> bool {
+    let (lx, ly, lw, lh) = s.label;
+    let inside = match s.label_round {
+        0 => (lx..lx + lw).contains(&x) && (ly..ly + lh).contains(&y),
+        r => in_round_rect(x, y, s.label, r),
+    };
+    inside && !(s.label_cut > 0 && cut_off(x, y, s.label, s.label_cut))
+}
+
+/// Whether the face's pixel `x, y` is in the corner a 45-degree cut `cut` pixels back takes
+/// off the lower left of the rect `rx, ry, rw, rh`: decided for each two-pixel cell of the face,
+/// so the cut steps on the art grid.
+fn cut_off(x: u32, y: u32, (rx, ry, _, rh): (u32, u32, u32, u32), cut: u32) -> bool {
+    let (cx, cy) = ((x & !1) as f32 + 1.0, (y & !1) as f32 + 1.0);
+    (cx - rx as f32) + ((ry + rh) as f32 - cy) < cut as f32
 }
 
 /// Whether the face's pixel `x, y` is inside the rect `rx, ry, rw, rh` with its corners
@@ -869,7 +900,7 @@ fn paste_label(s: &Spec, face: &mut CartFace, label: &[u8]) {
             if a == 0 {
                 continue;
             }
-            if s.label_round > 0 && !in_round_rect(x + lx, y + ly, s.label, s.label_round) {
+            if !in_label(s, x + lx, y + ly) {
                 continue;
             }
             let d = (((y + ly) * s.w + x + lx) * 4) as usize;
@@ -914,11 +945,7 @@ pub fn holo_frames(model: CartModel) -> Vec<CartFace> {
             for hy in 0..h {
                 for hx in 0..w {
                     let (x, y) = (hx * 2 + 1, hy * 2 + 1);
-                    let inside = match s.label_round {
-                        0 => (lx..lx + lw).contains(&x) && (ly..ly + lh).contains(&y),
-                        r => in_round_rect(x, y, s.label, r),
-                    };
-                    if !inside {
+                    if !in_label(&s, x, y) {
                         continue;
                     }
                     let (u, v) = ((x - lx) as f32 / lw as f32, (y - ly) as f32 / lh as f32);

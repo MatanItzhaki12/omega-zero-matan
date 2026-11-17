@@ -1,0 +1,78 @@
+diff --git a/src/GPU.cpp b/src/GPU.cpp
+index 68f2b1e..aa2778d 100644
+--- a/src/GPU.cpp
++++ b/src/GPU.cpp
+@@ -1016,6 +1016,12 @@ void StartFrame()
+     StartScanline(0);
+ }
+ 
++// omega-zero: the frame being run will not be shown (the frontend runs two for one picture to
++// catch up, or fast-forwards): its 2D is not drawn, the most of a frame's cost the emulator thread
++// can leave out. Not while the game captures the picture into video memory or shows it from
++// main memory, which it reads back.
++bool OmegaHideFrame = false;
++
+ void StartHBlank(u32 line)
+ {
+     DispStat[0] |= (1<<1);
+@@ -1023,16 +1029,22 @@ void StartHBlank(u32 line)
+ 
+     if (VCount < 192)
+     {
++        const bool hidden = OmegaHideFrame && !(GPU2D_A.CaptureCnt & (1u << 31))
++            && ((GPU2D_A.DispCnt >> 16) & 3) != 3;
++        // (the 3D lines are still taken: the 3D renderer's thread counts them out a frame at a time)
++        if (line < 192 && hidden)
++            GPU3D::GetLine(line);
++
+         // draw
+         // note: this should start 48 cycles after the scanline start
+-        if (line < 192)
++        if (line < 192 && !hidden)
+         {
+             GPU2D_Renderer->DrawScanline(line, &GPU2D_A);
+             GPU2D_Renderer->DrawScanline(line, &GPU2D_B);
+         }
+ 
+         // sprites are pre-rendered one scanline in advance
+-        if (line < 191)
++        if (line < 191 && !hidden)
+         {
+             GPU2D_Renderer->DrawSprites(line+1, &GPU2D_A);
+             GPU2D_Renderer->DrawSprites(line+1, &GPU2D_B);
+diff --git a/src/GPU.h b/src/GPU.h
+index f2d76ca..bc566e2 100644
+--- a/src/GPU.h
++++ b/src/GPU.h
+@@ -39,6 +39,8 @@ namespace GPU
+ {
+ 
+ extern u16 VCount;
++// omega-zero: the frame being run will not be shown, so its 2D is not drawn (GPU.cpp)
++extern bool OmegaHideFrame;
+ extern u16 TotalScanlines;
+ 
+ extern u16 DispStat[2];
+diff --git a/src/libretro/libretro.cpp b/src/libretro/libretro.cpp
+index 81e5ecf..fe3a383 100644
+--- a/src/libretro/libretro.cpp
++++ b/src/libretro/libretro.cpp
+@@ -768,9 +768,17 @@ void retro_run(void)
+       NDS::MicInputFrame(NULL, 0);
+    }
+ 
++   // omega-zero: a frame the frontend says it will not show (video off) is run without its
++   // picture: neither drawn (GPU.cpp, OmegaHideFrame) nor handed over
++   int av_enable = 3;
++   const bool hidden = environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &av_enable) && !(av_enable & 1);
++   GPU::OmegaHideFrame = hidden;
++
+    if (current_renderer != CurrentRenderer::None) NDS::RunFrame();
+ 
+-   render_frame();
++   GPU::OmegaHideFrame = false;
++   if (!hidden)
++      render_frame();
+ 
+    audio_callback();
+ 

@@ -99,6 +99,7 @@ fn stand_in(core: Core) -> MockCore {
         Core::Snes9x | Core::Supafaust => MockCore::sized(256, 224),
         Core::PcsxRearmed => MockCore::sized(320, 240),
         Core::Ppsspp => MockCore::sized(480, 272),
+        Core::MelonDs => MockCore::sized(256, 384),
     }
 }
 
@@ -144,6 +145,15 @@ pub fn system_dir(root: &Path, core: Core) -> PathBuf {
     }
 }
 
+/// The folder a core writes the game's save to itself: melonDS keeps a DS game's `.sav` in
+/// Saves/NDS, under the game's own name; every other core's save comes through omega-zero.
+pub fn save_dir(root: &Path, core: Core) -> PathBuf {
+    match core {
+        Core::MelonDs => root::saves_dir(root).join("NDS"),
+        _ => root::saves_dir(root),
+    }
+}
+
 fn open_named(
     root: &Path,
     core: Core,
@@ -153,7 +163,7 @@ fn open_named(
     // a core put away a moment ago may still be closing on its emulator's thread
     crate::emu::wait_closed();
     let system = system_dir(root, core);
-    let saves = root::saves_dir(root);
+    let saves = save_dir(root, core);
     let (serial, colour, link) = setup.handheld();
     for path in paths {
         if !path.exists() {
@@ -196,7 +206,7 @@ pub fn colour_option(which: Core, on: bool) -> Option<(&'static str, &'static st
             "gpsp_color_correction",
             if on { "enabled" } else { "disabled" },
         )),
-        Core::Snes9x | Core::Supafaust | Core::PcsxRearmed | Core::Ppsspp => None,
+        Core::Snes9x | Core::Supafaust | Core::PcsxRearmed | Core::Ppsspp | Core::MelonDs => None,
     }
 }
 
@@ -281,6 +291,24 @@ pub fn core_options(
             put("ppsspp_texture_scaling_level", "disabled");
             put("ppsspp_button_preference", "Cross");
             put("ppsspp_psp_model", "psp_2000_3000");
+        }
+        // the DS, recompiled, its 3D drawn on a thread of its own, both screens in one frame
+        // with the top one above, which omega-ds lays out; touched through libretro's pointer
+        // across that frame; started straight into the game. Names and values as libretro's
+        // melonDS declares them
+        Core::MelonDs => {
+            put("melonds_console_mode", "DS");
+            put("melonds_boot_directly", "enabled");
+            put("melonds_jit_enable", "enabled");
+            put("melonds_jit_block_size", "32");
+            put("melonds_jit_branch_optimisations", "enabled");
+            put("melonds_jit_literal_optimisations", "enabled");
+            put("melonds_jit_fast_memory", "enabled");
+            put("melonds_threaded_renderer", "enabled");
+            put("melonds_screen_layout", "Top/Bottom");
+            put("melonds_screen_gap", "0");
+            put("melonds_touch_mode", "Touch");
+            put("melonds_randomize_mac_address", "disabled");
         }
     }
     if let Some((key, value)) = colour_option(which, colour) {

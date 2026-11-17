@@ -107,6 +107,7 @@ pub fn console_of(platform: Platform) -> Option<u32> {
         Platform::Gba => Some(omega_cheevos::CONSOLE_GBA),
         Platform::Snes => Some(omega_cheevos::CONSOLE_SNES),
         Platform::Psp => Some(omega_cheevos::CONSOLE_PSP),
+        Platform::Nds => Some(omega_cheevos::CONSOLE_DS),
         Platform::Ps1 => None,
     }
 }

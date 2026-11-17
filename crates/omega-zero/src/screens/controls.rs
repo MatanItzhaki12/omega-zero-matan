@@ -75,6 +75,9 @@ impl ControlsView {
             Platform::Gba | Platform::Gb | Platform::Gbc => game.push(("SELECT+MENU", "LINK")),
             Platform::Ps1 => game.push(("SELECT+MENU", "DISC")),
             Platform::Psp => game.push(("HOLD L2", "D-PAD AS STICK")),
+            Platform::Nds => {
+                game.extend([("HOLD L2", "TOUCH CURSOR"), ("SELECT+Y", "SWAP SCREENS")]);
+            }
             Platform::Snes => {}
         }
         game.extend([

@@ -62,6 +62,7 @@ is made. ▲ ▼ move between the rows, ◀ ▶ change the one lit, **A on Save*
 | Game Boy, Game Boy Color | GAME PAK | **Shape** (notched, or the Color's rounded pak), Color, Hue, Shade, Finish |
 | SNES | SNES CART | **Shape** (American, or Super Famicom), Color, Hue, Shade, Finish |
 | PSP | UMD | Case Color, Hue, Shade, Finish |
+| Nintendo DS | DS CARD | Color, Hue, Shade, Finish |
 | PlayStation | DISC | **Disc Color**, the disc's own print where its label leaves it bare, Hue, Shade |
 
 - **Color** steps through the system's own classic shells first (the Pokémon GBA colors,
@@ -94,6 +95,8 @@ is made. ▲ ▼ move between the rows, ◀ ▶ change the one lit, **A on Save*
 | L2 + R2 | Lock fast forward on, or off again (R2 alone lets it go too) |
 | Hold X / Y | Turbo A / B |
 | L1 / R1 | Stretch or restore the picture, on the Game Boys |
+| SELECT + Y | Swap the screens, on the DS (rather than color correction) |
+| Hold L2 | The DS's touch cursor: the D-pad moves it, A touches (rather than rewind) |
 | Tap / hold POWER | Sleep / power off |
 | START while holding POWER | Restart |
 
@@ -243,8 +246,8 @@ goes straight to the save states without the menu flashing up first.
 |---|---|
 | MENU | Resume · Undo Save · Undo Load · States · Settings › · Restart · Exit Game |
 | SETTINGS | Display › · Gameplay › · Achievements › · Controls › |
-| DISPLAY | Screen Filter · Game Boy Palette · Color Correction · Frame Blending · Brightness · Blue Light Filter · PSP Screen (for this game) |
-| GAMEPLAY | Fast Forward · Fast Forward Sound · Rewind · Turbo Buttons · Run-Ahead (gpSP) · Rumble · Load State on Insert · Save State on Eject · Stick (PSP) |
+| DISPLAY | Screen Filter · Game Boy Palette · Color Correction · Frame Blending · Brightness · Blue Light Filter · PSP Screen (for this game) · DS Screens and Swap Screens (DS) |
+| GAMEPLAY | Fast Forward · Fast Forward Sound · Rewind · Turbo Buttons · Run-Ahead (gpSP) · Rumble · Load State on Insert · Save State on Eject · Stick (PSP) · Touch Cursor (DS) |
 | ACHIEVEMENTS | Game · Unlocked · View All › · RetroAchievements · Hardcore |
 | ALL ACHIEVEMENTS | Every achievement of the game, unlocked or locked |
 | CONTROLS | Every button, for the system being played |
@@ -725,6 +728,13 @@ Without them, those tests pass at once.
 ## Credits and licences
 
 Everything credited in the [README](README.md#credits-and-licence) still applies. In addition:
+
+- DS games run on [libretro's melonDS](https://github.com/libretro/melonDS) (GPL-3.0), built
+  with `cores/melonds`'s patches, its source beside it on the card.
+- The DS's One Screen layouts are ported from [Pokémon
+  Fulldex](https://github.com/mamesj/pokemon-fulldex) by mamesj (GPL-3.0): its merged view, its
+  function watch (`crates/omega-ds`, the core's `one-screen.patch`), Platinum's scenes and its
+  function table, cut to the functions the layouts watch (`crates/omega-ds/data/CPUE.txt`).
 
 - The controls, settings and in-game menu follow [Slot](https://github.com/slot-cfw/slot) by
   Brandon T. Kowalski (GPL-3.0). The Game Boy palette list and the frame blending options are

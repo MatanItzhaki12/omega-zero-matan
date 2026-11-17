@@ -69,6 +69,8 @@ pub enum OptionsPage {
     Headphones,
     /// The menu sounds and the shelf's tune, and how loud each is, opened from SHELF.
     Sound,
+    /// How DS games show their two screens and touch the touch screen, opened from GAMEPLAY.
+    Ds,
 }
 
 /// The systems with more than one core to run on, so a default to pick.
@@ -106,6 +108,7 @@ impl OptionsPage {
             OptionsPage::Restore => "FROM BACKUP",
             OptionsPage::Headphones => "HEADPHONES",
             OptionsPage::Sound => "SOUND",
+            OptionsPage::Ds => "NINTENDO DS",
         }
     }
 
@@ -131,9 +134,11 @@ impl OptionsPage {
                 OptionRow::LoadOnInsert,
                 OptionRow::SaveOnEject,
                 OptionRow::OnlinePlay,
+                OptionRow::NintendoDs,
                 OptionRow::Emulators,
             ],
             OptionsPage::Online => &[OptionRow::OnlineName, OptionRow::Relay],
+            OptionsPage::Ds => &[OptionRow::DsLayout, OptionRow::DsCursor],
             OptionsPage::Backup => &[
                 OptionRow::BackupOn,
                 OptionRow::BackupNas,
@@ -188,9 +193,10 @@ impl OptionsPage {
     pub fn settings_row(self) -> SettingsRow {
         match self {
             OptionsPage::Display => SettingsRow::Display,
-            OptionsPage::Gameplay | OptionsPage::Emulators | OptionsPage::Online => {
-                SettingsRow::Gameplay
-            }
+            OptionsPage::Gameplay
+            | OptionsPage::Emulators
+            | OptionsPage::Online
+            | OptionsPage::Ds => SettingsRow::Gameplay,
             OptionsPage::Shelf | OptionsPage::Sound => SettingsRow::Shelf,
             OptionsPage::Achievements => SettingsRow::Achievements,
             OptionsPage::Saves
@@ -213,6 +219,7 @@ impl OptionsPage {
             OptionsPage::Emulators => Some((OptionsPage::Gameplay, OptionRow::Emulators)),
             OptionsPage::Sound => Some((OptionsPage::Shelf, OptionRow::Sound)),
             OptionsPage::Online => Some((OptionsPage::Gameplay, OptionRow::OnlinePlay)),
+            OptionsPage::Ds => Some((OptionsPage::Gameplay, OptionRow::NintendoDs)),
             OptionsPage::SavesGames => Some((OptionsPage::Saves, OptionRow::SavesSearch)),
             OptionsPage::GameSaves => Some((OptionsPage::SavesGames, OptionRow::SavesGame(0))),
             OptionsPage::SaveMenu => Some((OptionsPage::GameSaves, OptionRow::GameSaveMenu)),
@@ -286,6 +293,12 @@ pub enum OptionRow {
     Relay,
     /// How a PSP game is shown unless set for itself: Fit, Actual or Stretch.
     PspScreen,
+    /// GAMEPLAY's way into the NINTENDO DS panel.
+    NintendoDs,
+    /// How a DS game's two screens show unless set for itself.
+    DsLayout,
+    /// How L2 brings up a DS game's touch cursor unless set for itself: held or pressed.
+    DsCursor,
     /// SAVES' way into SAVE BACKUP, the keyboard for a search, Auto Backup, Back Up All Saves,
     /// a system's games, and the room on the card.
     SavesNas,
@@ -355,6 +368,7 @@ impl OptionRow {
                 | OptionRow::Theme
                 | OptionRow::Labels
                 | OptionRow::OnlinePlay
+                | OptionRow::NintendoDs
                 | OptionRow::OnlineName
                 | OptionRow::BackupNas
                 | OptionRow::BackupUser
@@ -440,6 +454,9 @@ impl OptionRow {
             OptionRow::OnlineName => "Name",
             OptionRow::Relay => "Relay",
             OptionRow::PspScreen => "PSP Screen",
+            OptionRow::NintendoDs => "Nintendo DS",
+            OptionRow::DsLayout => "Screens",
+            OptionRow::DsCursor => "Touch Cursor",
             OptionRow::SavesNas => "NAS Backup",
             OptionRow::SavesSearch => "Search Games",
             OptionRow::SavesAutoBackup => "Auto Backup",
@@ -516,6 +533,9 @@ impl OptionRow {
             OptionRow::OnlineName => "What the other player sees",
             OptionRow::Relay => "The nearest is the quickest",
             OptionRow::PspScreen => "Fit fills the width; each game can differ",
+            OptionRow::NintendoDs => "The two screens and the touch screen",
+            OptionRow::DsLayout => "One Screen lays both out as one; each game can differ",
+            OptionRow::DsCursor => "L2 touches with the D-pad and A; each game can differ",
             OptionRow::SavesNas => "Saves copied to a NAS, and back",
             OptionRow::SavesSearch => "Find a game by its name",
             OptionRow::SavesAutoBackup => "How many automatic backups each game keeps",
@@ -795,6 +815,13 @@ impl App {
             OptionRow::OnlineName => self.online_name(),
             OptionRow::Relay => relay_word(s.relay).to_string(),
             OptionRow::PspScreen => self.psp_screen().word().to_string(),
+            OptionRow::NintendoDs => String::new(),
+            OptionRow::DsLayout => self.ds_layout_default().word().to_string(),
+            OptionRow::DsCursor => match self.ds_cursor_default() {
+                crate::input::Stick::ToggleL2 => "PRESS L2",
+                _ => "HOLD L2",
+            }
+            .to_string(),
             OptionRow::BackupOn
             | OptionRow::BackupNas
             | OptionRow::BackupUser
@@ -928,7 +955,18 @@ impl App {
             | OptionRow::Labels
             | OptionRow::Emulators
             | OptionRow::OnlinePlay
+            | OptionRow::NintendoDs
             | OptionRow::OnlineName => return,
+            OptionRow::DsLayout => {
+                self.state.ds_layout = self.ds_layout_default().step(right).as_str().to_string();
+            }
+            OptionRow::DsCursor => {
+                let to = match self.ds_cursor_default() {
+                    crate::input::Stick::ToggleL2 => crate::input::Stick::HoldL2,
+                    _ => crate::input::Stick::ToggleL2,
+                };
+                self.state.ds_cursor = to.as_str().to_string();
+            }
             OptionRow::BackupOn => return self.change_backup(row),
             OptionRow::PspScreen => {
                 let to = self
@@ -1098,6 +1136,10 @@ impl App {
             Action::GbaDown(Btn::A) if row == OptionRow::OnlineName => self.open_online_name(),
             Action::GbaDown(Btn::A) if row == OptionRow::OnlinePlay => self.go(
                 Phase::Options(OptionsScreen::new(OptionsPage::Online)),
+                Dir::Deeper,
+            ),
+            Action::GbaDown(Btn::A) if row == OptionRow::NintendoDs => self.go(
+                Phase::Options(OptionsScreen::new(OptionsPage::Ds)),
                 Dir::Deeper,
             ),
             Action::GbaDown(Btn::A) if row == OptionRow::Sound => self.go(

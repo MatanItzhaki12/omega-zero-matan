@@ -120,7 +120,10 @@ pub fn screen_for(platform: Platform, mode: VideoMode, frame: (u32, u32)) -> Scr
 /// Whether `platform` is a console played on a television, whose pictures come in every size
 /// and are laid out by their own, rather than a handheld drawn for the GBA's screen.
 fn is_console(platform: Platform) -> bool {
-    matches!(platform, Platform::Snes | Platform::Ps1 | Platform::Psp)
+    matches!(
+        platform,
+        Platform::Snes | Platform::Ps1 | Platform::Psp | Platform::Nds
+    )
 }
 
 /// The GBA frame at three panel pixels to a game pixel, which every canvas but 640x480 holds.
@@ -164,7 +167,7 @@ pub fn screen_on_frame(
         };
     }
     match platform {
-        Platform::Gba | Platform::Snes | Platform::Ps1 | Platform::Psp => {
+        Platform::Gba | Platform::Snes | Platform::Ps1 | Platform::Psp | Platform::Nds => {
             let h = (cw * SRC_H as f32 / SRC_W as f32).round();
             let view = GameView {
                 rect: [0.0, 0.0, cw, h],
@@ -225,6 +228,10 @@ fn console_screen(c: Canvas, platform: Platform, mode: VideoMode, frame: (u32, u
             (pw as f32, ph as f32)
         }
         (Platform::Psp, VideoMode::Fit) => fit(cw, ch, platform.picture()),
+        // a DS game's view, whatever shape its layout makes it (one screen, two stacked or side
+        // by side), as big as the canvas holds it
+        (Platform::Nds, _) if frame.0 > 0 && frame.1 > 0 => fit(cw, ch, frame),
+        (Platform::Nds, _) => fit(cw, ch, platform.picture()),
         _ => four_three(cw, ch),
     };
     let rect = [((cw - w) / 2.0).round(), ((ch - h) / 2.0).round(), w, h];

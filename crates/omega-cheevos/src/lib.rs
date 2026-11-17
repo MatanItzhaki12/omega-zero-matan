@@ -28,6 +28,7 @@ pub const CONSOLE_GB: u32 = 4;
 pub const CONSOLE_GBA: u32 = 5;
 pub const CONSOLE_GBC: u32 = 6;
 pub const CONSOLE_PSP: u32 = 41;
+pub const CONSOLE_DS: u32 = 18;
 
 /// How long one request may take before it is given up as a network error the client retries.
 const REQUEST_SECS: &str = "30";

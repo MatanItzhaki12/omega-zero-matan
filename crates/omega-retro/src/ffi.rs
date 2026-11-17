@@ -50,6 +50,12 @@ pub const PIXEL_FORMAT_0RGB1555: c_uint = 0;
 pub const PIXEL_FORMAT_XRGB8888: c_uint = 1;
 pub const PIXEL_FORMAT_RGB565: c_uint = 2;
 pub const DEVICE_JOYPAD: c_uint = 1;
+/// A touch screen: where it is touched, -32768 to 32767 across the picture each way, and
+/// whether it is.
+pub const DEVICE_POINTER: c_uint = 6;
+pub const POINTER_X: c_uint = 0;
+pub const POINTER_Y: c_uint = 1;
+pub const POINTER_PRESSED: c_uint = 2;
 pub const MEMORY_SAVE_RAM: c_uint = 0;
 pub const MEMORY_SYSTEM_RAM: c_uint = 2;
 pub const MEMORY_VIDEO_RAM: c_uint = 3;

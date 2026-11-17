@@ -10,16 +10,19 @@ pub enum Platform {
     Ps1,
     /// The PlayStation Portable, on PPSSPP, which draws on the GPU.
     Psp,
+    /// The Nintendo DS, on melonDS: two screens, the lower one touched, shown on one.
+    Nds,
 }
 
 impl Platform {
-    pub const ALL: [Platform; 6] = [
+    pub const ALL: [Platform; 7] = [
         Platform::Gba,
         Platform::Gb,
         Platform::Gbc,
         Platform::Snes,
         Platform::Ps1,
         Platform::Psp,
+        Platform::Nds,
     ];
 
     pub fn name(self) -> &'static str {
@@ -30,6 +33,7 @@ impl Platform {
             Platform::Snes => "Super Nintendo",
             Platform::Ps1 => "PlayStation",
             Platform::Psp => "PlayStation Portable",
+            Platform::Nds => "Nintendo DS",
         }
     }
 
@@ -41,6 +45,7 @@ impl Platform {
             Platform::Snes => "SNES",
             Platform::Ps1 => "PS1",
             Platform::Psp => "PSP",
+            Platform::Nds => "NDS",
         }
     }
 
@@ -51,6 +56,7 @@ impl Platform {
             Platform::Snes => &["sfc", "smc"],
             Platform::Ps1 => &["cue", "chd", "pbp", "m3u"],
             Platform::Psp => &["iso", "cso", "chd", "pbp"],
+            Platform::Nds => &["nds"],
         }
     }
 
@@ -61,6 +67,8 @@ impl Platform {
             Platform::Snes => (256, 224),
             Platform::Ps1 => (320, 240),
             Platform::Psp => (480, 272),
+            // one screen of the two: the view a DS game is shown in
+            Platform::Nds => (256, 192),
         }
     }
 
@@ -80,10 +88,11 @@ impl Platform {
         matches!(self, Platform::Gba | Platform::Gb | Platform::Gbc)
     }
 
-    /// Whether held L2 rewinds: not on the PlayStations, whose states are too big for the
-    /// rewind buffer, and whose L2 is the game's (the PlayStation's) or the stick's (the PSP's).
+    /// Whether held L2 rewinds: not on the PlayStations or the DS, whose states are too big for
+    /// the rewind buffer, and whose L2 is the game's (the PlayStation's), the stick's (the
+    /// PSP's) or the touch screen's (the DS's).
     pub fn rewinds(self) -> bool {
-        !matches!(self, Platform::Ps1 | Platform::Psp)
+        !matches!(self, Platform::Ps1 | Platform::Psp | Platform::Nds)
     }
 
     /// Whether a game runs faster while R2 is held: not a PSP game, which PPSSPP paces on a
@@ -96,6 +105,17 @@ impl Platform {
     /// has none of.
     pub fn stick_on_l2(self) -> bool {
         self == Platform::Psp
+    }
+
+    /// Whether held L2 is a cursor on the touch screen: the DS's, which the handheld has no
+    /// touch screen for.
+    pub fn touch_on_l2(self) -> bool {
+        self == Platform::Nds
+    }
+
+    /// Whether a game has two screens to show on the handheld's one: the DS's.
+    pub fn two_screens(self) -> bool {
+        self == Platform::Nds
     }
 
     /// Whether L2/R2 belong to the game rather than to rewind and fast-forward: a PlayStation

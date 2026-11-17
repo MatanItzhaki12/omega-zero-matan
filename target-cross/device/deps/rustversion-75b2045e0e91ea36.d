@@ -1,0 +1,20 @@
+/src/target-cross/device/deps/rustversion-75b2045e0e91ea36.d: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/attr.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/bound.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/constfn.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/date.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/error.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/expand.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/expr.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/iter.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/release.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/time.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/token.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/version.rs /src/target-cross/device/build/rustversion-2913a3067d247bef/out/version.expr
+
+/src/target-cross/device/deps/librustversion-75b2045e0e91ea36.so: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/attr.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/bound.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/constfn.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/date.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/error.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/expand.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/expr.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/iter.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/release.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/time.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/token.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/version.rs /src/target-cross/device/build/rustversion-2913a3067d247bef/out/version.expr
+
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/lib.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/attr.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/bound.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/constfn.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/date.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/error.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/expand.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/expr.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/iter.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/release.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/time.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/token.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustversion-1.0.23/src/version.rs:
+/src/target-cross/device/build/rustversion-2913a3067d247bef/out/version.expr:
+
+# env-dep:OUT_DIR=/src/target-cross/device/build/rustversion-2913a3067d247bef/out

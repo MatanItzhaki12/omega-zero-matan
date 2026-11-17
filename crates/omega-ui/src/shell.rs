@@ -24,6 +24,18 @@ pub const UMD_SHELL: Shell = Shell {
     finish: Finish::Translucent,
 };
 
+/// The DS Game Card's dark grey, a shade lighter and bluer than a GBA cart's.
+pub const DS_SHELL: Shell = shell([0x4a, 0x4b, 0x51], Finish::Solid);
+
+/// The cards that came in shells of their own, by their game code's first three letters:
+/// Pokémon Black and White in clear black and clear white, Black 2 and White 2 in solid.
+const DS_CODES: &[(&str, Shell)] = &[
+    ("IRB", shell([0x2a, 0x2b, 0x30], Finish::Translucent)),
+    ("IRA", shell([0xe6, 0xe7, 0xea], Finish::Translucent)),
+    ("IRE", shell([0x26, 0x26, 0x29], Finish::Solid)),
+    ("IRD", shell([0xec, 0xec, 0xe8], Finish::Solid)),
+];
+
 pub const DEFAULT_SHELL: Shell = Shell {
     colour: [0x35, 0x35, 0x3a],
     finish: Finish::Solid,
@@ -108,7 +120,16 @@ pub fn shell_for(cart: &Cart) -> Shell {
         },
         Platform::Ps1 => DEFAULT_SHELL,
         Platform::Psp => UMD_SHELL,
+        Platform::Nds => ds_shell_for(&cart.code),
     }
+}
+
+/// A DS card's shell, by its game code.
+pub fn ds_shell_for(code: &str) -> Shell {
+    DS_CODES
+        .iter()
+        .find(|(c, _)| code.get(..3) == Some(*c))
+        .map_or(DS_SHELL, |(_, s)| *s)
 }
 
 pub fn gba_shell_for(code: &str) -> Shell {

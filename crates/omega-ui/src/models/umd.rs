@@ -380,6 +380,7 @@ pub(crate) fn spec() -> Spec {
         h: UMD_H,
         label: LABEL,
         label_round: LABEL_ROUND,
+        label_cut: 0,
         mask: mask(),
         depth: depth(),
         detail: detail(),

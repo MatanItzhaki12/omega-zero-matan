@@ -1,0 +1,7 @@
+cargo:rerun-if-changed=/src/.git/HEAD
+cargo:rerun-if-changed=/src/.git/logs/HEAD
+cargo:rustc-env=OMEGA_GIT_HASH=69b99aa
+cargo:rustc-env=OMEGA_GIT_DIRTY=1
+cargo:rustc-env=OMEGA_BUILD_DATE=2026-11-17
+cargo:rerun-if-env-changed=OMEGA_SS_DEVID
+cargo:rerun-if-env-changed=OMEGA_SS_DEVPASSWORD

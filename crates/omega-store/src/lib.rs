@@ -15,6 +15,7 @@ pub mod gb;
 mod gb_palette;
 mod gba;
 pub mod ini;
+pub mod nds;
 mod platform;
 pub mod ps1;
 pub mod psp;

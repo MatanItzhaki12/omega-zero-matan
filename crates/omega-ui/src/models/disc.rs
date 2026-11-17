@@ -371,6 +371,7 @@ pub(crate) fn spec() -> Spec {
         h: DISC_PX,
         label: (x, y, w, h),
         label_round: 0,
+        label_cut: 0,
         mask: mask(),
         depth: mask(),
         detail: no_detail(),

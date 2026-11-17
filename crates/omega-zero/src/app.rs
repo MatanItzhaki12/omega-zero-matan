@@ -395,6 +395,11 @@ pub struct App {
     pub(crate) backup_woke_at: Option<Millis>,
     /// The stick a game's menu set, for the session's pad to take.
     pub(crate) stick_pending: Option<crate::input::Stick>,
+    /// The DS game in play's screen layout, and a change of it or a swap of its screens the
+    /// game's menu or SELECT+Y made, for the session to hand the emulator.
+    pub(crate) ds_layout: omega_ds::Layout,
+    pub(crate) ds_layout_pending: Option<omega_ds::Layout>,
+    pub(crate) ds_swap_pending: bool,
     /// The keyboard asks again for a room's password, the one given having been turned away.
     pub(crate) link_refused: bool,
     /// Local, the link goes to RetroArch on this network rather than to another handheld.
@@ -669,6 +674,9 @@ impl App {
             backup_fail_told: false,
             backup_woke_at: None,
             stick_pending: None,
+            ds_layout: omega_ds::Layout::default(),
+            ds_layout_pending: None,
+            ds_swap_pending: false,
             link_refused: false,
             link_retroarch: false,
             link_advanced: false,
@@ -1194,11 +1202,71 @@ impl App {
         self.set_picture(to);
     }
 
-    /// How the D-pad stands in for the stick in the game in play.
+    /// How a DS game's screens are laid out when it was not set for itself: Settings' NINTENDO
+    /// DS panel's.
+    pub fn ds_layout_default(&self) -> omega_ds::Layout {
+        omega_ds::Layout::parse(&self.state.ds_layout).unwrap_or_default()
+    }
+
+    /// How L2 brings up a DS game's touch cursor when it was not set for itself.
+    pub fn ds_cursor_default(&self) -> crate::input::Stick {
+        crate::input::Stick::parse(&self.state.ds_cursor)
+            .filter(|s| *s != crate::input::Stick::Off)
+            .unwrap_or(crate::input::Stick::HoldL2)
+    }
+
+    /// How L2 works in the game in play by default: a DS game's cursor as Settings has it, a
+    /// PSP game's stick held.
+    pub fn stick_default(&self) -> crate::input::Stick {
+        match self.platform.touch_on_l2() {
+            true => self.ds_cursor_default(),
+            false => crate::input::Stick::HoldL2,
+        }
+    }
+
+    /// The DS game in play's screen layout, as the session started it.
+    pub fn set_ds_layout(&mut self, layout: omega_ds::Layout) {
+        self.ds_layout = layout;
+    }
+
+    pub fn ds_layout(&self) -> omega_ds::Layout {
+        self.ds_layout
+    }
+
+    /// The game's menu: the DS game's layout stepped on, kept for the game.
+    pub(crate) fn step_ds_layout(&mut self, right: bool) {
+        let to = self.ds_layout.step(right);
+        if let (Some(root), Phase::Playing { cart }) = (&self.root, &self.phase) {
+            if let Err(e) = crate::ds_screen::write_layout(root, cart, to) {
+                crate::log!("ds_layout.ini: {e}");
+            }
+        }
+        self.ds_layout = to;
+        self.ds_layout_pending = Some(to);
+    }
+
+    /// SELECT+Y or the game's menu: the DS game's other screen made the large one.
+    pub(crate) fn swap_ds_screens(&mut self) {
+        if self.platform.two_screens() {
+            self.ds_swap_pending = true;
+        }
+    }
+
+    /// The layout the game's menu set since the last call, for the session's emulator.
+    pub fn take_ds_layout(&mut self) -> Option<omega_ds::Layout> {
+        self.ds_layout_pending.take()
+    }
+
+    /// Whether the screens were swapped since the last call.
+    pub fn take_ds_swap(&mut self) -> bool {
+        std::mem::take(&mut self.ds_swap_pending)
+    }
+
+    /// How L2 works in the game in play: the D-pad as a PSP game's stick, or a DS game's cursor.
     pub(crate) fn stick_now(&self) -> crate::input::Stick {
         match (&self.root, &self.phase) {
             (Some(root), Phase::Playing { cart }) => {
-                crate::input::stick_for(root, cart, self.platform)
+                crate::input::stick_for(root, cart, self.platform, self.stick_default())
             }
             _ => crate::input::Stick::Off,
         }
@@ -1251,6 +1319,8 @@ impl App {
             game_l2_r2: self.platform.game_owns_l2_r2(),
             rewind: self.platform.rewinds() && self.state.rewind && !self.hardcore(),
             colour: self.platform.colour_correction(),
+            touch_l2: self.platform.touch_on_l2(),
+            swap: self.platform.two_screens(),
             // SELECT+START opens the cart editor on the shelf alone, with nothing over it
             shelf: matches!(self.phase, Phase::Shelf)
                 && self.core_picker.is_none()
@@ -2008,6 +2078,10 @@ impl App {
     fn adjust(&mut self, action: Action) -> bool {
         if action == Action::MuteToggle {
             self.mute_toggle();
+            return true;
+        }
+        if action == Action::SwapScreens {
+            self.swap_ds_screens();
             return true;
         }
         if action == Action::ColourCorrectionToggle {
