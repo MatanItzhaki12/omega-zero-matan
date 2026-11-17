@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A DS screen shows at an exact 2x, every DS pixel two by two (512x384), rather than stretched
+  2.5x to the screen's height, which made some pixels a row or a column bigger than others.
+  Two screens, stacked or side by side, still fill as much of the screen as they can.
+- Leaving a DS game no longer takes omega-zero down with it.
+
 ## omega-zero 2.8.0
 
 - **Nintendo DS games**, on libretro's melonDS (recompiled, its 3D on a thread of its own), from

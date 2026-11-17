@@ -344,3 +344,24 @@ fn a_psp_game_fits_its_own_shape_shows_its_actual_size_or_stretches() {
         VideoMode::Stretch
     );
 }
+
+/// A DS game: one screen's view, as the core draws it or One Screen at twice that, at a whole
+/// 2x in the middle of each canvas, every DS pixel two by two; two screens stacked or side by
+/// side as big as the canvas holds them.
+#[test]
+fn a_ds_screen_shows_at_a_whole_scale_and_two_screens_fit() {
+    for (c, one) in [
+        (Canvas::FOUR_THREE, [64.0, 48.0, 512.0, 384.0]),
+        (Canvas::WIDE, [104.0, 48.0, 512.0, 384.0]),
+        (Canvas::SQUARE, [104.0, 168.0, 512.0, 384.0]),
+    ] {
+        for frame in [(256, 192), (512, 384), (0, 0)] {
+            let view = screen_on_frame(c, Platform::Nds, VideoMode::Fit, frame).view;
+            assert_eq!(view.rect, one, "{c:?} {frame:?}");
+        }
+    }
+    let stacked = screen_on_frame(Canvas::WIDE, Platform::Nds, VideoMode::Fit, (256, 384)).view;
+    assert_eq!(stacked.rect, [200.0, 0.0, 320.0, 480.0]);
+    let beside = screen_on_frame(Canvas::WIDE, Platform::Nds, VideoMode::Fit, (512, 192)).view;
+    assert_eq!(beside.rect, [0.0, 105.0, 720.0, 270.0]);
+}

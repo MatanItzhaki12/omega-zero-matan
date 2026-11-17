@@ -228,10 +228,9 @@ fn console_screen(c: Canvas, platform: Platform, mode: VideoMode, frame: (u32, u
             (pw as f32, ph as f32)
         }
         (Platform::Psp, VideoMode::Fit) => fit(cw, ch, platform.picture()),
-        // a DS game's view, whatever shape its layout makes it (one screen, two stacked or side
-        // by side), as big as the canvas holds it
-        (Platform::Nds, _) if frame.0 > 0 && frame.1 > 0 => fit(cw, ch, frame),
-        (Platform::Nds, _) => fit(cw, ch, platform.picture()),
+        // a DS game's view, whatever shape its layout makes it: one screen at a whole scale,
+        // two as big as fits
+        (Platform::Nds, _) => ds_view(cw, ch, frame),
         _ => four_three(cw, ch),
     };
     let rect = [((cw - w) / 2.0).round(), ((ch - h) / 2.0).round(), w, h];
@@ -245,6 +244,25 @@ fn console_screen(c: Canvas, platform: Platform, mode: VideoMode, frame: (u32, u
         still: view,
         bands: around(c, rect),
     }
+}
+
+/// A DS game's view on a canvas `cw` by `ch`, for a frame `frame` big. One screen's view, as the
+/// core's 256x192 or One Screen's drawing of it at twice that, goes at the largest whole number
+/// of panel pixels to a DS pixel the canvas holds (2x, 512x384, on 640x480 and 720x480): a
+/// stretch to the canvas's height would make some pixels a column or a row bigger than others.
+/// Two screens stacked or side by side, at 1x too small to play, are as big as the canvas holds.
+fn ds_view(cw: f32, ch: f32, frame: (u32, u32)) -> (f32, f32) {
+    let (sw, sh) = (omega_ds::screen::W as u32, omega_ds::screen::H as u32);
+    // (no frame yet is one screen's, as a game starts)
+    let one_screen = match frame {
+        (0, _) | (_, 0) => true,
+        (w, h) => w * sh == h * sw && w % sw == 0,
+    };
+    if !one_screen {
+        return fit(cw, ch, frame);
+    }
+    let scale = (cw / sw as f32).min(ch / sh as f32).floor().max(1.0);
+    (sw as f32 * scale, sh as f32 * scale)
 }
 
 /// A `picture` as big as a canvas `cw` by `ch` holds it, in its own shape, to whole pixels.
