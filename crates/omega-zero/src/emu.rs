@@ -1305,6 +1305,10 @@ impl Worker {
     /// the next PSP game started on what it left, whose texture names the compositor's own
     /// textures share: the screen's thread fell on the next game's first frames.
     fn put_away(&self, mut core: Box<dyn RetroCore>) {
+        // a DS game's screens first, while the core they stop watching is still there: dropped
+        // after it, they called into a library already closed, and took omega-zero down with
+        // them as the game came out
+        drop(self.ds.borrow_mut().take());
         if self.gpu.borrow().is_some() {
             core.gpu_context_destroy();
         }
