@@ -189,6 +189,13 @@ pub trait RetroCore: Send {
     }
     /// The left analog stick of `port`, each axis -32768 to 32767, right and down positive.
     fn set_analog(&mut self, _port: usize, _x: i16, _y: i16) {}
+    /// Where the picture is touched, each axis -32768 to 32767 across it, right and down
+    /// positive; none, not touched.
+    fn set_pointer(&mut self, _at: Option<(i16, i16)>) {}
+    /// The one-screen hooks omega-zero's melonDS core exports, where the core is that one.
+    fn ds_hooks(&self) -> Option<crate::ds::DsHooks> {
+        None
+    }
 }
 
 /// A loaded game's memory as RetroAchievements reads it: the map the core declared, and the

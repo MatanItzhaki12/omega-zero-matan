@@ -1,6 +1,6 @@
 [package]
 name = "omega-zero"
-version = "2.7.3"
+version = "2.8.0"
 description = "A cartridge-shelf frontend for Anbernic H700 handhelds"
 edition.workspace = true
 rust-version.workspace = true
@@ -13,6 +13,7 @@ device = ["omega-gfx/device"]
 
 [dependencies]
 omega-cheevos = { path = "../omega-cheevos" }
+omega-ds = { path = "../omega-ds" }
 omega-gfx = { path = "../omega-gfx", default-features = false }
 omega-input = { path = "../omega-input" }
 omega-pack = { path = "../omega-pack" }

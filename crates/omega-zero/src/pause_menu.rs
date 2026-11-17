@@ -123,6 +123,8 @@ impl PausePage {
                 PauseRow::Brightness,
                 PauseRow::BlueLight,
                 PauseRow::Picture,
+                PauseRow::DsScreens,
+                PauseRow::SwapScreens,
             ],
             PausePage::Gameplay => &[
                 PauseRow::FastForward,
@@ -134,6 +136,7 @@ impl PausePage {
                 PauseRow::LoadOnInsert,
                 PauseRow::SaveOnEject,
                 PauseRow::Stick,
+                PauseRow::Cursor,
             ],
             PausePage::Achievements => &[
                 PauseRow::Game,
@@ -207,6 +210,13 @@ pub enum PauseRow {
     Picture,
     /// A PSP game's D-pad as the stick: held L2, toggled by L2, or never, for this game.
     Stick,
+    /// A DS game's screens laid out on the one: One Screen, Focus, Picture in Picture,
+    /// Stacked or Side by Side, for this game.
+    DsScreens,
+    /// A DS game's other screen made the large one, as SELECT+Y does.
+    SwapScreens,
+    /// A DS game's touch cursor: held L2 or toggled by it, for this game.
+    Cursor,
     /// The headphones connected: opens their page.
     Headphones,
     /// Wi-Fi and Bluetooth, on or off; Y lists the networks or the devices.
@@ -245,6 +255,9 @@ impl PauseRow {
             PauseRow::RunAhead => "Run-Ahead",
             PauseRow::Picture => "PSP Screen",
             PauseRow::Stick => "D-Pad as Stick",
+            PauseRow::DsScreens => "DS Screens",
+            PauseRow::SwapScreens => "Swap Screens",
+            PauseRow::Cursor => "Touch Cursor",
             PauseRow::Headphones => "Headphones",
             PauseRow::Wifi => "Wi-Fi",
             PauseRow::Bluetooth => "Bluetooth",
@@ -291,6 +304,9 @@ impl PauseRow {
             PauseRow::RunAhead => "A frame sooner on gpSP",
             PauseRow::Picture => "For this game: Fit fills the width",
             PauseRow::Stick => "For this game: L2 makes the D-pad the stick",
+            PauseRow::DsScreens => "For this game: how its two screens show",
+            PauseRow::SwapScreens => "SELECT+Y does this too",
+            PauseRow::Cursor => "For this game: L2 touches with the D-pad and A",
             PauseRow::Headphones => "Noise control and battery",
             PauseRow::Wifi => "A switches it, Y lists networks",
             PauseRow::Bluetooth => "A switches it, Y lists devices",
@@ -509,6 +525,9 @@ impl App {
                 // gpSP's alone: run-ahead is for no other core
                 PauseRow::RunAhead => self.core == Core::Gpsp,
                 PauseRow::Picture | PauseRow::Stick => self.platform == Platform::Psp,
+                PauseRow::DsScreens | PauseRow::SwapScreens | PauseRow::Cursor => {
+                    self.platform == Platform::Nds
+                }
                 PauseRow::Headphones => self.headphones_kind().is_some(),
                 PauseRow::Wifi => self.wifi.present(),
                 PauseRow::Bluetooth => self.bluetooth.present(),
@@ -589,12 +608,14 @@ impl App {
             PauseRow::Turbo => self.option_text(OptionRow::Turbo),
             PauseRow::RunAhead => self.option_text(OptionRow::RunAhead),
             PauseRow::Picture => self.video_mode.word().to_string(),
-            PauseRow::Stick => match self.stick_now() {
+            PauseRow::Stick | PauseRow::Cursor => match self.stick_now() {
                 crate::input::Stick::HoldL2 => "HOLD L2",
                 crate::input::Stick::ToggleL2 => "PRESS L2",
                 crate::input::Stick::Off => "OFF",
             }
             .to_string(),
+            PauseRow::DsScreens => self.ds_layout().word().to_string(),
+            PauseRow::SwapScreens => "SELECT+Y".to_string(),
             PauseRow::Hp(row) => self.headphones_value(row),
             PauseRow::Wifi => on_off(self.wifi.enabled()),
             PauseRow::Bluetooth => on_off(self.bluetooth.enabled()),
@@ -774,7 +795,9 @@ impl App {
             PauseRow::ColourCorrection => self.toggle_colour_correction(),
             PauseRow::FastForward => self.step_ff_speed(right),
             PauseRow::Picture => self.step_picture(right),
-            PauseRow::Stick => self.step_stick(right),
+            PauseRow::Stick | PauseRow::Cursor => self.step_stick(right),
+            PauseRow::DsScreens => self.step_ds_layout(right),
+            PauseRow::SwapScreens => self.swap_ds_screens(),
             PauseRow::Hp(row) => self.change_headphones(row, right),
             PauseRow::Wifi => self.toggle_wifi(),
             PauseRow::Bluetooth => self.toggle_bluetooth(),

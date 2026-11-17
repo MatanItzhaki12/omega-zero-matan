@@ -193,6 +193,7 @@ pub(crate) fn spec(shell: SnesShell) -> Spec {
         h,
         label,
         label_round,
+        label_cut: 0,
         mask: mask(shell),
         depth: depth(shell),
         detail: detail(shell),

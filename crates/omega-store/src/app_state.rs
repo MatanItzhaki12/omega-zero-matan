@@ -116,6 +116,12 @@ pub struct AppState {
     pub picked_platform: Option<Platform>,
     /// How a PSP game is shown when it was not set for itself: `fit`, `actual` or `stretch`.
     pub psp_screen: String,
+    /// How a DS game's two screens are laid out when it was not set for itself: `one-screen`,
+    /// `focus`, `picture`, `stacked` or `side-by-side`.
+    pub ds_layout: String,
+    /// How L2 brings up a DS game's touch cursor when it was not set for itself: `hold` or
+    /// `toggle`.
+    pub ds_cursor: String,
     /// The menus click, chime and swish as they are used.
     pub menu_sounds: bool,
     /// A soft tune plays on the shelf and in its menus, and stops for a game.
@@ -202,6 +208,8 @@ impl Default for AppState {
             picked: String::new(),
             picked_platform: None,
             psp_screen: "fit".to_string(),
+            ds_layout: "one-screen".to_string(),
+            ds_cursor: "hold".to_string(),
             menu_sounds: true,
             menu_music: true,
             menu_sounds_volume: MENU_VOLUME_DEFAULT,
@@ -512,6 +520,8 @@ const FIELDS: &[Field] = &[
         }
     ),
     text!("psp_screen", psp_screen),
+    text!("ds_layout", ds_layout),
+    text!("ds_cursor", ds_cursor),
     flag!("menu_sounds", menu_sounds),
     flag!("menu_music", menu_music),
     may!(

@@ -120,13 +120,13 @@ impl App {
         }
     }
 
-    /// How long between autosaves: a PSP state is 40 MB, which the core takes a moment to give
-    /// up and the card some seconds to take, so a PSP game, which keeps saves of its own, is
-    /// autosaved less often. A state is still written as the cart comes out and as the console
-    /// sleeps.
+    /// How long between autosaves: a PSP state is 40 MB and a DS one several, which the core
+    /// takes a moment to give up and the card some seconds to take, so a PSP or DS game, each
+    /// keeping saves of its own, is autosaved less often. A state is still written as the cart
+    /// comes out and as the console sleeps.
     pub(super) fn autosave_every(&self) -> Millis {
         match self.platform {
-            Platform::Psp => AUTOSAVE_PSP_MS,
+            Platform::Psp | Platform::Nds => AUTOSAVE_PSP_MS,
             _ => AUTOSAVE_MS,
         }
     }

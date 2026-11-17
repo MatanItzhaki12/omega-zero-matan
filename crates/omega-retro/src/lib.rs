@@ -4,6 +4,7 @@
 //! exchange for the GBA's.
 
 mod core;
+pub mod ds;
 mod elf;
 mod ffi;
 pub mod gpsp;

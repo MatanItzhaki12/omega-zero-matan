@@ -3,8 +3,8 @@ use omega_retro::ButtonMask;
 
 const DPAD: u16 = ButtonMask::UP | ButtonMask::DOWN | ButtonMask::LEFT | ButtonMask::RIGHT;
 
-/// How the D-pad stands in for an analog stick, on a system whose games want one that the
-/// handheld has none of: the PSP's.
+/// How L2 brings up what the handheld has none of: on the PSP the D-pad as its analog stick,
+/// on the DS a cursor on its touch screen.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Stick {
     /// The D-pad is the D-pad.
@@ -38,16 +38,21 @@ impl Stick {
 /// Each game's stick, where it was changed from its system's: `Config/psp_stick.ini`.
 pub const STICK_FILE: &str = "Config/psp_stick.ini";
 
-/// How the D-pad stands in for the stick in the game `stem` of `platform`: as it was set for
-/// that game, else held L2 on a system whose games want a stick, else not at all.
-pub fn stick_for(root: &std::path::Path, stem: &str, platform: omega_store::Platform) -> Stick {
-    if !platform.stick_on_l2() {
+/// How L2 works in the game `stem` of `platform`: as it was set for that game, else
+/// `fallback` on a system whose games want a stick or a touch screen, else not at all.
+pub fn stick_for(
+    root: &std::path::Path,
+    stem: &str,
+    platform: omega_store::Platform,
+    fallback: Stick,
+) -> Stick {
+    if !platform.stick_on_l2() && !platform.touch_on_l2() {
         return Stick::Off;
     }
     omega_store::ini::value(root, STICK_FILE, stem)
         .as_deref()
         .and_then(Stick::parse)
-        .unwrap_or(Stick::HoldL2)
+        .unwrap_or(fallback)
 }
 
 pub fn write_stick(root: &std::path::Path, stem: &str, stick: Stick) -> std::io::Result<()> {
@@ -67,6 +72,9 @@ pub struct Pad {
     /// L2 is held, and, for a stick L2 switches, whether the D-pad is the stick now.
     l2: bool,
     toggled: bool,
+    /// L2 brings up a touch cursor rather than a stick: the DS's. The game's pad is then
+    /// handed L2 while the cursor is on, the D-pad left in it for the cursor to take.
+    touch: bool,
 }
 
 impl Pad {
@@ -108,6 +116,11 @@ impl Pad {
         }
     }
 
+    /// Whether L2 is a touch cursor, the DS's, rather than a stick.
+    pub fn set_touch(&mut self, touch: bool) {
+        self.touch = touch;
+    }
+
     /// Whether the D-pad is the stick now.
     pub fn stick_active(&self) -> bool {
         match self.stick {
@@ -119,15 +132,16 @@ impl Pad {
 
     /// The buttons as the game's pad has them: without the D-pad while it is the stick.
     pub fn mask(&self) -> ButtonMask {
-        match self.stick_active() {
-            true => ButtonMask(self.mask & !DPAD),
-            false => ButtonMask(self.mask),
+        match (self.stick_active(), self.touch) {
+            (true, true) => ButtonMask(self.mask | ButtonMask::L2),
+            (true, false) => ButtonMask(self.mask & !DPAD),
+            (false, _) => ButtonMask(self.mask),
         }
     }
 
     /// The left stick, x and y, right and down positive: the D-pad held, while it is the stick.
     pub fn analog(&self) -> (i16, i16) {
-        if !self.stick_active() {
+        if !self.stick_active() || self.touch {
             return (0, 0);
         }
         let axis = |minus: u16, plus: u16| match (self.mask & minus != 0, self.mask & plus != 0) {
@@ -211,6 +225,24 @@ mod tests {
         p.apply(Action::GbaDown(Btn::L2));
         assert_eq!(p.analog(), (0, 0));
         assert_ne!(p.mask().0 & ButtonMask::LEFT, 0);
+    }
+
+    #[test]
+    fn a_touch_cursor_hands_the_game_l2_and_keeps_the_dpad_for_the_cursor() {
+        let mut p = pad(Stick::HoldL2);
+        p.set_touch(true);
+        p.apply(Action::GbaDown(Btn::Right));
+        assert_eq!(p.mask().0 & ButtonMask::L2, 0, "no cursor until L2");
+        p.apply(Action::GbaDown(Btn::L2));
+        assert_ne!(p.mask().0 & ButtonMask::L2, 0);
+        assert_ne!(
+            p.mask().0 & ButtonMask::RIGHT,
+            0,
+            "the cursor takes the D-pad"
+        );
+        assert_eq!(p.analog(), (0, 0), "a DS game has no stick");
+        p.apply(Action::GbaUp(Btn::L2));
+        assert_eq!(p.mask().0 & ButtonMask::L2, 0);
     }
 
     #[test]

@@ -766,6 +766,7 @@ fn system(p: Platform) -> &'static str {
         Platform::Snes => "SNES",
         Platform::Ps1 => "PlayStation",
         Platform::Psp => "PSP",
+        Platform::Nds => "Nintendo DS",
     }
 }
 

@@ -1,0 +1,15 @@
+[package]
+name = "omega-ds"
+version = "2.8.0"
+description = "omega-zero's DS screens: the two DS screens shown on the handheld's one, after Pokémon Fulldex's one-screen layouts"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

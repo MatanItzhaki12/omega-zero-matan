@@ -146,7 +146,7 @@ jobs:
           TASK_VERSION: v3.54.0
           TASK_SHA256: d7189d439d4a6058e39e1b2acd7c8b27acd4856691b408f23b242e4294e1df5b
 
-      # The five cores, their source archives and build stamps, as the last release that built
+      # The cores, their source archives and build stamps, as the last release that built
       # them from the same cores/ and taskfile.yml left them: each core's task builds it again
       # all the same when its stamp is not the one its build.sh gives now.
       - name: Keep the cores built
@@ -178,11 +178,15 @@ jobs:
           out="$TREE"
           file "$out/System/omega-zero" | grep -q aarch64
           # each core an aarch64 library a frontend can open: retro_init and retro_run exported
-          for lib in mgba gpsp snes9x mednafen_supafaust pcsx_rearmed ppsspp; do
+          for lib in mgba gpsp snes9x mednafen_supafaust pcsx_rearmed ppsspp melonds; do
             so="$out/System/${lib}_libretro.so"
             file "$so" | grep -q aarch64
             nm -D --defined-only "$so" | grep -qw retro_init
             nm -D --defined-only "$so" | grep -qw retro_run
+          done
+          # the one-screen layouts' view of melonDS, which its patch exports
+          for sym in omega_ds_watch omega_ds_layers; do
+            nm -D --defined-only "$out/System/melonds_libretro.so" | grep -qw "$sym"
           done
           test -x "$out/System/omega-zero"
           for size in 640x480 720x480 720x720; do
@@ -203,9 +207,9 @@ jobs:
           for p in cores/mgba/*.patch; do
             test -f "$out/System/licenses/mgba-$(basename "$p")"
           done
-          # Supafaust and pcsx_rearmed are GPL-2.0 as gpSP is, and Snes9x holds the LGPL-2.1
-          # snes_ntsc filter: each one's source, build stamp and patches ship beside it
-          for name in snes9x supafaust pcsx_rearmed; do
+          # Supafaust and pcsx_rearmed are GPL-2.0 as gpSP is, melonDS GPL-3.0, and Snes9x holds
+          # the LGPL-2.1 snes_ntsc filter: each one's source, build stamp and patches ship beside it
+          for name in snes9x supafaust pcsx_rearmed melonds; do
             src_sha="$(cat "vendor/$name-src.sha")"
             test -f "$out/System/licenses/$name-${src_sha}.tar.gz"
             test -f "$out/System/licenses/$name-${src_sha}.meta"
@@ -216,7 +220,7 @@ jobs:
             done
           done
           for licence in snes9x-non-commercial snes9x-snes_ntsc-LGPL-2.1 supafaust-GPL-2.0 \
-            pcsx_rearmed-GPL-2.0 ppsspp-GPL-2.0; do
+            pcsx_rearmed-GPL-2.0 ppsspp-GPL-2.0 melonds-GPL-3.0; do
             test -f "$out/System/licenses/$licence.txt"
           done
           # PPSSPP's source, the release's tarball, and the assets it reads at its side

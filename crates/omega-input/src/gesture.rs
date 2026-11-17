@@ -41,6 +41,8 @@ pub enum Action {
     GameMenu,
     MuteToggle,
     ColourCorrectionToggle,
+    /// SELECT+Y in a DS game: the other screen made the large one.
+    SwapScreens,
     /// SELECT+A and SELECT+B, as on Slot: the next screen filter, and the one before.
     FilterNext,
     FilterPrev,
@@ -74,6 +76,11 @@ pub struct Keys {
     /// SELECT+START opens the cart editor: on the shelf alone, so a game's own SELECT+START
     /// (a soft reset, in many) is always the game's.
     pub shelf: bool,
+    /// L2 is the game's while R2 still fast-forwards: the DS's, which has no L2, and whose
+    /// touch screen L2 held reaches with a cursor. Nothing then rewinds or locks fast forward.
+    pub touch_l2: bool,
+    /// SELECT+Y swaps a DS game's screens (where `colour` is off).
+    pub swap: bool,
 }
 
 impl Keys {
@@ -83,6 +90,8 @@ impl Keys {
         rewind: true,
         colour: true,
         shelf: false,
+        touch_l2: false,
+        swap: false,
     };
 }
 
@@ -266,6 +275,7 @@ impl Gestures {
                 Vec::new()
             }
             Btn::VolUp | Btn::VolDown => self.volume_press(b, now),
+            Btn::L2 if self.keys.touch_l2 => vec![Action::GbaDown(Btn::L2)],
             Btn::L2 if !self.keys.game_l2_r2 => self.l2_down(),
             Btn::R2 if !self.keys.game_l2_r2 => self.r2_down(),
             _ => {
@@ -308,6 +318,7 @@ impl Gestures {
                 vec![Action::GbaUp(Btn::Start)]
             }
             Btn::VolUp | Btn::VolDown => self.volume_release(b),
+            Btn::L2 if self.keys.touch_l2 => vec![Action::GbaUp(Btn::L2)],
             Btn::L2 if !self.keys.game_l2_r2 => self.l2_up(),
             Btn::R2 if !self.keys.game_l2_r2 => self.r2_up(),
             _ => {
@@ -339,6 +350,7 @@ impl Gestures {
             Btn::L1 => (16, Action::LoadState),
             Btn::R1 => (32, Action::SaveState),
             Btn::Y if self.keys.colour => (64, Action::ColourCorrectionToggle),
+            Btn::Y if self.keys.swap => (64, Action::SwapScreens),
             Btn::A => (512, Action::FilterNext),
             Btn::B => (1024, Action::FilterPrev),
             Btn::X => (2048, Action::Screenshot),

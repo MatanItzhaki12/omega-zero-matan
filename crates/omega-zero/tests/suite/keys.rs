@@ -92,6 +92,8 @@ fn each_system_says_what_its_buttons_do() {
             rewind: true,
             colour: false,
             shelf: false,
+            touch_l2: false,
+            swap: false,
         }
     );
     assert_eq!(
@@ -101,6 +103,8 @@ fn each_system_says_what_its_buttons_do() {
             rewind: false,
             colour: false,
             shelf: false,
+            touch_l2: false,
+            swap: false,
         }
     );
 }

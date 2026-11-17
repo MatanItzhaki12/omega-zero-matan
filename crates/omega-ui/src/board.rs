@@ -615,8 +615,8 @@ pub const SNES_SOCKETS: Sockets = Sockets {
 /// The sockets on the board of a `platform` cart.
 pub fn sockets_for(platform: Platform) -> Sockets {
     match platform {
-        // PPSSPP's name wants the SNES board's wider chips
-        Platform::Snes | Platform::Psp => SNES_SOCKETS,
+        // PPSSPP's and melonDS's names want the SNES board's wider chips
+        Platform::Snes | Platform::Psp | Platform::Nds => SNES_SOCKETS,
         Platform::Gba | Platform::Gb | Platform::Gbc | Platform::Ps1 => GBA_SOCKETS,
     }
 }
@@ -624,7 +624,7 @@ pub fn sockets_for(platform: Platform) -> Sockets {
 /// The sockets `core` is seated among: those of the first system it runs.
 pub fn sockets_of(core: Core) -> Sockets {
     match core {
-        Core::Snes9x | Core::Supafaust | Core::Ppsspp => SNES_SOCKETS,
+        Core::Snes9x | Core::Supafaust | Core::Ppsspp | Core::MelonDs => SNES_SOCKETS,
         Core::Mgba | Core::Gpsp | Core::PcsxRearmed => GBA_SOCKETS,
     }
 }

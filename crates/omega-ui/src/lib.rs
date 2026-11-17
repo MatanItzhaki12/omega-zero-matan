@@ -90,6 +90,7 @@ pub use models::disc::{
     push_disc, push_disc_alone, push_stack, stack_of, DiscStack, StackDive, StackMeshes, DISC_PX,
     MAX_STACK, STACK_DIVE,
 };
+pub use models::ds::{DS_H, DS_W};
 pub use models::snes::{silhouette as snes_silhouette, SnesShell};
 pub use models::umd::{UMD_H, UMD_W};
 pub use motion::ease;
@@ -109,9 +110,9 @@ pub use shelf::{
     GB_SHELF_SCALE,
 };
 pub use shell::{
-    gb_table_shells, gba_shell_for, lookup_order_is_exact_then_family_then_default, shell_for,
-    shell_presets, table_keys, Finish, Shell, DEFAULT_SHELL, DMG_SHELL, DUAL_MODE_SHELL,
-    GB_CLEAR_SHELL, SFC_SHELL, SNES_SHELL, UMD_SHELL,
+    ds_shell_for, gb_table_shells, gba_shell_for, lookup_order_is_exact_then_family_then_default,
+    shell_for, shell_presets, table_keys, Finish, Shell, DEFAULT_SHELL, DMG_SHELL, DS_SHELL,
+    DUAL_MODE_SHELL, GB_CLEAR_SHELL, SFC_SHELL, SNES_SHELL, UMD_SHELL,
 };
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
 pub use spin::{

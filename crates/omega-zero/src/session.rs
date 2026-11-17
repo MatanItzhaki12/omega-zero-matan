@@ -264,6 +264,17 @@ impl Session {
         if let Some(stick) = self.app.take_stick() {
             self.pad.set_stick(stick);
         }
+        // a DS game's screens laid out again or swapped, in its menu or by SELECT+Y
+        let layout = self.app.take_ds_layout();
+        let swap = self.app.take_ds_swap();
+        if let Some(emu) = &self.emu {
+            if let Some(layout) = layout {
+                emu.set_ds_layout(layout);
+            }
+            if swap {
+                emu.swap_ds_screens();
+            }
+        }
         for btn in self.app.taken_buttons() {
             self.pad.apply(Action::GbaUp(*btn));
         }
@@ -556,15 +567,28 @@ impl Session {
         };
         self.app
             .set_video_mode(crate::video_mode::video_mode_or(&self.root, stem, fallback));
-        // the D-pad as the stick, for a game that wants one the handheld has none of
-        self.pad
-            .set_stick(crate::input::stick_for(&self.root, stem, platform));
+        // the D-pad as the stick, or a cursor on the touch screen, for a game that wants what
+        // the handheld has none of
+        self.pad.set_touch(platform.touch_on_l2());
+        let stick_default = match platform.touch_on_l2() {
+            true => self.app.ds_cursor_default(),
+            false => crate::input::Stick::HoldL2,
+        };
+        self.pad.set_stick(crate::input::stick_for(
+            &self.root,
+            stem,
+            platform,
+            stick_default,
+        ));
+        let ds_layout =
+            crate::ds_screen::layout_for(&self.root, stem, self.app.ds_layout_default());
+        self.app.set_ds_layout(ds_layout);
         self.app.set_link_loaded(serial);
         // hardcore picks up from no state, as it loads none
         let resume_wanted = !self.app.starting_clean() && !self.app.hardcore();
         let player = self.app.link_player();
         let setup = match platform {
-            Platform::Snes | Platform::Ps1 | Platform::Psp => Setup::Console,
+            Platform::Snes | Platform::Ps1 | Platform::Psp | Platform::Nds => Setup::Console,
             Platform::Gba | Platform::Gb | Platform::Gbc => Setup::Handheld {
                 serial,
                 colour: self.app.colour_correction(),
@@ -643,6 +667,7 @@ impl Session {
             // switching it on in a game rewinds at once
             rewinds: platform.rewinds(),
             cheevos: self.app.achievements_console(),
+            ds: platform.two_screens().then(|| self.app.ds_layout()),
         };
         self.app.achievements_game_starts();
         let emu =

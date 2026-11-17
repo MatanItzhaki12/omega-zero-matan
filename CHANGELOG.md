@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## omega-zero 2.8.0
+
+- **Nintendo DS games**, on libretro's melonDS (recompiled, its 3D on a thread of its own), from
+  `Games/NDS`. Each stands on the shelf as a **DS Game Card**, drawn after a real one: dark grey,
+  its label in a well cut back at the lower left corner, the slot's arrow moulded under it.
+  Pokémon Black and White come in clear black and clear white, Black 2 and White 2 in solid.
+  Labels come from ScreenScraper (system 15) as the other carts' do.
+- **The two screens on the handheld's one**, as Settings › Gameplay › Nintendo DS › Screens and
+  each game's menu (Display › DS Screens) have it:
+  - **One Screen**, after [Pokémon Fulldex](https://github.com/mamesj/pokemon-fulldex): the game's
+    screens told apart by the functions that drew them, and each laid out as one view. In
+    **Pokémon Platinum** the overworld and its menus fill the screen, the Pokétch left out; in
+    a battle the commands and the moves are cut from the touch screen and laid in a band under
+    the battle, the D-pad moving an outline over them and A or B touching them; Professor
+    Rowan's two touch-only questions stand at the side, A and B answering them; the keyboard
+    stands under its question; the Underground keeps its radar in a corner. A game with no
+    layouts of its own shows as Focus.
+  - **Focus**: the top screen, but while only the touch screen has anything on it.
+  - **Picture in Picture**, **Stacked** and **Side by Side**.
+- **SELECT+Y swaps the screens**, and **holding L2** makes the D-pad a cursor on the touch screen
+  and A a touch (or a press of L2 turns it on and off: Touch Cursor, for each game or in
+  Settings).
+- melonDS keeps a DS game's save in `Saves/NDS`, under the game's name, which Save Backup, Sync
+  From Backup and the automatic backups take as any other save. A DS game rewinds nothing, and is
+  autosaved as a PSP game is. RetroAchievements checks DS games too (console 18).
+- melonDS reads a game from its file as the game asks for it rather than all at once, so
+  Pokémon White 2's 512 MB fits beside omega-zero, and a frame omega-zero will not show (one run
+  to catch up) is not drawn. A DS game that misses a refresh catches it up, a picture dropped
+  rather than the game slowed.
 - **A Trainer look for the shelf**, in Settings › Shelf › Theme, as the rest of omega-zero in
   pixels and dark, with nods to the monster-catching games:
   - Two backgrounds: **Capture**, rows of small red-and-white capture balls, every other row half

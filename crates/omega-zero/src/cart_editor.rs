@@ -144,7 +144,9 @@ pub fn rows(platform: Platform) -> &'static [EditRow] {
         Platform::Gb | Platform::Gbc | Platform::Snes => {
             &[Shape, Colour, Hue, Shade, Finish, Undo, Default, Save]
         }
-        Platform::Gba | Platform::Psp => &[Colour, Hue, Shade, Finish, Undo, Default, Save],
+        Platform::Gba | Platform::Psp | Platform::Nds => {
+            &[Colour, Hue, Shade, Finish, Undo, Default, Save]
+        }
         // a disc has no shell: its colour is its print's
         Platform::Ps1 => &[Colour, Hue, Shade, Undo, Default, Save],
     }
@@ -157,6 +159,7 @@ pub fn title(platform: Platform) -> &'static str {
         Platform::Gb | Platform::Gbc => "GAME PAK",
         Platform::Snes => "SNES CART",
         Platform::Psp => "UMD",
+        Platform::Nds => "DS CARD",
         Platform::Ps1 => "DISC",
     }
 }
@@ -232,6 +235,13 @@ fn own_colours(platform: Platform) -> Vec<(&'static str, Shell)> {
             ("Famicom Grey", omega_ui::SFC_SHELL),
         ],
         Platform::Psp => vec![("Smoke", omega_ui::UMD_SHELL)],
+        Platform::Nds => vec![
+            ("DS Grey", omega_ui::DS_SHELL),
+            ("Black Clear", omega_ui::ds_shell_for("IRB")),
+            ("White Clear", omega_ui::ds_shell_for("IRA")),
+            ("Black 2", omega_ui::ds_shell_for("IRE")),
+            ("White 2", omega_ui::ds_shell_for("IRD")),
+        ],
         Platform::Ps1 => vec![(
             "Black",
             Shell {

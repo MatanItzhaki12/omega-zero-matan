@@ -67,6 +67,8 @@ struct Host {
     hw_frame: Option<(u32, u32)>,
     /// Each port's left stick, x and y.
     analog: [[i16; 2]; 2],
+    /// Where the picture is touched, if it is.
+    pointer: Option<(i16, i16)>,
 }
 
 impl Host {
@@ -101,6 +103,7 @@ impl Host {
             hw: None,
             hw_frame: None,
             analog: [[0; 2]; 2],
+            pointer: None,
         }
     }
 
@@ -594,6 +597,18 @@ unsafe extern "C" fn hw_proc_address(sym: *const c_char) -> Option<HwProc> {
 }
 
 unsafe extern "C" fn input_state(port: c_uint, device: c_uint, index: c_uint, id: c_uint) -> i16 {
+    if device == DEVICE_POINTER {
+        if port != 0 || index != 0 {
+            return 0;
+        }
+        return with_host(|h| match (h.pointer, id) {
+            (Some((x, _)), POINTER_X) => x,
+            (Some((_, y)), POINTER_Y) => y,
+            (Some(_), POINTER_PRESSED) => 1,
+            _ => 0,
+        })
+        .unwrap_or(0);
+    }
     if device == DEVICE_ANALOG {
         if index != DEVICE_INDEX_ANALOG_LEFT {
             return 0;
@@ -633,6 +648,8 @@ pub struct LibretroCore {
     loaded: bool,
     /// gpSP's library, and its link state where its symbol table names it: none for another core.
     gpsp: Option<(std::path::PathBuf, Option<crate::gpsp::SerialState>)>,
+    /// The one-screen hooks of omega-zero's melonDS: none for another core.
+    ds: Option<crate::ds::DsHooks>,
     _lib: Library,
 }
 
@@ -863,6 +880,7 @@ impl LibretroCore {
             }
             (dylib.to_path_buf(), serial)
         });
+        let ds = crate::ds::DsHooks::find(&lib);
         Ok(LibretroCore {
             api,
             host,
@@ -871,6 +889,7 @@ impl LibretroCore {
             initial_disc: None,
             loaded: false,
             gpsp,
+            ds,
             _lib: lib,
         })
     }
@@ -1019,6 +1038,14 @@ impl RetroCore for LibretroCore {
         if let Some(stick) = self.host.analog.get_mut(port) {
             *stick = [x, y];
         }
+    }
+
+    fn set_pointer(&mut self, at: Option<(i16, i16)>) {
+        self.host.pointer = at;
+    }
+
+    fn ds_hooks(&self) -> Option<crate::ds::DsHooks> {
+        self.ds.filter(|_| self.loaded)
     }
 
     fn video_size(&self) -> (u32, u32) {

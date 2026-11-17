@@ -1,0 +1,271 @@
+diff --git a/src/ARM.cpp b/src/ARM.cpp
+index fc9c266..7374a41 100644
+--- a/src/ARM.cpp
++++ b/src/ARM.cpp
+@@ -21,6 +21,7 @@
+ #include "NDS.h"
+ #include "DSi.h"
+ #include "ARM.h"
++#include "OmegaWatch.h"
+ #include "ARMInterpreter.h"
+ #include "Config.h"
+ #include "AREngine.h"
+@@ -244,6 +245,11 @@ void ARM::SetupCodeMem(u32 addr)
+     }
+ }
+ 
++// omega-zero: the functions watched, and the layer each pixel came from (OmegaWatch.h).
++OmegaWatchState OmegaWatch;
++u8 OmegaLayers[2][256*192];
++int OmegaUnitScreen[2] = { 0, 1 };
++
+ void ARMv5::JumpTo(u32 addr, bool restorecpsr)
+ {
+     if (restorecpsr)
+@@ -310,6 +316,10 @@ void ARMv5::JumpTo(u32 addr, bool restorecpsr)
+         return;
+     }*/
+ 
++    // omega-zero: every change of the ARM9's PC in the interpreter comes through here
++    if (OmegaWatch.Test(addr & ~1u))
++        OmegaWatch.Hit(addr & ~1u);
++
+     NDS::MonitorARM9Jump(addr);
+ }
+ 
+@@ -649,6 +659,11 @@ void ARMv5::ExecuteJIT()
+             return;
+         }
+ 
++        // omega-zero: a block starting at a watched function (OmegaWatch.h), counted before the
++        // lookup, as a block's first run is while it is compiled
++        if (OmegaWatch.Test(instrAddr))
++            OmegaWatch.Hit(instrAddr);
++
+         ARMJIT::JitBlockEntry block = ARMJIT::LookUpBlock(0, FastBlockLookup,
+             instrAddr - FastBlockLookupStart, instrAddr);
+         if (block)
+diff --git a/src/ARMJIT.cpp b/src/ARMJIT.cpp
+index ffde5f9..d74ae6a 100644
+--- a/src/ARMJIT.cpp
++++ b/src/ARMJIT.cpp
+@@ -17,6 +17,7 @@
+ */
+ 
+ #include "ARMJIT.h"
++#include "OmegaWatch.h"
+ 
+ #include <string.h>
+ #include <assert.h>
+@@ -823,7 +824,9 @@ void CompileBlock(ARM* cpu)
+                         JIT_DEBUGPRINT("found %s idle loop %d in block %08x\n", thumb ? "thumb" : "arm", cpu->Num, blockAddr);
+                     }
+                 }
+-                else if (hasBranched && !isBackJump && i + 1 < Config::JIT_MaxBlockSize)
++                // (omega-zero: not into a watched function, which starts a block of its own)
++                else if (hasBranched && !isBackJump && i + 1 < Config::JIT_MaxBlockSize
++                    && !(cpu->Num == 0 && OmegaWatch.Test(target)))
+                 {
+                     if (link)
+                     {
+@@ -865,7 +868,9 @@ void CompileBlock(ARM* cpu)
+         bool secondaryFlagReadCond = !canCompile || (instrs[i - 1].BranchFlags & (branch_FollowCondTaken | branch_FollowCondNotTaken));
+         if (instrs[i - 1].Info.ReadFlags != 0 || secondaryFlagReadCond)
+             FloodFillSetFlags(instrs, i - 2, !secondaryFlagReadCond ? instrs[i - 1].Info.ReadFlags : 0xF);
+-    } while(!instrs[i - 1].Info.EndBlock && i < Config::JIT_MaxBlockSize && !cpu->Halted && (!cpu->IRQ || (cpu->CPSR & 0x80)));
++    } while(!instrs[i - 1].Info.EndBlock && i < Config::JIT_MaxBlockSize && !cpu->Halted && (!cpu->IRQ || (cpu->CPSR & 0x80))
++        // omega-zero: a watched function starts a block of its own (OmegaWatch.h)
++        && !(cpu->Num == 0 && OmegaWatch.Test(nextInstrAddr[0])));
+ 
+     if (numLiterals)
+     {
+diff --git a/src/GPU.cpp b/src/GPU.cpp
+index de229b3..68f2b1e 100644
+--- a/src/GPU.cpp
++++ b/src/GPU.cpp
+@@ -20,6 +20,7 @@
+ #include <string.h>
+ #include "NDS.h"
+ #include "GPU.h"
++#include "OmegaWatch.h"
+ 
+ #include "GPU2D_Soft.h"
+ 
+@@ -367,6 +368,9 @@ void DoSavestate(Savestate* file)
+ void AssignFramebuffers()
+ {
+     int backbuf = FrontBuffer ? 0 : 1;
++    // omega-zero: engine A draws the top screen with POWCNT1 bit 15 set, the touch screen without
++    OmegaUnitScreen[0] = (NDS::PowerControl9 & (1<<15)) ? 0 : 1;
++    OmegaUnitScreen[1] = 1 - OmegaUnitScreen[0];
+     if (NDS::PowerControl9 & (1<<15))
+     {
+         GPU2D_Renderer->SetFramebuffer(Framebuffer[backbuf][0], Framebuffer[backbuf][1]);
+diff --git a/src/GPU2D_Soft.cpp b/src/GPU2D_Soft.cpp
+index f7adc53..5dbf6d6 100644
+--- a/src/GPU2D_Soft.cpp
++++ b/src/GPU2D_Soft.cpp
+@@ -17,11 +17,22 @@
+ */
+ 
+ #include "GPU2D_Soft.h"
++#include "OmegaWatch.h"
+ #include "GPU.h"
+ 
+ namespace GPU2D
+ {
+ 
++// omega-zero: OmegaLayers (OmegaWatch.h) for the line just drawn, before its colours are
++// blended, while each pixel still says which layer it came from.
++void SoftRenderer::RecordLayers(u32 line)
++{
++    if (line >= 192) return;
++    u8* out = &OmegaLayers[OmegaUnitScreen[CurUnit->Num] & 1][line * 256];
++    for (int i = 0; i < 256; i++)
++        out[i] = BGOBJLine[i] >> 24;
++}
++
+ SoftRenderer::SoftRenderer()
+     : Renderer2D()
+ {
+@@ -758,6 +769,7 @@ void SoftRenderer::DrawScanline_BGOBJ(u32 line)
+     {
+         for (int i = 0; i < 256; i++)
+             BGOBJLine[i] = 0xFF3F3F3F;
++        if (line < 192) memset(&OmegaLayers[OmegaUnitScreen[CurUnit->Num] & 1][line * 256], 0x20, 256);
+ 
+         return;
+     }
+@@ -801,6 +813,8 @@ void SoftRenderer::DrawScanline_BGOBJ(u32 line)
+     // color special effects
+     // can likely be optimized
+ 
++    RecordLayers(line);
++
+     if (!GPU3D::CurrentRenderer->Accelerated)
+     {
+         for (int i = 0; i < 256; i++)
+diff --git a/src/GPU2D_Soft.h b/src/GPU2D_Soft.h
+index b7043ee..7649476 100644
+--- a/src/GPU2D_Soft.h
++++ b/src/GPU2D_Soft.h
+@@ -33,6 +33,8 @@ public:
+     void DrawSprites(u32 line, Unit* unit) override;
+     void VBlankEnd(Unit* unitA, Unit* unitB) override;
+ private:
++    void RecordLayers(u32 line); // omega-zero: OmegaLayers, for the line just composited
++
+     alignas(8) u32 BGOBJLine[256*3];
+     u32* _3DLine;
+ 
+diff --git a/src/OmegaWatch.h b/src/OmegaWatch.h
+new file mode 100644
+index 0000000..e0cc64f
+--- /dev/null
++++ b/src/OmegaWatch.h
+@@ -0,0 +1,47 @@
++/*
++    omega-zero: which of a game's functions the ARM9 enters, for the one-screen layouts, which
++    tell a game's screens apart by the functions that drew them. After Pokemon Fulldex's
++    SsrWatch (mamesj/pokemon-fulldex, GPL-3.0).
++
++    The frontend marks the functions' first addresses in a bitmap, one bit per halfword from
++    Base to End. A jump into one (the interpreter's JumpTo) or a JIT block starting at one (the
++    dispatcher) sets its bit in Hits, which the frontend reads and clears once a frame. The JIT
++    ends a block before a watched address and does not follow a branch into one, so every entry
++    starts a block of its own. It costs a bit test a block.
++*/
++#ifndef OMEGAWATCH_H
++#define OMEGAWATCH_H
++
++#include "types.h"
++
++struct OmegaWatchState
++{
++    const u8* Bitmap = nullptr; // null: nothing watched
++    u8* Hits = nullptr;
++    u32 Base = 0, End = 0;
++
++    bool Test(u32 addr) const
++    {
++        if (!Bitmap || addr - Base >= End - Base) return false;
++        const u32 bit = (addr - Base) >> 1;
++        return Bitmap[bit >> 3] & (1 << (bit & 7));
++    }
++
++    void Hit(u32 addr)
++    {
++        const u32 bit = (addr - Base) >> 1;
++        Hits[bit >> 3] |= (u8)(1 << (bit & 7));
++    }
++};
++
++extern OmegaWatchState OmegaWatch;
++
++// Which layer drew the topmost pixel of each screen (0 the top one, 1 the touch screen) in the
++// frame drawn last: bits 0-3 BG0-BG3, 0x10 or 0x80 a sprite, 0x20 the backdrop, 0x40 the 3D
++// layer (melonDS's own flags, a pixel's top byte). The one-screen layouts leave a piece's
++// background out by them. GPU2D_Soft.cpp keeps them.
++extern u8 OmegaLayers[2][256*192];
++// The screen each 2D engine draws to (0 the top one), as GPU::AssignFramebuffers last set it.
++extern int OmegaUnitScreen[2];
++
++#endif
+diff --git a/src/libretro/libretro.cpp b/src/libretro/libretro.cpp
+index 5cfb58d..81e5ecf 100644
+--- a/src/libretro/libretro.cpp
++++ b/src/libretro/libretro.cpp
+@@ -10,6 +10,10 @@
+ #include <compat/strl.h>
+ 
+ #include "Config.h"
++#include "OmegaWatch.h"
++#ifdef JIT_ENABLED
++#include "ARMJIT.h"
++#endif
+ #include "Platform.h"
+ #include "NDS.h"
+ #include "NDSCart_SRAMManager.h"
+@@ -945,6 +949,32 @@ static bool _handle_load_game(unsigned type, const struct retro_game_info *info)
+    return true;
+ }
+ 
++// omega-zero: the one-screen layouts' view of the core, by name, for a frontend that looks
++// for them (dlsym); RetroArch never does.
++// Watches the functions marked in `bitmap` (one bit per halfword from `base` to `end`), each
++// entry setting its bit in `hits`; a null bitmap watches nothing. Both stay the frontend's, and
++// must outlive the watch. The JIT's blocks already made are dropped, to be made again with
++// their ends at the watched addresses.
++extern "C" RETRO_API void omega_ds_watch(const uint8_t* bitmap, uint8_t* hits, uint32_t base, uint32_t end)
++{
++   OmegaWatch.Bitmap = nullptr;
++   OmegaWatch.Hits = hits;
++   OmegaWatch.Base = base;
++   OmegaWatch.End = end;
++   OmegaWatch.Bitmap = bitmap && hits && end > base ? bitmap : nullptr;
++#ifdef JIT_ENABLED
++   if (Config::JIT_Enable)
++      ARMJIT::ResetBlockCache();
++#endif
++}
++
++// Which layer drew each pixel of `screen` (0 the top one, 1 the touch screen) in the frame
++// drawn last, 256 x 192 bytes (GPU2D_Soft.cpp, OmegaLayers).
++extern "C" RETRO_API const uint8_t* omega_ds_layers(unsigned screen)
++{
++   return OmegaLayers[screen & 1];
++}
++
+ bool retro_load_game(const struct retro_game_info *info)
+ {
+    return _handle_load_game(0, info);
+diff --git a/src/libretro/link.T b/src/libretro/link.T
+index 9e82b5d..0576013 100644
+--- a/src/libretro/link.T
++++ b/src/libretro/link.T
+@@ -1,4 +1,4 @@
+ {
+-   global: retro_*;
++   global: retro_*; omega_ds_*;
+    local: *;
+ };
