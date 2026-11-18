@@ -96,9 +96,10 @@ impl Platform {
     }
 
     /// Whether a game runs faster while R2 is held: not a PSP game, which PPSSPP paces on a
-    /// thread of its own whatever it is asked.
+    /// thread of its own whatever it is asked, nor a DS game, which the handheld runs at its own
+    /// speed with little to spare (HeartGold held at 52 frames a second, slower than not).
     pub fn fast_forwards(self) -> bool {
-        self != Platform::Psp
+        !matches!(self, Platform::Psp | Platform::Nds)
     }
 
     /// Whether held L2 turns the D-pad into the analog stick: the PSP's, which the handheld

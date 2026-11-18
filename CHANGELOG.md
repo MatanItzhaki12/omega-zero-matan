@@ -29,6 +29,8 @@
   check that reads a page first is made on the emulation's thread while the pages are learned.
 - A DS game's picture is copied one time less each frame, and melonDS hands omega-zero both
   screens where it drew them rather than a copy.
+- A DS game no longer fast-forwards: the handheld runs one at its own speed with little to spare,
+  and held R2 played HeartGold slower than not (52 frames a second).
 
 ## omega-zero 2.8.0
 

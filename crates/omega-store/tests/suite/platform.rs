@@ -56,8 +56,8 @@ fn the_psp_takes_its_images_and_holds_l2_for_the_stick() {
     assert_eq!(Platform::Psp.name(), "PlayStation Portable");
 }
 
-/// A DS game is its cartridge's dump; it rewinds nothing, held L2 is a cursor on its touch
-/// screen, R2 still fast-forwards, and it has two screens to show on one.
+/// A DS game is its cartridge's dump; it rewinds and fast-forwards nothing, held L2 is a cursor
+/// on its touch screen, and it has two screens to show on one.
 #[test]
 fn the_ds_takes_its_dumps_and_holds_l2_for_the_touch_screen() {
     assert!(Platform::Nds.accepts(std::path::Path::new("Pokemon Platinum.nds")));
@@ -65,7 +65,7 @@ fn the_ds_takes_its_dumps_and_holds_l2_for_the_touch_screen() {
     assert!(!Platform::Nds.accepts(std::path::Path::new("Metroid Fusion.gba")));
     assert_eq!(Platform::Nds.picture(), (256, 192));
     assert!(!Platform::Nds.rewinds());
-    assert!(Platform::Nds.fast_forwards());
+    assert!(!Platform::Nds.fast_forwards());
     assert!(Platform::Nds.touch_on_l2() && Platform::Nds.two_screens());
     assert!(!Platform::Nds.stick_on_l2() && !Platform::Nds.game_owns_l2_r2());
     assert!(!Platform::Psp.touch_on_l2() && !Platform::Gba.two_screens());
