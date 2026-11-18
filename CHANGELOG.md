@@ -27,6 +27,18 @@
   White's Nuvema Town went from 40 frames a second to 60, where its 3D alone had taken a whole
   core, HeartGold's New Bark Town from 65 to 69 and Platinum's bedroom from 103 to 109, the
   profile retrained for the changed code and with White's outdoors.
+- **A DS game's openings and cutscenes stutter far less.** A frame that captures the picture
+  into video memory, or shows a bank of it as the screen, as Pokémon White's and White 2's
+  openings do for their ghosting, now draws its 2D on the engines' own threads, as any other
+  frame does, rather than all on the emulation's: the emulation reads and writes the banks the
+  capture writes and the screen shows only once the engine's thread has drawn the lines before,
+  and takes the capture's end at the VBlank once it has drawn the frame. Only a frame that shows
+  or captures main memory's picture is still drawn in step. A 3D pixel works out its
+  perspective only once it passes the depth test, for a polygon whose depth needs none, and the
+  geometry FIFO's DMA hands each word from main RAM straight to the FIFO. Each comes out as
+  before, frame for frame. Played at the DS's own rate as omega-zero plays it, White's opening
+  missed 109 refreshes in 1,200 frames, now 27, and White 2's 139, now 52; the profile is
+  retrained for the changed code.
 - **Fulldex is a switch of its own**, in Settings › Gameplay › Nintendo DS (on by default) and,
   for a game it has layouts for, in the game's menu (Display › Fulldex), a line under each
   saying what it does: on, Pokémon's two screens are laid out as one view; off, they show as

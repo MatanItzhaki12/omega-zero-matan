@@ -1,5 +1,5 @@
 diff --git a/src/GPU.cpp b/src/GPU.cpp
-index aa2778d..7e98365 100644
+index aa2778d..2bdc386 100644
 --- a/src/GPU.cpp
 +++ b/src/GPU.cpp
 @@ -18,6 +18,13 @@
@@ -26,16 +26,20 @@ index aa2778d..7e98365 100644
  
  /*
      VRAM invalidation tracking
-@@ -144,8 +154,300 @@ u32 PaletteDirty;
+@@ -144,8 +154,305 @@ u32 PaletteDirty;
  std::unique_ptr<GLCompositor> CurGLCompositor = {};
  #endif
  
 +// omega-zero: Omega2D, the threads the 2D engines draw on (GPU.h). The emulation queues what
 +// the display does at each line (the windows' vertical edges, the line's pixels, the next
 +// line's sprites, the 3D line taken, the end of VBlank) to each engine's lane, whose thread
-+// does it in order. A frame is drawn in step with the emulation when its pixels are read back
-+// by the game (a display capture), come from VRAM or main memory directly, or the 3D is drawn
-+// by OpenGL.
++// does it in order. A frame is drawn in step with the emulation when its pixels come from main
++// memory (the display FIFO, which DMA fills as the lines go), a display capture takes the
++// FIFO's, or the 3D is drawn by OpenGL. A display capture and VRAM display are engine A's
++// lane's, as its lines are: the LCDC banks they write and read are read and written by the
++// emulation only once the lane has drawn the lines queued before (GPU.h's LCDC access while
++// either is on), and the latch a capture's first line sets is taken at the VBlank once the lane
++// has drawn the frame (Unit::VBlank).
 +bool Omega2DThreaded = false;
 +std::atomic<u32> Omega2DQueued[2];
 +std::atomic<u32> Omega2DDone[2];
@@ -233,9 +237,10 @@ index aa2778d..7e98365 100644
 +// whether this frame's 2D is drawn in step with the emulation (above)
 +bool Omega2DInStep()
 +{
++    const u32 capture = GPU2D_A.CaptureCnt;
 +    return !Omega2DThreaded || GPU3D::CurrentRenderer->Accelerated
-+        || (GPU2D_A.CaptureCnt & (1u << 31))
-+        || ((GPU2D_A.DispCnt >> 16) & 3) >= 2;
++        || ((capture & (1u << 31)) && (capture & (1u << 25)))
++        || ((GPU2D_A.DispCnt >> 16) & 3) == 3;
 +}
 +
 +// hands a lane its engine's OAM as written since it last had it: straight to its copy when it has
@@ -327,7 +332,7 @@ index aa2778d..7e98365 100644
      GPU2D_Renderer = std::make_unique<GPU2D::SoftRenderer>();
      if (!GPU3D::Init()) return false;
  
-@@ -159,6 +461,8 @@ bool Init()
+@@ -159,6 +466,8 @@ bool Init()
  
  void DeInit()
  {
@@ -336,7 +341,7 @@ index aa2778d..7e98365 100644
      GPU2D_Renderer.reset();
      GPU3D::DeInit();
  
-@@ -198,6 +502,7 @@ void ResetVRAMCache()
+@@ -198,6 +507,7 @@ void ResetVRAMCache()
  
  void Reset()
  {
@@ -344,7 +349,7 @@ index aa2778d..7e98365 100644
      VCount = 0;
      NextVCount = -1;
      TotalScanlines = 0;
-@@ -209,6 +514,7 @@ void Reset()
+@@ -209,6 +519,7 @@ void Reset()
  
      memset(Palette, 0, 2*1024);
      memset(OAM, 0, 2*1024);
@@ -352,7 +357,7 @@ index aa2778d..7e98365 100644
  
      memset(VRAM_A, 0, 128*1024);
      memset(VRAM_B, 0, 128*1024);
-@@ -269,6 +575,7 @@ void Reset()
+@@ -269,6 +580,7 @@ void Reset()
  
      int backbuf = FrontBuffer ? 0 : 1;
      GPU2D_Renderer->SetFramebuffer(Framebuffer[backbuf][1], Framebuffer[backbuf][0]);
@@ -360,7 +365,7 @@ index aa2778d..7e98365 100644
  
      ResetRenderer();
  
-@@ -280,6 +587,7 @@ void Reset()
+@@ -280,6 +592,7 @@ void Reset()
  
  void Stop()
  {
@@ -368,7 +373,7 @@ index aa2778d..7e98365 100644
      int fbsize;
      if (GPU3D::CurrentRenderer->Accelerated)
          fbsize = (256*3 + 1) * 192;
-@@ -301,6 +609,7 @@ void Stop()
+@@ -301,6 +614,7 @@ void Stop()
  
  void DoSavestate(Savestate* file)
  {
@@ -376,7 +381,7 @@ index aa2778d..7e98365 100644
      file->Section("GPUG");
  
      file->Var16(&VCount);
-@@ -314,6 +623,7 @@ void DoSavestate(Savestate* file)
+@@ -314,6 +628,7 @@ void DoSavestate(Savestate* file)
  
      file->VarArray(Palette, 2*1024);
      file->VarArray(OAM, 2*1024);
@@ -384,7 +389,7 @@ index aa2778d..7e98365 100644
  
      file->VarArray(VRAM_A, 128*1024);
      file->VarArray(VRAM_B, 128*1024);
-@@ -367,22 +677,39 @@ void DoSavestate(Savestate* file)
+@@ -367,22 +682,39 @@ void DoSavestate(Savestate* file)
  
  void AssignFramebuffers()
  {
@@ -431,7 +436,7 @@ index aa2778d..7e98365 100644
  #ifdef OGLRENDERER_ENABLED
      if (renderer == 1)
      {
-@@ -417,6 +744,7 @@ void InitRenderer(int renderer)
+@@ -417,6 +749,7 @@ void InitRenderer(int renderer)
  
  void DeInitRenderer()
  {
@@ -439,7 +444,7 @@ index aa2778d..7e98365 100644
      GPU3D::CurrentRenderer->DeInit();
  #ifdef OGLRENDERER_ENABLED
      if (Renderer == 1)
-@@ -428,6 +756,7 @@ void DeInitRenderer()
+@@ -428,6 +761,7 @@ void DeInitRenderer()
  
  void ResetRenderer()
  {
@@ -447,7 +452,7 @@ index aa2778d..7e98365 100644
      if (Renderer == 0)
      {
          GPU3D::CurrentRenderer->Reset();
-@@ -443,6 +772,7 @@ void ResetRenderer()
+@@ -443,6 +777,7 @@ void ResetRenderer()
  
  void SetRenderSettings(int renderer, RenderSettings& settings)
  {
@@ -455,7 +460,7 @@ index aa2778d..7e98365 100644
      if (renderer != Renderer)
      {
          DeInitRenderer();
-@@ -533,6 +863,7 @@ u8* GetUniqueBankPtr(u32 mask, u32 offset)
+@@ -533,6 +868,7 @@ u8* GetUniqueBankPtr(u32 mask, u32 offset)
  
  void MapVRAM_AB(u32 bank, u8 cnt)
  {
@@ -463,7 +468,7 @@ index aa2778d..7e98365 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -591,6 +922,7 @@ void MapVRAM_AB(u32 bank, u8 cnt)
+@@ -591,6 +927,7 @@ void MapVRAM_AB(u32 bank, u8 cnt)
  
  void MapVRAM_CD(u32 bank, u8 cnt)
  {
@@ -471,7 +476,7 @@ index aa2778d..7e98365 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -675,6 +1007,7 @@ void MapVRAM_CD(u32 bank, u8 cnt)
+@@ -675,6 +1012,7 @@ void MapVRAM_CD(u32 bank, u8 cnt)
  
  void MapVRAM_E(u32 bank, u8 cnt)
  {
@@ -479,7 +484,7 @@ index aa2778d..7e98365 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -737,6 +1070,7 @@ void MapVRAM_E(u32 bank, u8 cnt)
+@@ -737,6 +1075,7 @@ void MapVRAM_E(u32 bank, u8 cnt)
  
  void MapVRAM_FG(u32 bank, u8 cnt)
  {
@@ -487,7 +492,7 @@ index aa2778d..7e98365 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -835,6 +1169,7 @@ void MapVRAM_FG(u32 bank, u8 cnt)
+@@ -835,6 +1174,7 @@ void MapVRAM_FG(u32 bank, u8 cnt)
  
  void MapVRAM_H(u32 bank, u8 cnt)
  {
@@ -495,7 +500,7 @@ index aa2778d..7e98365 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -895,6 +1230,7 @@ void MapVRAM_H(u32 bank, u8 cnt)
+@@ -895,6 +1235,7 @@ void MapVRAM_H(u32 bank, u8 cnt)
  
  void MapVRAM_I(u32 bank, u8 cnt)
  {
@@ -503,7 +508,7 @@ index aa2778d..7e98365 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -964,6 +1300,7 @@ void MapVRAM_I(u32 bank, u8 cnt)
+@@ -964,6 +1305,7 @@ void MapVRAM_I(u32 bank, u8 cnt)
  
  void SetPowerCnt(u32 val)
  {
@@ -511,7 +516,7 @@ index aa2778d..7e98365 100644
      // POWCNT1 effects:
      // * bit0: asplodes hardware??? not tested.
      // * bit1: disables engine A palette and OAM (zero-filled) (TODO: affects mem timings???)
-@@ -1033,21 +1370,19 @@ void StartHBlank(u32 line)
+@@ -1033,21 +1375,19 @@ void StartHBlank(u32 line)
              && ((GPU2D_A.DispCnt >> 16) & 3) != 3;
          // (the 3D lines are still taken: the 3D renderer's thread counts them out a frame at a time)
          if (line < 192 && hidden)
@@ -536,7 +541,7 @@ index aa2778d..7e98365 100644
          }
  
          NDS::CheckDMAs(0, 0x02);
-@@ -1058,8 +1393,7 @@ void StartHBlank(u32 line)
+@@ -1058,8 +1398,7 @@ void StartHBlank(u32 line)
      }
      else if (VCount == 262)
      {
@@ -546,7 +551,7 @@ index aa2778d..7e98365 100644
      }
  
      if (DispStat[0] & (1<<4)) NDS::SetIRQ(0, NDS::IRQ_HBlank);
-@@ -1074,10 +1408,12 @@ void StartHBlank(u32 line)
+@@ -1074,10 +1413,12 @@ void StartHBlank(u32 line)
  void FinishFrame(u32 lines)
  {
      FrontBuffer = FrontBuffer ? 0 : 1;
@@ -560,7 +565,7 @@ index aa2778d..7e98365 100644
      if (GPU3D::AbortFrame)
      {
          GPU3D::RestartFrame();
-@@ -1117,8 +1453,7 @@ void StartScanline(u32 line)
+@@ -1117,8 +1458,7 @@ void StartScanline(u32 line)
      else
          DispStat[1] &= ~(1<<2);
  
@@ -570,7 +575,7 @@ index aa2778d..7e98365 100644
  
      if (VCount >= 2 && VCount < 194)
          NDS::CheckDMAs(0, 0x03);
-@@ -1129,9 +1464,7 @@ void StartScanline(u32 line)
+@@ -1129,9 +1469,7 @@ void StartScanline(u32 line)
      {
          if (line == 0)
          {
@@ -582,7 +587,7 @@ index aa2778d..7e98365 100644
  
          if (RunFIFO)
 diff --git a/src/GPU.h b/src/GPU.h
-index bc566e2..43c321a 100644
+index bc566e2..ec8a882 100644
 --- a/src/GPU.h
 +++ b/src/GPU.h
 @@ -22,6 +22,7 @@
@@ -633,7 +638,34 @@ index bc566e2..43c321a 100644
  void MapVRAM_AB(u32 bank, u8 cnt);
  void MapVRAM_CD(u32 bank, u8 cnt);
  void MapVRAM_E(u32 bank, u8 cnt);
-@@ -352,6 +386,7 @@ T ReadVRAM_ABG(u32 addr)
+@@ -196,9 +230,18 @@ void MapVRAM_H(u32 bank, u8 cnt);
+ void MapVRAM_I(u32 bank, u8 cnt);
+ 
+ 
++// omega-zero: a display capture on engine A's lane writes an LCDC bank, and VRAM display reads
++// one (Omega2D, GPU.cpp)
++inline void SyncLCDC()
++{
++    if ((GPU2D_A.CaptureCnt & (1u << 31)) || ((GPU2D_A.DispCnt >> 16) & 3) == 2)
++        Sync2D(0);
++}
++
+ template<typename T>
+ T ReadVRAM_LCDC(u32 addr)
+ {
++    SyncLCDC();
+     int bank;
+ 
+     switch (addr & 0xFF8FC000)
+@@ -264,6 +307,7 @@ T ReadVRAM_LCDC(u32 addr)
+ template<typename T>
+ void WriteVRAM_LCDC(u32 addr, T val)
+ {
++    SyncLCDC();
+     int bank;
+ 
+     switch (addr & 0xFF8FC000)
+@@ -352,6 +396,7 @@ T ReadVRAM_ABG(u32 addr)
  template<typename T>
  void WriteVRAM_ABG(u32 addr, T val)
  {
@@ -641,7 +673,7 @@ index bc566e2..43c321a 100644
      u32 mask = VRAMMap_ABG[(addr >> 14) & 0x1F];
  
      if (mask & (1<<0))
-@@ -413,6 +448,7 @@ T ReadVRAM_AOBJ(u32 addr)
+@@ -413,6 +458,7 @@ T ReadVRAM_AOBJ(u32 addr)
  template<typename T>
  void WriteVRAM_AOBJ(u32 addr, T val)
  {
@@ -649,7 +681,7 @@ index bc566e2..43c321a 100644
      u32 mask = VRAMMap_AOBJ[(addr >> 14) & 0xF];
  
      if (mask & (1<<0))
-@@ -462,6 +498,7 @@ T ReadVRAM_BBG(u32 addr)
+@@ -462,6 +508,7 @@ T ReadVRAM_BBG(u32 addr)
  template<typename T>
  void WriteVRAM_BBG(u32 addr, T val)
  {
@@ -657,7 +689,7 @@ index bc566e2..43c321a 100644
      u32 mask = VRAMMap_BBG[(addr >> 14) & 0x7];
  
      if (mask & (1<<2))
-@@ -500,6 +537,7 @@ T ReadVRAM_BOBJ(u32 addr)
+@@ -500,6 +547,7 @@ T ReadVRAM_BOBJ(u32 addr)
  template<typename T>
  void WriteVRAM_BOBJ(u32 addr, T val)
  {
@@ -665,7 +697,7 @@ index bc566e2..43c321a 100644
      u32 mask = VRAMMap_BOBJ[(addr >> 14) & 0x7];
  
      if (mask & (1<<3))
-@@ -591,6 +629,7 @@ T ReadPalette(u32 addr)
+@@ -591,6 +639,7 @@ T ReadPalette(u32 addr)
  template<typename T>
  void WritePalette(u32 addr, T val)
  {
@@ -673,7 +705,7 @@ index bc566e2..43c321a 100644
      addr &= 0x7FF;
  
      *(T*)&Palette[addr] = val;
-@@ -610,6 +649,7 @@ void WriteOAM(u32 addr, T val)
+@@ -610,6 +659,7 @@ void WriteOAM(u32 addr, T val)
  
      *(T*)&OAM[addr] = val;
      OAMDirty |= 1 << (addr / 1024);
@@ -682,7 +714,7 @@ index bc566e2..43c321a 100644
  
  void SetPowerCnt(u32 val);
 diff --git a/src/GPU2D.cpp b/src/GPU2D.cpp
-index 2dd606a..f0dddb7 100644
+index 2dd606a..4a2660e 100644
 --- a/src/GPU2D.cpp
 +++ b/src/GPU2D.cpp
 @@ -140,6 +140,7 @@ void Unit::Reset()
@@ -717,6 +749,16 @@ index 2dd606a..f0dddb7 100644
      switch (addr & 0x00000FFF)
      {
      case 0x000:
+@@ -584,6 +588,9 @@ void Unit::UpdateMosaicCounters(u32 line)
+ 
+ void Unit::VBlank()
+ {
++    // omega-zero: a capture's latch, set by its lane, once the lane has drawn the frame
++    if (CaptureCnt & (1 << 31))
++        GPU::Sync2D(Num);
+     if (CaptureLatch)
+     {
+         CaptureCnt &= ~(1<<31);
 diff --git a/src/GPU2D_Soft.cpp b/src/GPU2D_Soft.cpp
 index 5dbf6d6..81bd851 100644
 --- a/src/GPU2D_Soft.cpp

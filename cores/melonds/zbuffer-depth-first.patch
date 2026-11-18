@@ -1,0 +1,127 @@
+diff --git a/src/GPU3D_Soft.cpp b/src/GPU3D_Soft.cpp
+index 69a2c17..92469be 100644
+--- a/src/GPU3D_Soft.cpp
++++ b/src/GPU3D_Soft.cpp
+@@ -826,7 +826,9 @@ void SoftRenderer::RenderShadowMaskScanline(RasterLane& lane, RendererPolygon* r
+     {
+         u32 pixeladdr = FirstPixelOffset + (y*ScanlineWidth) + x;
+ 
+-        interpX.SetX(x);
++        interpX.SetXOnly(x);
++        if (polygon->WBuffer)
++            interpX.SetFactor();
+ 
+         s32 z = interpX.InterpolateZ(zl, zr, polygon->WBuffer);
+         u32 dstattr = AttrBuffer[pixeladdr];
+@@ -856,7 +858,9 @@ void SoftRenderer::RenderShadowMaskScanline(RasterLane& lane, RendererPolygon* r
+     {
+         u32 pixeladdr = FirstPixelOffset + (y*ScanlineWidth) + x;
+ 
+-        interpX.SetX(x);
++        interpX.SetXOnly(x);
++        if (polygon->WBuffer)
++            interpX.SetFactor();
+ 
+         s32 z = interpX.InterpolateZ(zl, zr, polygon->WBuffer);
+         u32 dstattr = AttrBuffer[pixeladdr];
+@@ -881,7 +885,9 @@ void SoftRenderer::RenderShadowMaskScanline(RasterLane& lane, RendererPolygon* r
+     {
+         u32 pixeladdr = FirstPixelOffset + (y*ScanlineWidth) + x;
+ 
+-        interpX.SetX(x);
++        interpX.SetXOnly(x);
++        if (polygon->WBuffer)
++            interpX.SetFactor();
+ 
+         s32 z = interpX.InterpolateZ(zl, zr, polygon->WBuffer);
+         u32 dstattr = AttrBuffer[pixeladdr];
+@@ -1073,7 +1079,9 @@ void SoftRenderer::RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp,
+                 dstattr &= ~0x3; // quick way to prevent drawing the shadow under antialiased edges
+         }
+ 
+-        interpX.SetX(x);
++        interpX.SetXOnly(x);
++        if (polygon->WBuffer)
++            interpX.SetFactor();
+ 
+         s32 z = interpX.InterpolateZ(zl, zr, polygon->WBuffer);
+ 
+@@ -1089,6 +1097,9 @@ void SoftRenderer::RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp,
+                 continue;
+         }
+ 
++        if (!polygon->WBuffer)
++            interpX.SetFactor();
++
+         u32 vr = interpX.Interpolate(rl, rr);
+         u32 vg = interpX.Interpolate(gl, gr);
+         u32 vb = interpX.Interpolate(bl, br);
+@@ -1169,7 +1180,9 @@ void SoftRenderer::RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp,
+                 dstattr &= ~0x3; // quick way to prevent drawing the shadow under antialiased edges
+         }
+ 
+-        interpX.SetX(x);
++        interpX.SetXOnly(x);
++        if (polygon->WBuffer)
++            interpX.SetFactor();
+ 
+         s32 z = interpX.InterpolateZ(zl, zr, polygon->WBuffer);
+ 
+@@ -1185,6 +1198,9 @@ void SoftRenderer::RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp,
+                 continue;
+         }
+ 
++        if (!polygon->WBuffer)
++            interpX.SetFactor();
++
+         u32 vr = interpX.Interpolate(rl, rr);
+         u32 vg = interpX.Interpolate(gl, gr);
+         u32 vb = interpX.Interpolate(bl, br);
+@@ -1244,7 +1260,9 @@ void SoftRenderer::RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp,
+                 dstattr &= ~0x3; // quick way to prevent drawing the shadow under antialiased edges
+         }
+ 
+-        interpX.SetX(x);
++        interpX.SetXOnly(x);
++        if (polygon->WBuffer)
++            interpX.SetFactor();
+ 
+         s32 z = interpX.InterpolateZ(zl, zr, polygon->WBuffer);
+ 
+@@ -1260,6 +1278,9 @@ void SoftRenderer::RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp,
+                 continue;
+         }
+ 
++        if (!polygon->WBuffer)
++            interpX.SetFactor();
++
+         u32 vr = interpX.Interpolate(rl, rr);
+         u32 vg = interpX.Interpolate(gl, gr);
+         u32 vb = interpX.Interpolate(bl, br);
+diff --git a/src/GPU3D_Soft.h b/src/GPU3D_Soft.h
+index 8a131a3..bc01123 100644
+--- a/src/GPU3D_Soft.h
++++ b/src/GPU3D_Soft.h
+@@ -128,8 +128,20 @@ private:
+ 
+         void SetX(s32 x)
+         {
+-            x -= x0;
+-            this->x = x;
++            SetXOnly(x);
++            SetFactor();
++        }
++
++        // omega-zero: SetX in its two steps, for a pixel the depth test may throw out first: its
++        // X, all InterpolateZ reads but W-buffering, then the perspective factor the rest are
++        // interpolated by and W-buffering reads, a division
++        void SetXOnly(s32 x)
++        {
++            this->x = x - x0;
++        }
++
++        void SetFactor()
++        {
+             if (xdiff != 0 && !linear)
+             {
+                 s64 num = ((s64)x * w0n) << shift;

@@ -1,0 +1,47 @@
+diff --git a/src/DMA.cpp b/src/DMA.cpp
+index 5a4341a..29fb47e 100644
+--- a/src/DMA.cpp
++++ b/src/DMA.cpp
+@@ -593,7 +593,11 @@ void DMA::Run9()
+             NDS::ARM9Timestamp += (UnitTimings9_32(burststart) << NDS::ARM9ClockShift);
+             burststart = false;
+ 
+-            if (ConsoleType == 1)
++            // omega-zero: a geometry FIFO DMA's word from main RAM, straight to the FIFO, as
++            // ARM9Read32 and ARM9Write32 (ARM9IOWrite32, GPU3D::Write32) would take it there
++            if (ConsoleType == 0 && IsGXFIFODMA && (CurSrcAddr >> 24) == 0x02)
++                GPU3D::WriteGXFIFOPort(*(u32*)&NDS::MainRAM[CurSrcAddr & NDS::MainRAMMask]);
++            else if (ConsoleType == 1)
+                 DSi::ARM9Write32(CurDstAddr, DSi::ARM9Read32(CurSrcAddr));
+             else
+                 NDS::ARM9Write32(CurDstAddr, NDS::ARM9Read32(CurSrcAddr));
+diff --git a/src/GPU3D.cpp b/src/GPU3D.cpp
+index 9c02b2f..6783374 100644
+--- a/src/GPU3D.cpp
++++ b/src/GPU3D.cpp
+@@ -2651,6 +2651,12 @@ u32* GetLine(int line)
+ }
+ 
+ 
++void WriteGXFIFOPort(u32 val)
++{
++    if (GeometryEnabled)
++        WriteToGXFIFO(val);
++}
++
+ void WriteToGXFIFO(u32 val)
+ {
+     if (NumCommands == 0)
+diff --git a/src/GPU3D.h b/src/GPU3D.h
+index 30f6015..f0cb2ad 100644
+--- a/src/GPU3D.h
++++ b/src/GPU3D.h
+@@ -126,6 +126,8 @@ void SetRenderXPos(u16 xpos);
+ u32* GetLine(int line);
+ 
+ void WriteToGXFIFO(u32 val);
++// omega-zero: a word written to the geometry FIFO's port (0x04000400), as Write32 takes it
++void WriteGXFIFOPort(u32 val);
+ 
+ u8 Read8(u32 addr);
+ u16 Read16(u32 addr);

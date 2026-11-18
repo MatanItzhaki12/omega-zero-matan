@@ -19,12 +19,14 @@ profile_generate_cflags="-fprofile-generate -fprofile-update=atomic"
 # patches map the game from its file rather than reading it into memory (mapped-rom.patch),
 # give the one-screen layouts the functions the game enters and the layer each pixel came from
 # (one-screen.patch), leave the 2D of a frame the frontend will not show undrawn
-# (skip-hidden-frames.patch), draw each 2D engine on a thread of its own (threaded-2d.patch),
-# draw the 3D in bands of lines on three threads (threaded-3d.patch), hand the frontend both
-# screens where the GPU drew them rather than a copy (zz-direct-frame.patch, after
-# threaded-2d.patch, whose lines it borders), keep a signal from stalling local wireless's socket
-# read for good (local-wireless.patch), and resume a state saved in the middle of a DMA's burst
-# (dma-savestate.patch).
+# (skip-hidden-frames.patch), draw each 2D engine on a thread of its own, display captures
+# included (threaded-2d.patch), draw the 3D in bands of lines on three threads
+# (threaded-3d.patch), work out a 3D pixel's perspective once it passes the depth test
+# (zbuffer-depth-first.patch), hand the geometry FIFO's DMA words straight to the FIFO
+# (gxfifo-dma.patch), hand the frontend both screens where the GPU drew them rather than a copy
+# (zz-direct-frame.patch, after threaded-2d.patch, whose lines it borders), keep a signal from
+# stalling local wireless's socket read for good (local-wireless.patch), and resume a state saved
+# in the middle of a DMA's burst (dma-savestate.patch).
 recipe="make platform=unix ARCH=arm64 HAVE_JIT=1 HAVE_OPENGL=0"
 
 usage() {
