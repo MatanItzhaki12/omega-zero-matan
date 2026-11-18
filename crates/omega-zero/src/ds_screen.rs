@@ -71,6 +71,11 @@ impl DsScreens {
         self.ds.swap();
     }
 
+    /// The scene the last view was laid out as: "top", "battle-cmd", "touch-app" and so on.
+    pub fn scene(&self) -> &'static str {
+        self.ds.scene()
+    }
+
     /// After a state is loaded or the game reset: what ran before is forgotten.
     pub fn forget(&mut self) {
         self.ds.forget();

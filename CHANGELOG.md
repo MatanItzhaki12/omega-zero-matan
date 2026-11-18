@@ -31,6 +31,14 @@
   screens where it drew them rather than a copy.
 - A DS game no longer fast-forwards: the handheld runs one at its own speed with little to spare,
   and held R2 played HeartGold slower than not (52 frames a second).
+- **One Screen for HeartGold and SoulSilver**, after Pokémon Fulldex's: the overworld fills the
+  screen; the X menu, on the touch screen, stands at the right edge over the world, the saved
+  game's card alone once SAVE is chosen; the applications played on the touch screen (the Bag,
+  the party, the Pokégear and its map, phone and radio, the PC's boxes, the Pokédex, the trainer
+  card, Options, the main menu, Voltorb Flip and more) show it while they run; a battle's
+  commands and moves are laid in a band under the battle, as Platinum's are, the D-pad and A
+  choosing them. Their function tables are made from Fulldex's SoulSilver table and its
+  HeartGold shifts (`crates/omega-ds/data/hgss_tables.py`), and checked against the game.
 - **R2 steps a DS game's picture**: Integer, every DS pixel the same whole size (2x, as before),
   Fit, as big as the screen holds it, or Stretch, the whole screen, kept for the game, a toast
   saying which. Its default is Settings › Gameplay › Nintendo DS › Picture, and each game's menu

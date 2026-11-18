@@ -1,12 +1,16 @@
-//! Pokémon Platinum (USA, CPUE) on one screen: which of its screens is up, from the functions
-//! that drew them, and the view laid out for each. After Pokémon Fulldex's frontend/platinum.h
-//! and the 4:3 layouts of its pickSceneBw2 and gen4BattleInput (frontend/main.cpp, GPL-3.0).
+//! The fourth generation's Pokémon games on one screen: Platinum (USA, CPUE), HeartGold (IPKE)
+//! and SoulSilver (IPGE). Which of a game's screens is up, from the functions that drew them, and
+//! the view laid out for each. After Pokémon Fulldex's frontend/platinum.h, its AutoFocus for
+//! HeartGold and SoulSilver, and the 4:3 layouts of its pickSceneBw2 and gen4BattleInput
+//! (frontend/main.cpp, GPL-3.0).
 //!
-//! The overworld and its menus are on the top screen; the Pokétch, on the touch screen beside
-//! it, is left out (L2 shows it). A battle's commands and moves, on the touch screen, are cut out
-//! and laid in a band under the battle in place of the message box; the D-pad moves an outline
-//! over them and A touches the one chosen. The introduction's two questions that take only a
-//! touch stand at the right of the view, A and B answering them.
+//! The overworld and its menus are on the top screen; Platinum's Pokétch, on the touch screen
+//! beside it, is left out (L2 shows it). A battle's commands and moves, on the touch screen, drawn
+//! alike in the three games, are cut out and laid in a band under the battle in place of the
+//! message box; the D-pad moves an outline over them and A touches the one chosen. Platinum's
+//! introduction's two questions that take only a touch stand at the right of the view, A and B
+//! answering them. HeartGold's and SoulSilver's applications played on the touch screen (the
+//! Bag, the party, the Pokégear, the PC's boxes and more) show the touch screen.
 
 use crate::keys;
 use crate::scene::{
@@ -15,14 +19,78 @@ use crate::scene::{
 use crate::screen::{rgb, Screens, BOTTOM, H, TOP, W};
 use crate::watch::Watch;
 
-/// The function table, cut to the functions watched here.
-pub const TABLE: &str = include_str!("../data/CPUE.txt");
+/// A game the layouts are for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Game {
+    Platinum,
+    HeartGold,
+    SoulSilver,
+}
 
-/// The game's code.
-pub const CODE: &str = "CPUE";
+impl Game {
+    /// The game by the code in its header.
+    pub fn of(code: &str) -> Option<Game> {
+        match code {
+            "CPUE" => Some(Game::Platinum),
+            "IPKE" => Some(Game::HeartGold),
+            "IPGE" => Some(Game::SoulSilver),
+            _ => None,
+        }
+    }
+
+    /// Its function table, cut to the functions watched here.
+    pub fn table(self) -> &'static str {
+        match self {
+            Game::Platinum => include_str!("../data/CPUE.txt"),
+            Game::HeartGold => include_str!("../data/IPKE.txt"),
+            Game::SoulSilver => include_str!("../data/IPGE.txt"),
+        }
+    }
+
+    fn hgss(self) -> bool {
+        matches!(self, Game::HeartGold | Game::SoulSilver)
+    }
+}
+
+/// HeartGold's and SoulSilver's applications played on the touch screen, which show it alone:
+/// Fulldex's AutoFocus::bottomApps (the keyboard, NamingScreen, has a layout of its own).
+const HGSS_TOUCH_APPS: [&str; 25] = [
+    "Bag",
+    "PartyMenu",
+    "Pokegear",
+    "GearConfigure",
+    "GearMap",
+    "GearPhone",
+    "GearRadio",
+    "TownMap",
+    "PCBox",
+    "EasyChat",
+    "VoltorbFlip",
+    "Pokedex",
+    "ScratchOffCards",
+    "AlphPuzzle",
+    "TrainerCard",
+    "TrainerCardSignature",
+    "BugContestSwapMon",
+    "WirelessTradeSelectMon",
+    "OptionsMenu",
+    "MainMenu",
+    "CheckSave",
+    "DeleteSave",
+    "ApricornBox",
+    "PalPad",
+    "BerryPots",
+];
+
+/// How recently an application's functions must have run for it to count as up: Fulldex's six
+/// frames, which cover the frames it fades in and out across.
+const APP_FRAMES: u32 = 6;
 
 /// The functions the layouts follow, by their places in the table.
 struct Funcs {
+    /// HeartGold's and SoulSilver's applications played on the touch screen: each one's
+    /// per-frame function and the functions it starts and ends with.
+    touch_apps: Vec<Option<usize>>,
     field: Option<usize>,
     start_menu: Option<usize>,
     dex: Option<usize>,
@@ -52,8 +120,12 @@ struct Funcs {
 }
 
 impl Funcs {
-    fn of(w: &Watch) -> Funcs {
+    fn of(game: Game, w: &Watch) -> Funcs {
+        if game.hgss() {
+            return Funcs::hgss(w);
+        }
         Funcs {
+            touch_apps: Vec::new(),
             field: w.find("FieldMap_Main"),
             start_menu: w.find("StartMenu_Main"),
             dex: w.find("PokedexMain_Main"),
@@ -92,6 +164,48 @@ impl Funcs {
             .map(|n| w.find(n))
             .collect(),
             saving: w.find("SaveData_CardSave_Main"),
+        }
+    }
+
+    /// HeartGold's and SoulSilver's, by the names Fulldex's table has (data/hgss_tables.py): the
+    /// battle's touch-screen panels are told by their colours alone (`read_panel`), its own Bag
+    /// and party by the touch screen they show.
+    fn hgss(w: &Watch) -> Funcs {
+        let app = |name: &str| {
+            [
+                w.find(name),
+                w.find(&format!("{name}:start")),
+                w.find(&format!("{name}:end")),
+            ]
+        };
+        Funcs {
+            touch_apps: HGSS_TOUCH_APPS.iter().flat_map(|n| app(n)).collect(),
+            field: w.find("FieldMap_Main"),
+            start_menu: w.find("Task_StartMenu"),
+            dex: None,
+            party: None,
+            bag: None,
+            trainer_card: None,
+            options: None,
+            summary: None,
+            town_map: None,
+            pc_box: None,
+            naming: w.find("NamingScreen"),
+            intro: w.find("OakSpeech"),
+            starter: None,
+            journal: None,
+            move_reminder: None,
+            evolution: w.find("EvolutionScene_Task"),
+            egg_hatch: w.find("HatchEgg"),
+            battle: w.find("Battle"),
+            battle_input: w.find("BattleInput_CheckTouch"),
+            battle_bag: None,
+            battle_party: None,
+            action_menu: None,
+            first_menu: None,
+            move_menu: None,
+            other_menus: Vec::new(),
+            saving: w.find("HandleWriteSaveAsync_NormalData"),
         }
     }
 }
@@ -212,8 +326,9 @@ enum Panel {
     Unknown,
 }
 
-/// Platinum's one-screen view, and the buttons it answers for the touch screen.
-pub struct Platinum {
+/// A game's one-screen view, and the buttons it answers for the touch screen.
+pub struct Gen4 {
+    game: Game,
     f: Funcs,
     /// The battle buttons' outline: 0 to 3, as COMMAND_AT or MOVE_AT number them.
     sel: usize,
@@ -233,10 +348,11 @@ pub struct Platinum {
     alone: (Option<usize>, Option<usize>, u32),
 }
 
-impl Platinum {
-    pub fn new(watch: &Watch) -> Platinum {
-        Platinum {
-            f: Funcs::of(watch),
+impl Gen4 {
+    pub fn new(game: Game, watch: &Watch) -> Gen4 {
+        Gen4 {
+            game,
+            f: Funcs::of(game, watch),
             sel: 0,
             last_move: 0,
             last_strip: 0,
@@ -308,7 +424,7 @@ impl Platinum {
                 self.touch = Some((TOUCH_FRAMES, CANCEL_AT));
             }
             keys &= !(keys::LEFT | keys::RIGHT | keys::UP | keys::DOWN | keys::A | keys::B);
-        } else if watch.ran(self.f.intro, 2) {
+        } else if self.game == Game::Platinum && watch.ran(self.f.intro, 2) {
             if let Some(kind) = shown.and_then(intro_touch) {
                 let answer = match kind {
                     IntroTouch::YesNo { .. } => keys::A | keys::B,
@@ -378,7 +494,7 @@ impl Platinum {
                 .map_or_else(|| Scene::only("top", TOP), |(sc, _)| sc);
         } else if let Some(app) = self.app(w, s) {
             Some(app)
-        } else if ran(f.field, 16) && underground(s) {
+        } else if self.game == Game::Platinum && ran(f.field, 16) && underground(s) {
             // the Underground swaps the screens: the world on the touch screen, tapped to send
             // the radar's ping, and the radar's map on the top one, over the world's corner
             Some(Scene {
@@ -392,6 +508,8 @@ impl Platinum {
                 ],
                 back: Back::Colour(0xAE695D),
             })
+        } else if self.game.hgss() && ran(f.field, 16) && ran(f.start_menu, 2) {
+            Some(hgss_start_menu(s))
         } else if ran(f.field, 16) {
             // the overworld and the X menu: the Pokétch on the touch screen is left out
             Some(Scene::only(
@@ -456,9 +574,12 @@ impl Platinum {
         Scene::only("top", TOP)
     }
 
-    /// Platinum's screens other than battles and the overworld; none for a screen it has no
+    /// The game's screens other than battles and the overworld; none for a screen it has no
     /// layout for.
     fn app(&self, w: &Watch, s: &Screens) -> Option<Scene> {
+        if self.game.hgss() {
+            return self.hgss_app(w);
+        }
         let ran = |f: Option<usize>| w.ran(f, 2);
         let f = &self.f;
         let both = |name| Scene::stack(name, vec![Piece::full(TOP), Piece::full(BOTTOM)], true);
@@ -512,6 +633,20 @@ impl Platinum {
         } else {
             return None;
         })
+    }
+
+    /// HeartGold's and SoulSilver's screens other than battles and the overworld: an application
+    /// played on the touch screen shows it, as long as it runs, from the frames it starts in to
+    /// the ones it ends in; its evolutions and hatchings are on the top screen.
+    fn hgss_app(&self, w: &Watch) -> Option<Scene> {
+        let f = &self.f;
+        if f.touch_apps.iter().any(|&a| w.ran(a, APP_FRAMES)) {
+            return Some(Scene::only("touch-app", BOTTOM));
+        }
+        if w.ran(f.evolution, 2) || w.ran(f.egg_hatch, APP_FRAMES) {
+            return Some(Scene::only("evolution", TOP));
+        }
+        None
     }
 
     /// The last of the battle's touch-screen panels drawn: 1 the commands, 2 FIGHT alone, 3 the
@@ -623,6 +758,32 @@ impl Platinum {
             Panel::Unknown
         }
     }
+}
+
+/// HeartGold's and SoulSilver's X menu, on the touch screen: the overworld, the menu's panel (x
+/// 5-162, y 0-185 of the touch screen, inside its grey frame) at three quarters of its size at the
+/// right edge; the touch screen alone once SAVE's orange card is up, and the world alone while
+/// the touch screen is black, the menu closing.
+fn hgss_start_menu(s: &Screens) -> Scene {
+    let orange = |x, y| {
+        let (r, g, b) = rgb(s.pixel(BOTTOM, x, y));
+        r > 200 && g > 100 && g < 190 && b < 110
+    };
+    if orange(40, 20) && orange(20, 60) && orange(236, 20) {
+        return Scene::only("save", BOTTOM);
+    }
+    let mut sc = Scene::only("start-menu", TOP);
+    if s.blank(BOTTOM) {
+        return sc;
+    }
+    let (scale, pad) = (0.75, 2.0);
+    let panel = Piece::crop(BOTTOM, 5, 0, 158, 186);
+    let (pw, ph) = (panel.sw as f32 * scale, panel.sh as f32 * scale);
+    let (x, y) = (W as f32 - pw - pad - 2.0, (H as f32 - ph) / 2.0);
+    sc.pieces
+        .push(Piece::fill(x - pad, y - pad, pw + 2.0 * pad, ph + 2.0 * pad, 0x14141C).bordered());
+    sc.pieces.push(panel.scaled(scale).at(x, y));
+    sc
 }
 
 /// Whether the touch screen shows the 3D world: the Underground, which swaps the screens.
@@ -902,4 +1063,73 @@ fn battle_menu(s: &Screens) -> Scene {
         );
     }
     sc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::watch;
+
+    fn watch_of(game: Game) -> Watch {
+        // (no ROM: the overlays' first bytes go unchecked)
+        Watch::new(watch::load(game.table(), std::path::Path::new("")))
+    }
+
+    #[test]
+    fn each_game_is_known_by_its_code_and_has_its_table() {
+        assert_eq!(Game::of("CPUE"), Some(Game::Platinum));
+        assert_eq!(Game::of("IPKE"), Some(Game::HeartGold));
+        assert_eq!(Game::of("IPGE"), Some(Game::SoulSilver));
+        assert_eq!(Game::of("IRDO"), None, "White 2 has no layouts yet");
+        assert!(watch_of(Game::Platinum).find("FieldMap_Main").is_some());
+    }
+
+    /// Every function HeartGold's and SoulSilver's layouts go by is in both tables: a name that
+    /// is not would leave its screen to the fallback, silently.
+    #[test]
+    fn heartgold_and_soulsilver_have_every_function_their_layouts_follow() {
+        for game in [Game::HeartGold, Game::SoulSilver] {
+            let w = watch_of(game);
+            for name in HGSS_TOUCH_APPS.iter().copied().chain([
+                "FieldMap_Main",
+                "Task_StartMenu",
+                "NamingScreen",
+                "OakSpeech",
+                "EvolutionScene_Task",
+                "HatchEgg",
+                "Battle",
+                "BattleInput_CheckTouch",
+                "HandleWriteSaveAsync_NormalData",
+            ]) {
+                assert!(w.find(name).is_some(), "{game:?} has no {name}");
+            }
+            let f = Funcs::of(game, &w);
+            assert_eq!(f.touch_apps.iter().filter(|a| a.is_some()).count() % 3, 0);
+            assert!(
+                f.touch_apps.iter().all(Option::is_some),
+                "{game:?}: an app's start or end"
+            );
+        }
+    }
+
+    /// HeartGold's code is SoulSilver's but for three ranges shifted: in the Pokédex's overlay four
+    /// bytes on, in the main menu's (past its first functions) four back.
+    #[test]
+    fn heartgold_is_soulsilver_shifted_where_its_code_differs() {
+        let (hg, ss) = (Game::HeartGold.table(), Game::SoulSilver.table());
+        let addr = |table: &str, name: &str| {
+            table
+                .lines()
+                .find(|l| l.ends_with(&format!(" {name}")))
+                .and_then(|l| u32::from_str_radix(l.split_whitespace().next()?, 16).ok())
+                .unwrap()
+        };
+        assert_eq!(addr(hg, "Pokedex"), addr(ss, "Pokedex") + 4);
+        assert_eq!(addr(hg, "MainMenu"), addr(ss, "MainMenu"));
+        assert_eq!(
+            addr(hg, "MainMenu_SelectOption_MigrateFromAgb"),
+            addr(ss, "MainMenu_SelectOption_MigrateFromAgb") - 4
+        );
+        assert_eq!(addr(hg, "Bag"), addr(ss, "Bag"));
+    }
 }

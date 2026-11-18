@@ -8,8 +8,8 @@
 //! the handheld has none of: L2 held makes the D-pad a cursor on it and A a touch, and One Screen
 //! touches the buttons it lays over the picture when they are chosen with the D-pad.
 
+pub mod gen4;
 pub mod layout;
-pub mod platinum;
 pub mod rom;
 pub mod scene;
 pub mod screen;
@@ -17,8 +17,8 @@ pub mod watch;
 
 use std::path::Path;
 
+use gen4::Gen4;
 pub use layout::Layout;
-use platinum::Platinum;
 use scene::{Scene, OUT_H, OUT_W};
 use screen::{Screens, BOTTOM, H, PIXELS, TOP, W};
 use watch::Watch;
@@ -46,7 +46,7 @@ pub mod keys {
 /// A game with layouts of its own, and the functions it is told apart by.
 struct Game {
     watch: Watch,
-    platinum: Platinum,
+    gen4: Gen4,
 }
 
 /// The cursor on the touch screen, in its pixels.
@@ -90,10 +90,10 @@ pub struct Ds {
 impl Ds {
     /// The screens of the DS game at `rom`, whose header's game code is `code`, laid out `layout`.
     pub fn new(rom: &Path, code: &str, layout: Layout) -> Ds {
-        let game = (code == platinum::CODE).then(|| {
-            let watch = Watch::new(watch::load(platinum::TABLE, rom));
-            let platinum = Platinum::new(&watch);
-            Game { watch, platinum }
+        let game = gen4::Game::of(code).map(|game| {
+            let watch = Watch::new(watch::load(game.table(), rom));
+            let gen4 = Gen4::new(game, &watch);
+            Game { watch, gen4 }
         });
         Ds {
             layout,
@@ -190,7 +190,7 @@ impl Ds {
             if self.layout == Layout::OneScreen && !self.swapped {
                 if let Some(g) = &mut self.game {
                     let shown = Screens::new(shown, size, [&[], &[]]);
-                    let (k, t) = g.platinum.input(self.frame, keys, &g.watch, shown.as_ref());
+                    let (k, t) = g.gen4.input(self.frame, keys, &g.watch, shown.as_ref());
                     keys = k;
                     touch = t;
                 }
@@ -258,7 +258,7 @@ impl Ds {
             }
             Layout::OneScreen if self.game.is_some() && !self.swapped => {
                 let scene = match &mut self.game {
-                    Some(g) => g.platinum.scene(self.frame, &g.watch, s),
+                    Some(g) => g.gen4.scene(self.frame, &g.watch, s),
                     None => Scene::only("top", TOP),
                 };
                 self.scene = scene.name;
