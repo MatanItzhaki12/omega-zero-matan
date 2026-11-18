@@ -9,7 +9,13 @@ generated code is not compiled by GCC and is not affected.
 A count file belongs to the object it is beside (`src/NDS.gcda` to `src/NDS.o`) and to the code
 that object was compiled from. When a patch or a melonDS update changes a function, its counts no
 longer fit, and GCC builds that function without them and warns (`coverage mismatch`): the core
-still builds and runs, only that much slower. Retrain after such a change.
+still builds and runs, only that much slower. Retrain after such a change. The functions it no
+longer fits are those GCC names in the build's log (the flag that keeps them warnings has the same
+words, so search the warning's own):
+
+```sh
+grep 'may be out of date' build.log | sed 's/.*function .\(.*\). have changed.*/\1/' | sort -u
+```
 
 The counts hold no game data, only numbers of times code ran.
 

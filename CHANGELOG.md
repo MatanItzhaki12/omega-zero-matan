@@ -42,6 +42,17 @@
 - Leaving a DS game stops its 3D renderer's threads, which were left waiting for good each time
   a game was played again, and libretro's melonDS no longer frees a thread twice as it stops
   one (its join had already freed it, which crashed with a newer C library).
+- melonDS is optimised across its files as one at the link (link-time optimisation): the CPU
+  recompiler's block lookup, the bus and the 3D engine's FIFO, each called from another file
+  thousands of times a frame, are inlined where they are called. Played as omega-zero plays it,
+  White's opening missed 27 refreshes in 1,200 frames, now 7, and White 2's 52, now 32; every
+  frame comes out as before. The profile is retrained with the core built so.
+- **A DS game's save is written with every state taken for the card**: as the console dozes,
+  powers off or the cart comes out, and at each autosave. melonDS wrote it only once two seconds
+  of frames had run since the game's last write, so a save made just before closing the lid, and
+  the console powered off from its doze, never reached `Saves/NDS`. A game unloaded writes what is
+  left too, and melonDS no longer prints a line for every write of a save (hundreds a save,
+  most of the log).
 - A Fulldex view laid out of pieces of both screens (a battle's panel, the X menu's buttons, the
   save's card) is drawn in under half the time on the emulation's thread: a piece that only
   covers draws each row straight from its source row and copies the row under it where it is

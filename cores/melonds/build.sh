@@ -8,6 +8,12 @@ device_cflags="-mcpu=cortex-a53"
 # for a shared library otherwise reaches every global function and variable through the PLT and
 # GOT and inlines none of them, which cost the emulation a tenth of its speed on the H700.
 visibility_cflags="-fvisibility=hidden -fvisibility-inlines-hidden"
+# Optimised across its files as one at the link (link-time optimisation): the JIT's block lookup
+# (ARMJIT.cpp), the bus (NDS.cpp) and the 3D engine's FIFO (GPU3D.cpp), each called from another
+# file thousands of times a frame, are inlined where they are called. The emulation thread did a
+# tenth less work in Pokémon White's and White 2's openings on the H700; the profile below fits
+# as before, its counts made by a counting core built the same way.
+lto_cflags="-flto=auto"
 # Built against the profile in profile/ (profile-guided optimisation, another tenth): GCC's counts
 # of the branches taken while the Pokémon games ran on the RG SP, made with `profile` below as
 # profile/README.md tells. Counts that no longer fit the code (a patch changed it since) leave
@@ -25,8 +31,9 @@ profile_generate_cflags="-fprofile-generate -fprofile-update=atomic"
 # (zbuffer-depth-first.patch), hand the geometry FIFO's DMA words straight to the FIFO
 # (gxfifo-dma.patch), hand the frontend both screens where the GPU drew them rather than a copy
 # (zz-direct-frame.patch, after threaded-2d.patch, whose lines it borders), keep a signal from
-# stalling local wireless's socket read for good (local-wireless.patch), and resume a state saved
-# in the middle of a DMA's burst (dma-savestate.patch).
+# stalling local wireless's socket read for good (local-wireless.patch), resume a state saved in
+# the middle of a DMA's burst (dma-savestate.patch), and write a game's save when the frontend
+# asks (omega_ds_flush_save) and as it is unloaded (sram-flush.patch).
 recipe="make platform=unix ARCH=arm64 HAVE_JIT=1 HAVE_OPENGL=0"
 
 usage() {
@@ -51,7 +58,7 @@ stamp() {
 	echo "commit=$1"
 	echo "source=https://github.com/libretro/melonDS/archive/$1.tar.gz"
 	echo "recipe=$recipe"
-	echo "device_cflags=$device_cflags $visibility_cflags"
+	echo "device_cflags=$device_cflags $visibility_cflags $lto_cflags"
 	for p in "$here"/*.patch; do
 		[ -f "$p" ] || continue
 		echo "patch=$(basename "$p") sha256:$(sha256 "$p")"
@@ -84,7 +91,7 @@ unpack() {
 
 # compile SRC COMMIT OUT FLAGS: the core built in SRC with FLAGS beside the device's, to OUT
 compile() {
-	flags="$device_cflags $visibility_cflags $4"
+	flags="$device_cflags $visibility_cflags $lto_cflags $4"
 	# The Makefile asks git for the version, which here would name omega-zero's commit.
 	(cd "$1" && CFLAGS="$flags" CXXFLAGS="$flags" LDFLAGS="$flags" $recipe \
 		GIT_VERSION="\" $(printf %s "$2" | cut -c1-7)\"" \
