@@ -12,6 +12,13 @@
   for pixel. melonDS is also built with its internals hidden from the library's exports and
   optimised by a profile of the Pokémon games running on the RG SP (`cores/melonds/profile`).
   HeartGold's New Bark Town went from 44 frames a second to 63, Platinum's bedroom from 47 to 99.
+- DS games run faster still (HeartGold's New Bark Town from 65 frames a second to 70, Platinum's
+  bedroom from 110 to 117): the emulation waits less for the 2D engines' threads. Each engine
+  draws its sprites from a copy of its OAM handed it with the lines that follow a write, so the
+  sprites a game writes in the VBlank no longer wait for the frame's last lines. At a frame's end
+  the emulation waits only for the frame's own lines, and a thread asleep is woken at once from
+  the last visible line on, rather than once eight lines wait for it. The profile is retrained
+  for the changed code.
 - Pokémon White 2 starts: its 512 MB is mapped without the kernel reserving memory for all of it,
   which it refused with less than that free.
 - A DS game no longer freezes for good when a signal interrupts melonDS's local-wireless check

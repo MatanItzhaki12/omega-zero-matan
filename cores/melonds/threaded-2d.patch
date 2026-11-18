@@ -1,5 +1,5 @@
 diff --git a/src/GPU.cpp b/src/GPU.cpp
-index aa2778d..39455c1 100644
+index aa2778d..7e98365 100644
 --- a/src/GPU.cpp
 +++ b/src/GPU.cpp
 @@ -18,6 +18,13 @@
@@ -26,7 +26,7 @@ index aa2778d..39455c1 100644
  
  /*
      VRAM invalidation tracking
-@@ -144,8 +154,213 @@ u32 PaletteDirty;
+@@ -144,8 +154,300 @@ u32 PaletteDirty;
  std::unique_ptr<GLCompositor> CurGLCompositor = {};
  #endif
  
@@ -40,11 +40,16 @@ index aa2778d..39455c1 100644
 +std::atomic<u32> Omega2DQueued[2];
 +std::atomic<u32> Omega2DDone[2];
 +thread_local u32 RenderVCount = 0;
++u8 Omega2DOAM[2][1024];
++bool Omega2DOAMStale[2] = {true, true};
 +
 +namespace
 +{
 +
-+enum class Omega2DOp : u8 { CheckWindows, DrawScanline, DrawSprites, Take3DLine, VBlankEnd };
++enum class Omega2DOp : u8
++{
++    CheckWindows, DrawScanline, DrawSprites, Take3DLine, VBlankEnd, TakeOAM, TakeFramebuffers
++};
 +
 +struct Omega2DCmd
 +{
@@ -55,12 +60,30 @@ index aa2778d..39455c1 100644
 +
 +// more than a frame's commands: the lanes are emptied at every VBlank
 +constexpr u32 Omega2DRingSize = 2048;
-+// the commands queued before a sleeping lane is woken: eight lines' (a line queues three)
++// the commands queued before a sleeping lane is woken: eight lines' (a line queues three). From
++// the frame's last visible line on, a lane is woken for each: the emulation writes the 2D's
++// registers, palette, OAM and VRAM through the VBlank, and waits for a lane behind at each write,
++// the wake-up included.
 +constexpr u32 Omega2DWakeBatch = 24;
++
++// the copies of an engine's OAM on their way to its lane: the first line queued after a write
++// takes one; with all of them still queued, the emulation waits for the lane to take one
++constexpr u32 Omega2DOAMSlots = 32;
++
++struct Omega2DOAMSlot
++{
++    u8 Data[1024];
++    // the lane's count of commands done once it has taken this copy (Omega2DDone)
++    u32 TakenBy = 0;
++};
 +
 +struct Omega2DLane
 +{
 +    Omega2DCmd Ring[Omega2DRingSize];
++    Omega2DOAMSlot OAMSlots[Omega2DOAMSlots];
++    // the count of commands queued up to the last line drawn or 3D line taken: what a frame's
++    // end waits for (Omega2DNextFramebuffers)
++    u32 LinesQueued = 0;
 +    std::thread Thread;
 +    std::atomic<bool> Sleeping{false};
 +    // rung to wake the thread from its sleep: a futex of its own rather than a condition
@@ -101,6 +124,30 @@ index aa2778d..39455c1 100644
 +#endif
 +}
 +
++// until the lane has done COUNT commands
++void Omega2DWaitUntil(u32 lane, u32 count)
++{
++    if ((s32)(Omega2DDone[lane].load(std::memory_order_acquire) - count) >= 0)
++        return;
++    // fewer lines than a batch may wait for a lane asleep
++    if (Omega2DLanes[lane].Sleeping.load(std::memory_order_seq_cst))
++        Omega2DRingBell(lane);
++    while ((s32)(Omega2DDone[lane].load(std::memory_order_acquire) - count) < 0)
++        Omega2DRelax();
++}
++
++// the framebuffers an engine's renderer draws to, BACKBUF's, and the screen it draws: engine A
++// the top screen with POWCNT1 bit 15 set (TOP_A), the touch screen without
++void Omega2DSetFramebuffers(u32 unit, int backbuf, bool topA)
++{
++    GPU2D::Renderer2D& renderer = unit ? *GPU2D_RendererB : *GPU2D_Renderer;
++    if (topA)
++        renderer.SetFramebuffer(Framebuffer[backbuf][0], Framebuffer[backbuf][1]);
++    else
++        renderer.SetFramebuffer(Framebuffer[backbuf][1], Framebuffer[backbuf][0]);
++    OmegaUnitScreen[unit] = topA ? unit : 1 - unit;
++}
++
 +void Omega2DExec(u32 lane, const Omega2DCmd& cmd)
 +{
 +    RenderVCount = cmd.VCount;
@@ -124,6 +171,12 @@ index aa2778d..39455c1 100644
 +        if (lane == 0)
 +            GPU2D_Renderer->VBlankEnd(&GPU2D_A, &GPU2D_B);
 +        unit.VBlankEnd();
++        break;
++    case Omega2DOp::TakeOAM:
++        memcpy(Omega2DOAM[lane], Omega2DLanes[lane].OAMSlots[cmd.Line].Data, 1024);
++        break;
++    case Omega2DOp::TakeFramebuffers:
++        Omega2DSetFramebuffers(lane, cmd.Line, cmd.VCount);
 +        break;
 +    }
 +}
@@ -171,7 +224,8 @@ index aa2778d..39455c1 100644
 +    Omega2DQueued[lane].store(queued + 1, std::memory_order_seq_cst);
 +    // a sleeping lane is woken for a batch of lines, not each one: a wake-up is a syscall, and
 +    // the lane may fall behind until something waits for it
-+    if (queued + 1 - Omega2DDone[lane].load(std::memory_order_relaxed) >= Omega2DWakeBatch
++    if ((queued + 1 - Omega2DDone[lane].load(std::memory_order_relaxed) >= Omega2DWakeBatch
++            || cmd.VCount >= 191)
 +        && l.Sleeping.load(std::memory_order_seq_cst))
 +        Omega2DRingBell(lane);
 +}
@@ -184,8 +238,36 @@ index aa2778d..39455c1 100644
 +        || ((GPU2D_A.DispCnt >> 16) & 3) >= 2;
 +}
 +
++// hands a lane its engine's OAM as written since it last had it: straight to its copy when it has
++// drawn all it was given, else in its queue
++void Omega2DHandOAM(u32 lane)
++{
++    Omega2DOAMStale[lane] = false;
++    const u8* oam = &OAM[lane * 1024];
++    const u32 queued = Omega2DQueued[lane].load(std::memory_order_relaxed);
++    const u32 done = Omega2DDone[lane].load(std::memory_order_acquire);
++    if (done != queued)
++    {
++        for (u32 i = 0; i < Omega2DOAMSlots; i++)
++        {
++            Omega2DOAMSlot& slot = Omega2DLanes[lane].OAMSlots[i];
++            if ((s32)(done - slot.TakenBy) < 0)
++                continue;
++            memcpy(slot.Data, oam, 1024);
++            slot.TakenBy = queued + 1;
++            Omega2DPush(lane, Omega2DCmd{Omega2DOp::TakeOAM, (u16)i, (u16)VCount});
++            return;
++        }
++        Omega2DWait(lane);
++    }
++    memcpy(Omega2DOAM[lane], oam, 1024);
++}
++
 +void Omega2DRun(Omega2DOp op, u32 line)
 +{
++    for (u32 lane = 0; lane < 2; lane++)
++        if (Omega2DOAMStale[lane])
++            Omega2DHandOAM(lane);
 +    const Omega2DCmd cmd{op, (u16)line, (u16)VCount};
 +    const bool both = op != Omega2DOp::Take3DLine;
 +    if (Omega2DInStep())
@@ -196,21 +278,26 @@ index aa2778d..39455c1 100644
 +            Omega2DExec(1, cmd);
 +        return;
 +    }
-+    Omega2DPush(0, cmd);
-+    if (both)
-+        Omega2DPush(1, cmd);
++    for (u32 lane = 0; lane < (both ? 2u : 1u); lane++)
++    {
++        // a line's windows, checked through the VBlank too, are checked here when the lane has
++        // drawn all it was given: so a lane asleep is not woken for so little
++        if (op == Omega2DOp::CheckWindows
++            && Omega2DDone[lane].load(std::memory_order_acquire)
++                == Omega2DQueued[lane].load(std::memory_order_relaxed))
++            Omega2DExec(lane, cmd);
++        else
++            Omega2DPush(lane, cmd);
++        if (op == Omega2DOp::DrawScanline || op == Omega2DOp::Take3DLine)
++            Omega2DLanes[lane].LinesQueued = Omega2DQueued[lane].load(std::memory_order_relaxed);
++    }
 +}
 +
 +}
 +
 +void Omega2DWait(u32 lane)
 +{
-+    const u32 queued = Omega2DQueued[lane].load(std::memory_order_relaxed);
-+    // fewer lines than a batch may wait for a lane asleep
-+    if (Omega2DLanes[lane].Sleeping.load(std::memory_order_seq_cst))
-+        Omega2DRingBell(lane);
-+    while (Omega2DDone[lane].load(std::memory_order_acquire) != queued)
-+        Omega2DRelax();
++    Omega2DWaitUntil(lane, Omega2DQueued[lane].load(std::memory_order_relaxed));
 +}
 +
 +void Omega2DStop()
@@ -240,7 +327,7 @@ index aa2778d..39455c1 100644
      GPU2D_Renderer = std::make_unique<GPU2D::SoftRenderer>();
      if (!GPU3D::Init()) return false;
  
-@@ -159,6 +374,8 @@ bool Init()
+@@ -159,6 +461,8 @@ bool Init()
  
  void DeInit()
  {
@@ -249,7 +336,7 @@ index aa2778d..39455c1 100644
      GPU2D_Renderer.reset();
      GPU3D::DeInit();
  
-@@ -198,6 +415,7 @@ void ResetVRAMCache()
+@@ -198,6 +502,7 @@ void ResetVRAMCache()
  
  void Reset()
  {
@@ -257,7 +344,15 @@ index aa2778d..39455c1 100644
      VCount = 0;
      NextVCount = -1;
      TotalScanlines = 0;
-@@ -269,6 +487,7 @@ void Reset()
+@@ -209,6 +514,7 @@ void Reset()
+ 
+     memset(Palette, 0, 2*1024);
+     memset(OAM, 0, 2*1024);
++    Omega2DOAMStale[0] = Omega2DOAMStale[1] = true;
+ 
+     memset(VRAM_A, 0, 128*1024);
+     memset(VRAM_B, 0, 128*1024);
+@@ -269,6 +575,7 @@ void Reset()
  
      int backbuf = FrontBuffer ? 0 : 1;
      GPU2D_Renderer->SetFramebuffer(Framebuffer[backbuf][1], Framebuffer[backbuf][0]);
@@ -265,7 +360,7 @@ index aa2778d..39455c1 100644
  
      ResetRenderer();
  
-@@ -280,6 +499,7 @@ void Reset()
+@@ -280,6 +587,7 @@ void Reset()
  
  void Stop()
  {
@@ -273,7 +368,7 @@ index aa2778d..39455c1 100644
      int fbsize;
      if (GPU3D::CurrentRenderer->Accelerated)
          fbsize = (256*3 + 1) * 192;
-@@ -301,6 +521,7 @@ void Stop()
+@@ -301,6 +609,7 @@ void Stop()
  
  void DoSavestate(Savestate* file)
  {
@@ -281,34 +376,62 @@ index aa2778d..39455c1 100644
      file->Section("GPUG");
  
      file->Var16(&VCount);
-@@ -367,6 +588,7 @@ void DoSavestate(Savestate* file)
+@@ -314,6 +623,7 @@ void DoSavestate(Savestate* file)
+ 
+     file->VarArray(Palette, 2*1024);
+     file->VarArray(OAM, 2*1024);
++    Omega2DOAMStale[0] = Omega2DOAMStale[1] = true;
+ 
+     file->VarArray(VRAM_A, 128*1024);
+     file->VarArray(VRAM_B, 128*1024);
+@@ -367,22 +677,39 @@ void DoSavestate(Savestate* file)
  
  void AssignFramebuffers()
  {
 +    Sync2D();
      int backbuf = FrontBuffer ? 0 : 1;
-     // omega-zero: engine A draws the top screen with POWCNT1 bit 15 set, the touch screen without
-     OmegaUnitScreen[0] = (NDS::PowerControl9 & (1<<15)) ? 0 : 1;
-@@ -374,15 +596,18 @@ void AssignFramebuffers()
-     if (NDS::PowerControl9 & (1<<15))
+-    // omega-zero: engine A draws the top screen with POWCNT1 bit 15 set, the touch screen without
+-    OmegaUnitScreen[0] = (NDS::PowerControl9 & (1<<15)) ? 0 : 1;
+-    OmegaUnitScreen[1] = 1 - OmegaUnitScreen[0];
+-    if (NDS::PowerControl9 & (1<<15))
++    Omega2DSetFramebuffers(0, backbuf, NDS::PowerControl9 & (1<<15));
++    Omega2DSetFramebuffers(1, backbuf, NDS::PowerControl9 & (1<<15));
++}
++
++namespace
++{
++
++// a frame's end: the frontend is handed the frame's screens, and the 3D frame rendered since is
++// shown, once its lines are drawn, the first of the next frame's sprites being drawn already;
++// the lanes take the framebuffers the next frame is drawn to after them
++void Omega2DNextFramebuffers()
++{
++    if (Omega2DInStep())
      {
-         GPU2D_Renderer->SetFramebuffer(Framebuffer[backbuf][0], Framebuffer[backbuf][1]);
-+        GPU2D_RendererB->SetFramebuffer(Framebuffer[backbuf][0], Framebuffer[backbuf][1]);
+-        GPU2D_Renderer->SetFramebuffer(Framebuffer[backbuf][0], Framebuffer[backbuf][1]);
++        AssignFramebuffers();
++        return;
      }
-     else
+-    else
++    const int backbuf = FrontBuffer ? 0 : 1;
++    const bool topA = NDS::PowerControl9 & (1<<15);
++    for (u32 lane = 0; lane < 2; lane++)
      {
-         GPU2D_Renderer->SetFramebuffer(Framebuffer[backbuf][1], Framebuffer[backbuf][0]);
-+        GPU2D_RendererB->SetFramebuffer(Framebuffer[backbuf][1], Framebuffer[backbuf][0]);
+-        GPU2D_Renderer->SetFramebuffer(Framebuffer[backbuf][1], Framebuffer[backbuf][0]);
++        Omega2DWaitUntil(lane, Omega2DLanes[lane].LinesQueued);
++        Omega2DPush(lane, Omega2DCmd{Omega2DOp::TakeFramebuffers, (u16)backbuf, (u16)topA});
      }
  }
  
++}
++
  void InitRenderer(int renderer)
  {
 +    Sync2D();
  #ifdef OGLRENDERER_ENABLED
      if (renderer == 1)
      {
-@@ -417,6 +642,7 @@ void InitRenderer(int renderer)
+@@ -417,6 +744,7 @@ void InitRenderer(int renderer)
  
  void DeInitRenderer()
  {
@@ -316,7 +439,7 @@ index aa2778d..39455c1 100644
      GPU3D::CurrentRenderer->DeInit();
  #ifdef OGLRENDERER_ENABLED
      if (Renderer == 1)
-@@ -428,6 +654,7 @@ void DeInitRenderer()
+@@ -428,6 +756,7 @@ void DeInitRenderer()
  
  void ResetRenderer()
  {
@@ -324,7 +447,7 @@ index aa2778d..39455c1 100644
      if (Renderer == 0)
      {
          GPU3D::CurrentRenderer->Reset();
-@@ -443,6 +670,7 @@ void ResetRenderer()
+@@ -443,6 +772,7 @@ void ResetRenderer()
  
  void SetRenderSettings(int renderer, RenderSettings& settings)
  {
@@ -332,7 +455,7 @@ index aa2778d..39455c1 100644
      if (renderer != Renderer)
      {
          DeInitRenderer();
-@@ -533,6 +761,7 @@ u8* GetUniqueBankPtr(u32 mask, u32 offset)
+@@ -533,6 +863,7 @@ u8* GetUniqueBankPtr(u32 mask, u32 offset)
  
  void MapVRAM_AB(u32 bank, u8 cnt)
  {
@@ -340,7 +463,7 @@ index aa2778d..39455c1 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -591,6 +820,7 @@ void MapVRAM_AB(u32 bank, u8 cnt)
+@@ -591,6 +922,7 @@ void MapVRAM_AB(u32 bank, u8 cnt)
  
  void MapVRAM_CD(u32 bank, u8 cnt)
  {
@@ -348,7 +471,7 @@ index aa2778d..39455c1 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -675,6 +905,7 @@ void MapVRAM_CD(u32 bank, u8 cnt)
+@@ -675,6 +1007,7 @@ void MapVRAM_CD(u32 bank, u8 cnt)
  
  void MapVRAM_E(u32 bank, u8 cnt)
  {
@@ -356,7 +479,7 @@ index aa2778d..39455c1 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -737,6 +968,7 @@ void MapVRAM_E(u32 bank, u8 cnt)
+@@ -737,6 +1070,7 @@ void MapVRAM_E(u32 bank, u8 cnt)
  
  void MapVRAM_FG(u32 bank, u8 cnt)
  {
@@ -364,7 +487,7 @@ index aa2778d..39455c1 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -835,6 +1067,7 @@ void MapVRAM_FG(u32 bank, u8 cnt)
+@@ -835,6 +1169,7 @@ void MapVRAM_FG(u32 bank, u8 cnt)
  
  void MapVRAM_H(u32 bank, u8 cnt)
  {
@@ -372,7 +495,7 @@ index aa2778d..39455c1 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -895,6 +1128,7 @@ void MapVRAM_H(u32 bank, u8 cnt)
+@@ -895,6 +1230,7 @@ void MapVRAM_H(u32 bank, u8 cnt)
  
  void MapVRAM_I(u32 bank, u8 cnt)
  {
@@ -380,7 +503,7 @@ index aa2778d..39455c1 100644
      u8 oldcnt = VRAMCNT[bank];
      VRAMCNT[bank] = cnt;
  
-@@ -964,6 +1198,7 @@ void MapVRAM_I(u32 bank, u8 cnt)
+@@ -964,6 +1300,7 @@ void MapVRAM_I(u32 bank, u8 cnt)
  
  void SetPowerCnt(u32 val)
  {
@@ -388,7 +511,7 @@ index aa2778d..39455c1 100644
      // POWCNT1 effects:
      // * bit0: asplodes hardware??? not tested.
      // * bit1: disables engine A palette and OAM (zero-filled) (TODO: affects mem timings???)
-@@ -1033,21 +1268,19 @@ void StartHBlank(u32 line)
+@@ -1033,21 +1370,19 @@ void StartHBlank(u32 line)
              && ((GPU2D_A.DispCnt >> 16) & 3) != 3;
          // (the 3D lines are still taken: the 3D renderer's thread counts them out a frame at a time)
          if (line < 192 && hidden)
@@ -413,7 +536,7 @@ index aa2778d..39455c1 100644
          }
  
          NDS::CheckDMAs(0, 0x02);
-@@ -1058,8 +1291,7 @@ void StartHBlank(u32 line)
+@@ -1058,8 +1393,7 @@ void StartHBlank(u32 line)
      }
      else if (VCount == 262)
      {
@@ -423,7 +546,12 @@ index aa2778d..39455c1 100644
      }
  
      if (DispStat[0] & (1<<4)) NDS::SetIRQ(0, NDS::IRQ_HBlank);
-@@ -1078,6 +1310,8 @@ void FinishFrame(u32 lines)
+@@ -1074,10 +1408,12 @@ void StartHBlank(u32 line)
+ void FinishFrame(u32 lines)
+ {
+     FrontBuffer = FrontBuffer ? 0 : 1;
+-    AssignFramebuffers();
++    Omega2DNextFramebuffers();
  
      TotalScanlines = lines;
  
@@ -432,7 +560,7 @@ index aa2778d..39455c1 100644
      if (GPU3D::AbortFrame)
      {
          GPU3D::RestartFrame();
-@@ -1117,8 +1351,7 @@ void StartScanline(u32 line)
+@@ -1117,8 +1453,7 @@ void StartScanline(u32 line)
      else
          DispStat[1] &= ~(1<<2);
  
@@ -442,7 +570,7 @@ index aa2778d..39455c1 100644
  
      if (VCount >= 2 && VCount < 194)
          NDS::CheckDMAs(0, 0x03);
-@@ -1129,9 +1362,7 @@ void StartScanline(u32 line)
+@@ -1129,9 +1464,7 @@ void StartScanline(u32 line)
      {
          if (line == 0)
          {
@@ -454,7 +582,7 @@ index aa2778d..39455c1 100644
  
          if (RunFIFO)
 diff --git a/src/GPU.h b/src/GPU.h
-index bc566e2..102cbfd 100644
+index bc566e2..43c321a 100644
 --- a/src/GPU.h
 +++ b/src/GPU.h
 @@ -22,6 +22,7 @@
@@ -465,7 +593,7 @@ index bc566e2..102cbfd 100644
  #include <memory>
  #ifdef __LIBRETRO__
  #include <streams/file_stream.h>
-@@ -188,6 +189,32 @@ void SetRenderSettings(int renderer, RenderSettings& settings);
+@@ -188,6 +189,39 @@ void SetRenderSettings(int renderer, RenderSettings& settings);
  
  u8* GetUniqueBankPtr(u32 mask, u32 offset);
  
@@ -495,10 +623,17 @@ index bc566e2..102cbfd 100644
 +// the VCount of the line the 2D renderer draws, on whichever thread draws it
 +extern thread_local u32 RenderVCount;
 +
++// Each engine's sprites are drawn from a copy of its half of the OAM, handed its lane in the
++// queue with the lines that follow a write (Omega2DRun): an OAM write waits for no line queued
++// before it, which the copy it was queued with draws. Omega2DOAMStale says which engine's copy
++// is behind the OAM.
++extern u8 Omega2DOAM[2][1024];
++extern bool Omega2DOAMStale[2];
++
  void MapVRAM_AB(u32 bank, u8 cnt);
  void MapVRAM_CD(u32 bank, u8 cnt);
  void MapVRAM_E(u32 bank, u8 cnt);
-@@ -352,6 +379,7 @@ T ReadVRAM_ABG(u32 addr)
+@@ -352,6 +386,7 @@ T ReadVRAM_ABG(u32 addr)
  template<typename T>
  void WriteVRAM_ABG(u32 addr, T val)
  {
@@ -506,7 +641,7 @@ index bc566e2..102cbfd 100644
      u32 mask = VRAMMap_ABG[(addr >> 14) & 0x1F];
  
      if (mask & (1<<0))
-@@ -413,6 +441,7 @@ T ReadVRAM_AOBJ(u32 addr)
+@@ -413,6 +448,7 @@ T ReadVRAM_AOBJ(u32 addr)
  template<typename T>
  void WriteVRAM_AOBJ(u32 addr, T val)
  {
@@ -514,7 +649,7 @@ index bc566e2..102cbfd 100644
      u32 mask = VRAMMap_AOBJ[(addr >> 14) & 0xF];
  
      if (mask & (1<<0))
-@@ -462,6 +491,7 @@ T ReadVRAM_BBG(u32 addr)
+@@ -462,6 +498,7 @@ T ReadVRAM_BBG(u32 addr)
  template<typename T>
  void WriteVRAM_BBG(u32 addr, T val)
  {
@@ -522,7 +657,7 @@ index bc566e2..102cbfd 100644
      u32 mask = VRAMMap_BBG[(addr >> 14) & 0x7];
  
      if (mask & (1<<2))
-@@ -500,6 +530,7 @@ T ReadVRAM_BOBJ(u32 addr)
+@@ -500,6 +537,7 @@ T ReadVRAM_BOBJ(u32 addr)
  template<typename T>
  void WriteVRAM_BOBJ(u32 addr, T val)
  {
@@ -530,7 +665,7 @@ index bc566e2..102cbfd 100644
      u32 mask = VRAMMap_BOBJ[(addr >> 14) & 0x7];
  
      if (mask & (1<<3))
-@@ -591,6 +622,7 @@ T ReadPalette(u32 addr)
+@@ -591,6 +629,7 @@ T ReadPalette(u32 addr)
  template<typename T>
  void WritePalette(u32 addr, T val)
  {
@@ -538,14 +673,14 @@ index bc566e2..102cbfd 100644
      addr &= 0x7FF;
  
      *(T*)&Palette[addr] = val;
-@@ -606,6 +638,7 @@ T ReadOAM(u32 addr)
- template<typename T>
- void WriteOAM(u32 addr, T val)
- {
-+    Sync2D((addr >> 10) & 1);
-     addr &= 0x7FF;
+@@ -610,6 +649,7 @@ void WriteOAM(u32 addr, T val)
  
      *(T*)&OAM[addr] = val;
+     OAMDirty |= 1 << (addr / 1024);
++    Omega2DOAMStale[addr / 1024] = true;
+ }
+ 
+ void SetPowerCnt(u32 val);
 diff --git a/src/GPU2D.cpp b/src/GPU2D.cpp
 index 2dd606a..f0dddb7 100644
 --- a/src/GPU2D.cpp
@@ -583,7 +718,7 @@ index 2dd606a..f0dddb7 100644
      {
      case 0x000:
 diff --git a/src/GPU2D_Soft.cpp b/src/GPU2D_Soft.cpp
-index 5dbf6d6..74d941f 100644
+index 5dbf6d6..81bd851 100644
 --- a/src/GPU2D_Soft.cpp
 +++ b/src/GPU2D_Soft.cpp
 @@ -187,7 +187,7 @@ void SoftRenderer::DrawScanline(u32 line, Unit* unit)
@@ -595,6 +730,33 @@ index 5dbf6d6..74d941f 100644
  
      if (CurUnit->Num == 0)
      {
+@@ -1697,7 +1697,7 @@ void SoftRenderer::DrawSprites(u32 line, Unit* unit)
+ 
+     memset(OBJIndex, 0xFF, 256);
+ 
+-    u16* oam = (u16*)&GPU::OAM[CurUnit->Num ? 0x400 : 0];
++    u16* oam = (u16*)GPU::Omega2DOAM[CurUnit->Num];
+ 
+     const s32 spritewidth[16] =
+     {
+@@ -1792,7 +1792,7 @@ void SoftRenderer::DrawSprites(u32 line, Unit* unit)
+ template<bool window>
+ void SoftRenderer::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u32 width, u32 height, s32 xpos, s32 ypos)
+ {
+-    u16* oam = (u16*)&GPU::OAM[CurUnit->Num ? 0x400 : 0];
++    u16* oam = (u16*)GPU::Omega2DOAM[CurUnit->Num];
+     u16* attrib = &oam[num * 4];
+     u16* rotparams = &oam[(((attrib[1] >> 9) & 0x1F) * 16) + 3];
+ 
+@@ -2014,7 +2014,7 @@ void SoftRenderer::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight,
+ template<bool window>
+ void SoftRenderer::DrawSprite_Normal(u32 num, u32 width, u32 height, s32 xpos, s32 ypos)
+ {
+-    u16* oam = (u16*)&GPU::OAM[CurUnit->Num ? 0x400 : 0];
++    u16* oam = (u16*)GPU::Omega2DOAM[CurUnit->Num];
+     u16* attrib = &oam[num * 4];
+ 
+     u32 pixelattr = ((attrib[2] & 0x0C00) << 6) | 0xC0000;
 diff --git a/src/GPU3D.h b/src/GPU3D.h
 index 23f55eb..30f6015 100644
 --- a/src/GPU3D.h
