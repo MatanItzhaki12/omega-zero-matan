@@ -1,0 +1,42 @@
+diff --git a/src/NDSCart_SRAMManager.cpp b/src/NDSCart_SRAMManager.cpp
+index ba31e8c..6514a14 100644
+--- a/src/NDSCart_SRAMManager.cpp
++++ b/src/NDSCart_SRAMManager.cpp
+@@ -65,6 +65,10 @@ void DeInit()
+         Platform::Thread_Free(FlushThread);
+         FlushSecondaryBuffer();
+     }
++#else
++    // omega-zero: what the game wrote since the last flush is written as it is unloaded, rather
++    // than lost with a game left within two seconds of saving
++    FlushSecondaryBuffer();
+ #endif
+ 
+     if (SecondaryBuffer) delete SecondaryBuffer;
+@@ -113,7 +117,6 @@ void RequestFlush()
+ #ifndef __LIBRETRO__
+     Platform::Mutex_Lock(SecondaryBufferLock);
+ #endif
+-    printf("NDS SRAM: Flush requested\n");
+     memcpy(SecondaryBuffer, Buffer, Length);
+     FlushVersion++;
+     TimeAtLastFlushRequest = time(NULL);
+diff --git a/src/libretro/libretro.cpp b/src/libretro/libretro.cpp
+index fe3a383..44df606 100644
+--- a/src/libretro/libretro.cpp
++++ b/src/libretro/libretro.cpp
+@@ -983,6 +983,14 @@ extern "C" RETRO_API const uint8_t* omega_ds_layers(unsigned screen)
+    return OmegaLayers[screen & 1];
+ }
+ 
++// The save the game wrote since it was last written to its file, written now: as the frontend
++// takes a state for the card (the console dozing, powering off or the cart coming out), where
++// melonDS writes it only once two seconds of frames have run since the game's last write.
++extern "C" RETRO_API void omega_ds_flush_save(void)
++{
++   NDSCart_SRAMManager::FlushSecondaryBuffer();
++}
++
+ bool retro_load_game(const struct retro_game_info *info)
+ {
+    return _handle_load_game(0, info);

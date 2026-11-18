@@ -185,7 +185,7 @@ jobs:
             nm -D --defined-only "$so" | grep -qw retro_run
           done
           # the one-screen layouts' view of melonDS, which its patch exports
-          for sym in omega_ds_watch omega_ds_layers; do
+          for sym in omega_ds_watch omega_ds_layers omega_ds_flush_save; do
             nm -D --defined-only "$out/System/melonds_libretro.so" | grep -qw "$sym"
           done
           test -x "$out/System/omega-zero"

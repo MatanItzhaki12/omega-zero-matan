@@ -1354,12 +1354,19 @@ impl Worker {
         link: &Link,
     ) {
         match cmd {
-            Cmd::Save(reply) => match core.serialize() {
-                Ok(state) => {
-                    let _ = reply.send(self.for_card(state));
+            Cmd::Save(reply) => {
+                match core.serialize() {
+                    Ok(state) => {
+                        let _ = reply.send(self.for_card(state));
+                    }
+                    Err(e) => crate::log!("{e}"),
                 }
-                Err(e) => crate::log!("{e}"),
-            },
+                // a DS game's save goes to its file with the state, which melonDS would write
+                // only frames later: never, from a console dozing or powered off first
+                if let Some(ds) = self.ds.borrow().as_ref() {
+                    ds.flush_save();
+                }
+            }
             Cmd::Load(state) => {
                 if let Err(e) = core.unserialize(&self.for_core(state)) {
                     crate::log!("{e}");

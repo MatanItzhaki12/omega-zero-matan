@@ -5,6 +5,8 @@
 //!   marked in `bitmap` (a bit per halfword from `base` to `end`), each setting its bit in `hits`.
 //! - `omega_ds_layers(screen)`: which 2D layer drew each pixel of a screen in the frame drawn
 //!   last, 256 by 192 bytes.
+//! - `omega_ds_flush_save()`: the save the game wrote since melonDS last wrote it to its file,
+//!   written now (cores/melonds's sram-flush.patch; a core from before it has none).
 
 use std::os::raw::c_uint;
 
@@ -15,12 +17,14 @@ pub const SCREEN_PIXELS: usize = 256 * 192;
 
 type WatchFn = unsafe extern "C" fn(*const u8, *mut u8, u32, u32);
 type LayersFn = unsafe extern "C" fn(c_uint) -> *const u8;
+type FlushSaveFn = unsafe extern "C" fn();
 
 /// The core's one-screen hooks, where its library has them.
 #[derive(Clone, Copy)]
 pub struct DsHooks {
     watch: WatchFn,
     layers: LayersFn,
+    flush_save: Option<FlushSaveFn>,
 }
 
 impl DsHooks {
@@ -30,7 +34,15 @@ impl DsHooks {
         unsafe {
             let watch = *lib.get::<WatchFn>(b"omega_ds_watch\0").ok()?;
             let layers = *lib.get::<LayersFn>(b"omega_ds_layers\0").ok()?;
-            Some(DsHooks { watch, layers })
+            let flush_save = lib
+                .get::<FlushSaveFn>(b"omega_ds_flush_save\0")
+                .ok()
+                .map(|f| *f);
+            Some(DsHooks {
+                watch,
+                layers,
+                flush_save,
+            })
         }
     }
 
@@ -48,6 +60,17 @@ impl DsHooks {
                 (self.watch)(bitmap.as_ptr(), hits.as_mut_ptr(), base, end);
             }
             None => (self.watch)(std::ptr::null(), std::ptr::null_mut(), 0, 0),
+        }
+    }
+
+    /// Writes the save the game wrote since the core last wrote it to its file, where the core
+    /// can.
+    ///
+    /// # Safety
+    /// The core must be loaded and called on the thread that runs it.
+    pub unsafe fn flush_save(&self) {
+        if let Some(flush) = self.flush_save {
+            flush();
         }
     }
 

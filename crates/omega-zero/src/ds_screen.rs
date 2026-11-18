@@ -93,6 +93,16 @@ impl DsScreens {
         self.ds.scene()
     }
 
+    /// Writes the save the game wrote since melonDS last wrote it to its file: with a state taken
+    /// for the card, as the console dozes or powers off or the cart comes out, where melonDS
+    /// waits for two seconds of frames after the game's last write.
+    pub fn flush_save(&self) {
+        if let Some(h) = &self.hooks {
+            // SAFETY: on the core's thread, between its frames
+            unsafe { h.flush_save() };
+        }
+    }
+
     /// After a state is loaded or the game reset: what ran before is forgotten.
     pub fn forget(&mut self) {
         self.ds.forget();
