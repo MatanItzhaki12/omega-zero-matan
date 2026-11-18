@@ -39,6 +39,9 @@
   before, frame for frame. Played at the DS's own rate as omega-zero plays it, White's opening
   missed 109 refreshes in 1,200 frames, now 27, and White 2's 139, now 52; the profile is
   retrained for the changed code.
+- Leaving a DS game stops its 3D renderer's threads, which were left waiting for good each time
+  a game was played again, and libretro's melonDS no longer frees a thread twice as it stops
+  one (its join had already freed it, which crashed with a newer C library).
 - **Fulldex is a switch of its own**, in Settings › Gameplay › Nintendo DS (on by default) and,
   for a game it has layouts for, in the game's menu (Display › Fulldex), a line under each
   saying what it does: on, Pokémon's two screens are laid out as one view; off, they show as

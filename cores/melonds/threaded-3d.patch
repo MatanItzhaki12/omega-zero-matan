@@ -1,3 +1,21 @@
+diff --git a/src/GPU.cpp b/src/GPU.cpp
+index 2bdc386..ccf2d3f 100644
+--- a/src/GPU.cpp
++++ b/src/GPU.cpp
+@@ -467,6 +467,13 @@ bool Init()
+ void DeInit()
+ {
+     Omega2DStop();
++    // omega-zero: the 3D renderer stops with the game, its render thread and helpers joined,
++    // where the next game's InitRenderer replaced it with them left waiting for good
++    if (GPU3D::CurrentRenderer)
++    {
++        GPU3D::CurrentRenderer->DeInit();
++        GPU3D::CurrentRenderer.reset();
++    }
+     GPU2D_RendererB.reset();
+     GPU2D_Renderer.reset();
+     GPU3D::DeInit();
 diff --git a/src/GPU3D_Soft.cpp b/src/GPU3D_Soft.cpp
 index afaf614..69a2c17 100644
 --- a/src/GPU3D_Soft.cpp
@@ -490,3 +508,22 @@ index 5418b6f..8a131a3 100644
  };
  }
 \ No newline at end of file
+diff --git a/src/libretro/platform.cpp b/src/libretro/platform.cpp
+index 7ed8464..6d14bb5 100644
+--- a/src/libretro/platform.cpp
++++ b/src/libretro/platform.cpp
+@@ -189,11 +189,11 @@ namespace Platform
+       return true;
+    }
+ 
++   // omega-zero: melonDS frees a thread only once it has waited for it (StopRenderThread), and
++   // Thread_Wait's sthread_join has freed it then: detaching it again read freed memory
+    void Thread_Free(Thread *thread)
+    {
+-   #if HAVE_THREADS
+-      sthread_detach((sthread_t*)thread);
+-   #endif
++      (void)thread;
+    }
+ 
+    struct ThreadData
