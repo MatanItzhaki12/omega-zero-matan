@@ -125,6 +125,7 @@ impl PausePage {
                 PauseRow::Borders,
                 PauseRow::Picture,
                 PauseRow::DsPicture,
+                PauseRow::DsFulldex,
                 PauseRow::DsScreens,
                 PauseRow::SwapScreens,
             ],
@@ -216,8 +217,10 @@ pub enum PauseRow {
     DsPicture,
     /// A PSP game's D-pad as the stick: held L2, toggled by L2, or never, for this game.
     Stick,
-    /// A DS game's screens laid out on the one: One Screen, Focus, Picture in Picture,
-    /// Stacked or Side by Side, for this game.
+    /// Fulldex on or off, for a DS game it has layouts for: its screens laid out as one.
+    DsFulldex,
+    /// A DS game's screens laid out on the one where Fulldex does not: Focus, Picture in
+    /// Picture, Stacked or Side by Side, for this game.
     DsScreens,
     /// A DS game's other screen made the large one, as SELECT+Y does.
     SwapScreens,
@@ -263,6 +266,7 @@ impl PauseRow {
             PauseRow::Picture => "PSP Screen",
             PauseRow::DsPicture => "DS Picture",
             PauseRow::Stick => "D-Pad as Stick",
+            PauseRow::DsFulldex => "Fulldex",
             PauseRow::DsScreens => "DS Screens",
             PauseRow::SwapScreens => "Swap Screens",
             PauseRow::Cursor => "Touch Cursor",
@@ -314,7 +318,8 @@ impl PauseRow {
             PauseRow::Picture => "For this game: Fit fills the width",
             PauseRow::DsPicture => "For this game: Integer keeps pixels even; R2 too",
             PauseRow::Stick => "For this game: L2 makes the D-pad the stick",
-            PauseRow::DsScreens => "For this game: how its two screens show",
+            PauseRow::DsFulldex => "For this game: its two screens as one",
+            PauseRow::DsScreens => "For this game: how both show without Fulldex",
             PauseRow::SwapScreens => "SELECT+Y does this too",
             PauseRow::Cursor => "For this game: L2 touches with the D-pad and A",
             PauseRow::Headphones => "Noise control and battery",
@@ -541,6 +546,7 @@ impl App {
                 PauseRow::DsScreens | PauseRow::SwapScreens | PauseRow::Cursor => {
                     self.platform == Platform::Nds
                 }
+                PauseRow::DsFulldex => self.platform == Platform::Nds && self.ds_has_fulldex(),
                 PauseRow::Headphones => self.headphones_kind().is_some(),
                 PauseRow::Wifi => self.wifi.present(),
                 PauseRow::Bluetooth => self.bluetooth.present(),
@@ -630,7 +636,8 @@ impl App {
                 crate::input::Stick::Off => "OFF",
             }
             .to_string(),
-            PauseRow::DsScreens => self.ds_layout().word().to_string(),
+            PauseRow::DsFulldex => on_off(self.ds_arrangement().fulldex),
+            PauseRow::DsScreens => self.ds_arrangement().layout.word().to_string(),
             PauseRow::SwapScreens => "SELECT+Y".to_string(),
             PauseRow::Hp(row) => self.headphones_value(row),
             PauseRow::Wifi => on_off(self.wifi.enabled()),
@@ -812,6 +819,7 @@ impl App {
             PauseRow::FastForward => self.step_ff_speed(right),
             PauseRow::Picture | PauseRow::DsPicture => self.step_picture(right),
             PauseRow::Stick | PauseRow::Cursor => self.step_stick(right),
+            PauseRow::DsFulldex => self.toggle_ds_fulldex(),
             PauseRow::DsScreens => self.step_ds_layout(right),
             PauseRow::SwapScreens => self.swap_ds_screens(),
             PauseRow::Hp(row) => self.change_headphones(row, right),

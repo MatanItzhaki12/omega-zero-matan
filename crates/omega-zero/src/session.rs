@@ -264,12 +264,12 @@ impl Session {
         if let Some(stick) = self.app.take_stick() {
             self.pad.set_stick(stick);
         }
-        // a DS game's screens laid out again or swapped, in its menu or by SELECT+Y
-        let layout = self.app.take_ds_layout();
+        // a DS game's screens shown otherwise or swapped, in its menu or by SELECT+Y
+        let arrangement = self.app.take_ds_arrangement();
         let swap = self.app.take_ds_swap();
         if let Some(emu) = &self.emu {
-            if let Some(layout) = layout {
-                emu.set_ds_layout(layout);
+            if let Some(arrangement) = arrangement {
+                emu.set_ds_arrangement(arrangement);
             }
             if swap {
                 emu.swap_ds_screens();
@@ -581,9 +581,25 @@ impl Session {
             platform,
             stick_default,
         ));
-        let ds_layout =
-            crate::ds_screen::layout_for(&self.root, stem, self.app.ds_layout_default());
-        self.app.set_ds_layout(ds_layout);
+        if platform.two_screens() {
+            let arrangement = omega_ds::Arrangement {
+                layout: crate::ds_screen::layout_for(
+                    &self.root,
+                    stem,
+                    self.app.ds_layout_default(),
+                ),
+                fulldex: crate::ds_screen::fulldex_for(
+                    &self.root,
+                    stem,
+                    self.app.ds_fulldex_default(),
+                ),
+            };
+            let code = omega_store::nds::info(&rom)
+                .map(|i| i.code)
+                .unwrap_or_default();
+            self.app
+                .set_ds_arrangement(arrangement, omega_ds::has_fulldex(&code));
+        }
         self.app.set_link_loaded(serial);
         // hardcore picks up from no state, as it loads none
         let resume_wanted = !self.app.starting_clean() && !self.app.hardcore();
@@ -668,7 +684,7 @@ impl Session {
             // switching it on in a game rewinds at once
             rewinds: platform.rewinds(),
             cheevos: self.app.achievements_console(),
-            ds: platform.two_screens().then(|| self.app.ds_layout()),
+            ds: platform.two_screens().then(|| self.app.ds_arrangement()),
         };
         self.app.achievements_game_starts();
         let emu =

@@ -1,13 +1,15 @@
-//! Plays a DS game headless through its one-screen layouts, as a game in omega-zero is played,
+//! Plays a DS game headless through its Fulldex layouts, as a game in omega-zero is played,
 //! to check them by eye: each `--every` frames the view laid out is written as a PNG, named by
 //! its frame and the scene it is, and the scenes the run went through are listed at the end.
 //!
 //! `cargo run -p omega-zero --example ds_layouts -- CORE ROM OUT [--state FILE] [--state-out FILE]
-//! [--system DIR] [--script FILE] [--frames N] [--every N] [--layout one-screen|focus|...]`
+//! [--system DIR] [--script FILE] [--frames N] [--every N] [--layout focus|picture|...]
+//! [--no-fulldex]`
 //!
 //! The script's lines are `FROM TO KEY...`: the keys held from frame FROM to before TO, among A B
 //! X Y L R START SELECT UP DOWN LEFT RIGHT L2 R2, counted from the run's start. `--state-out`
 //! saves the game's state at the run's end, for the next run to go on from with `--state`.
+//! `--no-fulldex` shows the layout alone, as Fulldex switched off does.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -18,7 +20,7 @@ use omega_store::Core;
 use omega_zero::ds_screen::DsScreens;
 
 const USAGE: &str = "usage: ds_layouts CORE ROM OUT [--state FILE] [--state-out FILE] \
-[--system DIR] [--script FILE] [--frames N] [--every N] [--layout NAME]";
+[--system DIR] [--script FILE] [--frames N] [--every N] [--layout NAME] [--no-fulldex]";
 
 /// libretro's joypad bits, as the script names them.
 const KEYS: [(&str, u16); 14] = [
@@ -90,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (mut state, mut system, mut steps) = (None::<PathBuf>, None::<PathBuf>, Vec::new());
     let mut state_out = None::<PathBuf>;
     let (mut frames, mut every) = (600u32, 60u32);
-    let mut layout = omega_ds::Layout::OneScreen;
+    let mut arrangement = omega_ds::Arrangement::default();
     while let Some(arg) = it.next() {
         let mut value = || it.next().ok_or(USAGE);
         match arg.as_str() {
@@ -100,7 +102,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "--script" => steps = script(Path::new(&value()?))?,
             "--frames" => frames = value()?.parse()?,
             "--every" => every = value()?.parse()?,
-            "--layout" => layout = omega_ds::Layout::parse(&value()?).ok_or(USAGE)?,
+            "--layout" => arrangement.layout = omega_ds::Layout::parse(&value()?).ok_or(USAGE)?,
+            "--no-fulldex" => arrangement.fulldex = false,
             _ => positional.push(PathBuf::from(arg)),
         }
     }
@@ -117,7 +120,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         core.run_frame(ButtonMask(0));
         core.unserialize(&std::fs::read(state)?)?;
     }
-    let mut screens = DsScreens::start(&mut core, &rom, layout);
+    let mut screens = DsScreens::start(&mut core, &rom, arrangement);
     let mut seen: BTreeMap<&'static str, u32> = BTreeMap::new();
     let mut view = Vec::new();
     for frame in 0..frames {

@@ -172,7 +172,10 @@ Brightness, Blue Light Filter, Borders and PSP Screen. **Borders** (on by defaul
 pastel console round a picture that leaves the screen bare (the Game Boys, the SNES, the
 PlayStation, the PSP, a DS game short of the screen), unless the system has a border of the
 player's own in `Overlays/`. The NINTENDO DS page holds the DS's **Picture**: Integer, every DS
-pixel the same whole size (2x, the default), Fit, as big as the screen holds it, or Stretch.
+pixel the same whole size (2x, the default), Fit, as big as the screen holds it, or Stretch;
+**Fulldex** (on by default), Pokémon's two screens laid out as one view for a game it has
+layouts for; and **Screens**, how both show otherwise: Focus, Picture in Picture, Stacked or
+Side by Side. Each game's menu has them for that game alone.
 
 **GAMEPLAY ›** (each row shows a line under the panel saying what it does)
 
@@ -251,7 +254,7 @@ goes straight to the save states without the menu flashing up first.
 |---|---|
 | MENU | Resume · Undo Save · Undo Load · States · Settings › · Restart · Exit Game |
 | SETTINGS | Display › · Gameplay › · Achievements › · Controls › |
-| DISPLAY | Screen Filter · Game Boy Palette · Color Correction · Frame Blending · Brightness · Blue Light Filter · Borders · PSP Screen (for this game) · DS Picture, DS Screens and Swap Screens (DS) |
+| DISPLAY | Screen Filter · Game Boy Palette · Color Correction · Frame Blending · Brightness · Blue Light Filter · Borders · PSP Screen (for this game) · DS Picture, Fulldex (a game it has layouts for), DS Screens and Swap Screens (DS) |
 | GAMEPLAY | Fast Forward · Fast Forward Sound · Rewind · Turbo Buttons · Run-Ahead (gpSP) · Rumble · Load State on Insert · Save State on Eject · Stick (PSP) · Touch Cursor (DS) |
 | ACHIEVEMENTS | Game · Unlocked · View All › · RetroAchievements · Hardcore |
 | ALL ACHIEVEMENTS | Every achievement of the game, unlocked or locked |
@@ -632,6 +635,7 @@ New keys in `Config/omega-zero.state`. A card from before this fork reads each o
 | `backup_host`, `backup_name`, `backup_user`, `backup_password`, `backup_share`, `backup_dir` | Save Backup's NAS, its name, user, password, share and folder |
 | `shelf`, `picked`, `picked_platform` | The shelf and the game the shelf was on when the handheld went off |
 | `menu_sounds`, `menu_music` | `1`, `0` |
+| `ds_screen`, `ds_layout`, `ds_fulldex`, `ds_cursor` | A DS game's Picture (`actual`, `fit`, `stretch`), Screens (`focus`, `picture`, `stacked`, `side-by-side`; `one-screen` from before reads as `focus`), Fulldex (`1`, `0`) and Touch Cursor (`hold`, `toggle`), where a game was not set for itself; each game's own in `Config/video_mode.ini`, `Config/ds_layout.ini`, `Config/ds_fulldex.ini` (`on`, `off`) and `Config/psp_stick.ini` |
 | `menu_sounds_volume`, `menu_music_volume` | `1` to `10` |
 | `test_updates` | `1` for Settings' Update to take test builds, `0` for releases |
 | `shelf_by_play`, `saves_by_play` | `1` for the shelves, or Saves' lists, to stand the most played games first; `0` (as it starts) by name |

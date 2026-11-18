@@ -395,10 +395,12 @@ pub struct App {
     pub(crate) backup_woke_at: Option<Millis>,
     /// The stick a game's menu set, for the session's pad to take.
     pub(crate) stick_pending: Option<crate::input::Stick>,
-    /// The DS game in play's screen layout, and a change of it or a swap of its screens the
-    /// game's menu or SELECT+Y made, for the session to hand the emulator.
-    pub(crate) ds_layout: omega_ds::Layout,
-    pub(crate) ds_layout_pending: Option<omega_ds::Layout>,
+    /// How the DS game in play's screens show, whether it has layouts of its own for Fulldex,
+    /// and a change of how they show or a swap of its screens the game's menu or SELECT+Y made,
+    /// for the session to hand the emulator.
+    pub(crate) ds_arrangement: omega_ds::Arrangement,
+    pub(crate) ds_has_fulldex: bool,
+    pub(crate) ds_arrangement_pending: Option<omega_ds::Arrangement>,
     pub(crate) ds_swap_pending: bool,
     /// The keyboard asks again for a room's password, the one given having been turned away.
     pub(crate) link_refused: bool,
@@ -674,8 +676,9 @@ impl App {
             backup_fail_told: false,
             backup_woke_at: None,
             stick_pending: None,
-            ds_layout: omega_ds::Layout::default(),
-            ds_layout_pending: None,
+            ds_arrangement: omega_ds::Arrangement::default(),
+            ds_has_fulldex: false,
+            ds_arrangement_pending: None,
             ds_swap_pending: false,
             link_refused: false,
             link_retroarch: false,
@@ -1224,6 +1227,12 @@ impl App {
         omega_ds::Layout::parse(&self.state.ds_layout).unwrap_or_default()
     }
 
+    /// Whether Fulldex lays out a DS game's screens when it was not set for itself: Settings'
+    /// NINTENDO DS panel's.
+    pub fn ds_fulldex_default(&self) -> bool {
+        self.state.ds_fulldex
+    }
+
     /// How L2 brings up a DS game's touch cursor when it was not set for itself.
     pub fn ds_cursor_default(&self) -> crate::input::Stick {
         crate::input::Stick::parse(&self.state.ds_cursor)
@@ -1240,25 +1249,44 @@ impl App {
         }
     }
 
-    /// The DS game in play's screen layout, as the session started it.
-    pub fn set_ds_layout(&mut self, layout: omega_ds::Layout) {
-        self.ds_layout = layout;
+    /// How the DS game in play's screens show, as the session started it, and whether the game
+    /// has layouts of its own for Fulldex.
+    pub fn set_ds_arrangement(&mut self, arrangement: omega_ds::Arrangement, has_fulldex: bool) {
+        self.ds_arrangement = arrangement;
+        self.ds_has_fulldex = has_fulldex;
     }
 
-    pub fn ds_layout(&self) -> omega_ds::Layout {
-        self.ds_layout
+    pub fn ds_arrangement(&self) -> omega_ds::Arrangement {
+        self.ds_arrangement
+    }
+
+    /// Whether the DS game in play has layouts of its own for Fulldex.
+    pub fn ds_has_fulldex(&self) -> bool {
+        self.ds_has_fulldex
     }
 
     /// The game's menu: the DS game's layout stepped on, kept for the game.
     pub(crate) fn step_ds_layout(&mut self, right: bool) {
-        let to = self.ds_layout.step(right);
+        let layout = self.ds_arrangement.layout.step(right);
         if let (Some(root), Phase::Playing { cart }) = (&self.root, &self.phase) {
-            if let Err(e) = crate::ds_screen::write_layout(root, cart, to) {
+            if let Err(e) = crate::ds_screen::write_layout(root, cart, layout) {
                 crate::log!("ds_layout.ini: {e}");
             }
         }
-        self.ds_layout = to;
-        self.ds_layout_pending = Some(to);
+        self.ds_arrangement.layout = layout;
+        self.ds_arrangement_pending = Some(self.ds_arrangement);
+    }
+
+    /// The game's menu: the DS game's Fulldex switched, kept for the game.
+    pub(crate) fn toggle_ds_fulldex(&mut self) {
+        let on = !self.ds_arrangement.fulldex;
+        if let (Some(root), Phase::Playing { cart }) = (&self.root, &self.phase) {
+            if let Err(e) = crate::ds_screen::write_fulldex(root, cart, on) {
+                crate::log!("ds_fulldex.ini: {e}");
+            }
+        }
+        self.ds_arrangement.fulldex = on;
+        self.ds_arrangement_pending = Some(self.ds_arrangement);
     }
 
     /// SELECT+Y or the game's menu: the DS game's other screen made the large one.
@@ -1268,9 +1296,10 @@ impl App {
         }
     }
 
-    /// The layout the game's menu set since the last call, for the session's emulator.
-    pub fn take_ds_layout(&mut self) -> Option<omega_ds::Layout> {
-        self.ds_layout_pending.take()
+    /// How the game's menu set the screens to show since the last call, for the session's
+    /// emulator.
+    pub fn take_ds_arrangement(&mut self) -> Option<omega_ds::Arrangement> {
+        self.ds_arrangement_pending.take()
     }
 
     /// Whether the screens were swapped since the last call.

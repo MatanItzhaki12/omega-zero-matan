@@ -27,6 +27,13 @@
   White's Nuvema Town went from 40 frames a second to 60, where its 3D alone had taken a whole
   core, HeartGold's New Bark Town from 65 to 69 and Platinum's bedroom from 103 to 109, the
   profile retrained for the changed code and with White's outdoors.
+- **Fulldex is a switch of its own**, in Settings › Gameplay › Nintendo DS (on by default) and,
+  for a game it has layouts for, in the game's menu (Display › Fulldex), a line under each
+  saying what it does: on, Pokémon's two screens are laid out as one view; off, they show as
+  Screens has it. Screens, and each game's DS Screens, now hold the layouts alone (Focus,
+  Picture in Picture, Stacked, Side by Side), the one a game without Fulldex's layouts shows,
+  and a game with them while Fulldex is off. One Screen kept from before is read as Focus with
+  Fulldex on, as it showed.
 - Pokémon White 2 starts: its 512 MB is mapped without the kernel reserving memory for all of it,
   which it refused with less than that free.
 - A DS game no longer freezes for good when a signal interrupts melonDS's local-wireless check

@@ -138,9 +138,9 @@ pub struct Rules {
     pub rewinds: bool,
     /// The console RetroAchievements checks the game as, 0 for none.
     pub cheevos: u32,
-    /// A DS game's screen layout: its two screens laid out on the handheld's one. None for
+    /// How a DS game's screens show: its two screens laid out on the handheld's one. None for
     /// any other system's game, which has one screen.
-    pub ds: Option<omega_ds::Layout>,
+    pub ds: Option<omega_ds::Arrangement>,
 }
 
 impl Rules {
@@ -149,7 +149,7 @@ impl Rules {
             turbo: platform.turbo_xy(),
             rewinds: platform.rewinds(),
             cheevos: 0,
-            ds: platform.two_screens().then(omega_ds::Layout::default),
+            ds: platform.two_screens().then(omega_ds::Arrangement::default),
         }
     }
 }
@@ -205,8 +205,8 @@ enum Cmd {
     SetOption(String, String),
     SetDisc(usize),
     Reset,
-    /// A DS game's screens laid out another way, or swapped.
-    DsLayout(omega_ds::Layout),
+    /// A DS game's screens shown another way, or swapped.
+    DsArrangement(omega_ds::Arrangement),
     DsSwap,
 }
 
@@ -432,9 +432,9 @@ impl EmuHandle {
         request(&self.cmds, &self.shared, Cmd::EndLink);
     }
 
-    /// Lays a DS game's screens out `layout` from the next frame.
-    pub fn set_ds_layout(&self, layout: omega_ds::Layout) {
-        let _ = self.cmds.send(Cmd::DsLayout(layout));
+    /// Shows a DS game's screens as `arrangement` says from the next frame.
+    pub fn set_ds_arrangement(&self, arrangement: omega_ds::Arrangement) {
+        let _ = self.cmds.send(Cmd::DsArrangement(arrangement));
     }
 
     /// Makes a DS game's other screen the large one, or back.
@@ -818,8 +818,8 @@ impl Worker {
             Some(_) => DS_PICTURES,
             None => 1,
         });
-        if let Some(layout) = self.rules.ds {
-            let screens = crate::ds_screen::DsScreens::start(&mut *core, &rom, layout);
+        if let Some(arrangement) = self.rules.ds {
+            let screens = crate::ds_screen::DsScreens::start(&mut *core, &rom, arrangement);
             *self.ds.borrow_mut() = Some(screens);
         }
         self.shared
@@ -1377,9 +1377,9 @@ impl Worker {
                     ds.forget();
                 }
             }
-            Cmd::DsLayout(layout) => {
+            Cmd::DsArrangement(arrangement) => {
                 if let Some(ds) = self.ds.borrow_mut().as_mut() {
-                    ds.set_layout(layout);
+                    ds.set_arrangement(arrangement);
                 }
             }
             Cmd::DsSwap => {

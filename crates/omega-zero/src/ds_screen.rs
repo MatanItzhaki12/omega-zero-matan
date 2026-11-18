@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use omega_ds::{Ds, Layout};
+use omega_ds::{Arrangement, Ds, Layout};
 use omega_retro::ds::DsHooks;
 use omega_retro::{ButtonMask, RetroCore};
 
@@ -23,6 +23,22 @@ pub fn write_layout(root: &Path, stem: &str, layout: Layout) -> std::io::Result<
     omega_store::ini::write(root, LAYOUT_FILE, stem, layout.as_str())
 }
 
+/// Each DS game's Fulldex, where it was switched from Settings' default: `on` or `off`.
+pub const FULLDEX_FILE: &str = "Config/ds_fulldex.ini";
+
+/// Whether the DS game `stem` was set to show Fulldex, else `fallback`.
+pub fn fulldex_for(root: &Path, stem: &str, fallback: bool) -> bool {
+    match omega_store::ini::value(root, FULLDEX_FILE, stem).as_deref() {
+        Some("on") => true,
+        Some("off") => false,
+        _ => fallback,
+    }
+}
+
+pub fn write_fulldex(root: &Path, stem: &str, on: bool) -> std::io::Result<()> {
+    omega_store::ini::write(root, FULLDEX_FILE, stem, if on { "on" } else { "off" })
+}
+
 /// A DS game's screens, while its core runs.
 pub struct DsScreens {
     ds: Ds,
@@ -36,12 +52,13 @@ pub struct DsScreens {
 unsafe impl Send for DsScreens {}
 
 impl DsScreens {
-    /// The screens of the game at `rom`, which `core` has just loaded, laid out `layout`.
-    pub fn start(core: &mut dyn RetroCore, rom: &Path, layout: Layout) -> DsScreens {
+    /// The screens of the game at `rom`, which `core` has just loaded, shown as `arrangement`
+    /// says.
+    pub fn start(core: &mut dyn RetroCore, rom: &Path, arrangement: Arrangement) -> DsScreens {
         let code = omega_store::nds::info(rom)
             .map(|i| i.code)
             .unwrap_or_default();
-        let mut ds = Ds::new(rom, &code, layout);
+        let mut ds = Ds::new(rom, &code, arrangement);
         let hooks = core.ds_hooks();
         let main_ram = core.memory().map_or((std::ptr::null(), 0), |m| {
             (m.system.0.cast_const(), m.system.1)
@@ -63,8 +80,8 @@ impl DsScreens {
         }
     }
 
-    pub fn set_layout(&mut self, layout: Layout) {
-        self.ds.set_layout(layout);
+    pub fn set_arrangement(&mut self, arrangement: Arrangement) {
+        self.ds.set_arrangement(arrangement);
     }
 
     pub fn swap(&mut self) {
@@ -134,14 +151,35 @@ mod tests {
     fn a_games_layout_is_kept_by_its_name_and_falls_back_to_the_default() {
         let d = tempfile::tempdir().unwrap();
         assert_eq!(
-            layout_for(d.path(), "Platinum", Layout::OneScreen),
-            Layout::OneScreen
+            layout_for(d.path(), "Platinum", Layout::Picture),
+            Layout::Picture
         );
         write_layout(d.path(), "Platinum", Layout::Stacked).unwrap();
         assert_eq!(
-            layout_for(d.path(), "Platinum", Layout::OneScreen),
+            layout_for(d.path(), "Platinum", Layout::Picture),
             Layout::Stacked
         );
         assert_eq!(layout_for(d.path(), "White", Layout::Focus), Layout::Focus);
+    }
+
+    #[test]
+    fn a_games_one_screen_from_before_is_focus() {
+        let d = tempfile::tempdir().unwrap();
+        omega_store::ini::write(d.path(), LAYOUT_FILE, "Platinum", "one-screen").unwrap();
+        assert_eq!(
+            layout_for(d.path(), "Platinum", Layout::Stacked),
+            Layout::Focus
+        );
+    }
+
+    #[test]
+    fn a_games_fulldex_is_kept_and_falls_back_to_the_default() {
+        let d = tempfile::tempdir().unwrap();
+        assert!(fulldex_for(d.path(), "White", true));
+        write_fulldex(d.path(), "White", false).unwrap();
+        assert!(!fulldex_for(d.path(), "White", true));
+        write_fulldex(d.path(), "White", true).unwrap();
+        assert!(fulldex_for(d.path(), "White", false));
+        assert!(!fulldex_for(d.path(), "Platinum", false));
     }
 }

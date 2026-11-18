@@ -1,12 +1,13 @@
 //! omega-zero's DS screens: the DS's two screens shown on the handheld's one.
 //!
 //! The core draws the top screen above the touch screen in one frame. [`Ds`] turns that into the
-//! picture shown, as the player's [`Layout`] says: both screens stacked or side by side, one
-//! screen with the other a press away or small in its corner, or, for a game with layouts of its
-//! own, One Screen: one view made of both, laid out for what the game is doing, after Pokémon
-//! Fulldex's merged view (mamesj/pokemon-fulldex, GPL-3.0). It also answers for the touch screen
-//! the handheld has none of: L2 held makes the D-pad a cursor on it and A a touch, and One Screen
-//! touches the buttons it lays over the picture when they are chosen with the D-pad.
+//! picture shown, as the player's [`Arrangement`] says: its [`Layout`], both screens stacked or
+//! side by side, or one screen with the other a press away or small in its corner; and, for a
+//! game with layouts of its own, Fulldex over it: one view made of both, laid out for what the
+//! game is doing, after Pokémon Fulldex's merged view (mamesj/pokemon-fulldex, GPL-3.0). It also
+//! answers for the touch screen the handheld has none of: L2 held makes the D-pad a cursor on it
+//! and A a touch, and Fulldex touches the buttons it lays over the picture when they are chosen
+//! with the D-pad.
 
 mod fallback;
 pub mod gen4;
@@ -21,7 +22,7 @@ use std::path::Path;
 
 use gen4::Gen4;
 use gen5::Gen5;
-pub use layout::Layout;
+pub use layout::{Arrangement, Layout};
 use scene::{Scene, OUT_H, OUT_W};
 use screen::{Screens, BOTTOM, H, PIXELS, TOP, W};
 use watch::Watch;
@@ -93,6 +94,11 @@ impl Game {
     }
 }
 
+/// Whether the game whose header's code is `code` has layouts of its own for Fulldex.
+pub fn has_fulldex(code: &str) -> bool {
+    gen4::Game::of(code).is_some() || gen5::Game::of(code).is_some()
+}
+
 /// The cursor on the touch screen, in its pixels.
 struct Cursor {
     x: f32,
@@ -116,7 +122,7 @@ const FOCUS_HOLD: u32 = 45;
 
 /// A DS game's screens, from the frames its core draws to the picture shown.
 pub struct Ds {
-    layout: Layout,
+    arrangement: Arrangement,
     swapped: bool,
     game: Option<Game>,
     cursor: Cursor,
@@ -132,11 +138,12 @@ pub struct Ds {
 }
 
 impl Ds {
-    /// The screens of the DS game at `rom`, whose header's game code is `code`, laid out `layout`.
-    pub fn new(rom: &Path, code: &str, layout: Layout) -> Ds {
+    /// The screens of the DS game at `rom`, whose header's game code is `code`, shown as
+    /// `arrangement` says.
+    pub fn new(rom: &Path, code: &str, arrangement: Arrangement) -> Ds {
         let game = Game::of(rom, code);
         Ds {
-            layout,
+            arrangement,
             swapped: false,
             game,
             cursor: Cursor {
@@ -155,17 +162,23 @@ impl Ds {
         }
     }
 
-    /// Whether the game has layouts of its own for One Screen.
+    /// Whether the game has layouts of its own for Fulldex.
     pub fn has_layouts(&self) -> bool {
         self.game.is_some()
     }
 
-    pub fn layout(&self) -> Layout {
-        self.layout
+    pub fn arrangement(&self) -> Arrangement {
+        self.arrangement
     }
 
-    pub fn set_layout(&mut self, layout: Layout) {
-        self.layout = layout;
+    pub fn set_arrangement(&mut self, arrangement: Arrangement) {
+        self.arrangement = arrangement;
+    }
+
+    /// Whether Fulldex lays the screens out: switched on, for a game with layouts of its own, its
+    /// screens not swapped (SELECT+Y shows the other as the layout does).
+    fn fulldex(&self) -> bool {
+        self.arrangement.fulldex && self.game.is_some() && !self.swapped
     }
 
     /// The other screen made the large one (SELECT+Y), or back.
@@ -227,7 +240,7 @@ impl Ds {
             keys &= !(dpad | keys::A);
         } else {
             self.cursor.touching = false;
-            if self.layout == Layout::OneScreen && !self.swapped {
+            if self.fulldex() {
                 if let Some(g) = &mut self.game {
                     let shown = Screens::new(shown, size, [&[], &[]]);
                     let (k, t) = g.input(self.frame, keys, shown.as_ref());
@@ -285,18 +298,17 @@ impl Ds {
         } else {
             self.focused()
         };
+        let fulldex = self.fulldex();
+        // a layout of one screen shows the touch screen while the cursor is on it
         let cursor_shows_touch = self.cursor.on
-            && matches!(
-                self.layout,
-                Layout::OneScreen | Layout::Focus | Layout::Picture
-            );
+            && (fulldex || matches!(self.arrangement.layout, Layout::Focus | Layout::Picture));
         out.clear();
-        match self.layout {
+        match self.arrangement.layout {
             _ if cursor_shows_touch => {
                 self.scene = "cursor";
                 one(s, BOTTOM, out)
             }
-            Layout::OneScreen if self.game.is_some() && !self.swapped => {
+            _ if fulldex => {
                 let scene = match &mut self.game {
                     Some(g) => g.scene(self.frame, s),
                     None => Scene::only("top", TOP),
@@ -304,7 +316,7 @@ impl Ds {
                 self.scene = scene.name;
                 self.draw(&scene, s, out)
             }
-            Layout::OneScreen | Layout::Focus => {
+            Layout::Focus => {
                 self.scene = if shown == TOP { "top" } else { "bottom" };
                 one(s, shown, out)
             }
@@ -448,7 +460,14 @@ mod tests {
     use crate::screen::tests::frame;
 
     fn ds(layout: Layout) -> Ds {
-        Ds::new(Path::new("/nowhere.nds"), "ABCD", layout)
+        Ds::new(
+            Path::new("/nowhere.nds"),
+            "ABCD",
+            Arrangement {
+                layout,
+                fulldex: true,
+            },
+        )
     }
 
     fn run(d: &mut Ds, f: &[u8]) -> ((u32, u32), Vec<u8>) {
@@ -460,8 +479,11 @@ mod tests {
 
     #[test]
     fn a_game_with_no_layouts_shows_the_top_screen_but_while_only_the_touch_screen_is_lit() {
-        let mut d = ds(Layout::OneScreen);
-        assert!(!d.has_layouts());
+        let mut d = ds(Layout::Focus);
+        assert!(
+            !d.has_layouts(),
+            "Fulldex on, for a game it has no layouts for"
+        );
         let lit = frame(0x123456, 0x654321);
         let (size, out) = run(&mut d, &lit);
         assert_eq!(size, (256, 192));
@@ -486,7 +508,10 @@ mod tests {
         let (size, out) = run(&mut d, &f);
         assert_eq!(size, (256, 384));
         assert_eq!(out, f);
-        d.set_layout(Layout::SideBySide);
+        d.set_arrangement(Arrangement {
+            layout: Layout::SideBySide,
+            fulldex: true,
+        });
         let (size, out) = run(&mut d, &f);
         assert_eq!(size, (512, 192));
         assert_eq!(
@@ -509,7 +534,7 @@ mod tests {
 
     #[test]
     fn l2_makes_the_dpad_a_cursor_and_a_a_touch() {
-        let mut d = ds(Layout::OneScreen);
+        let mut d = ds(Layout::Focus);
         let (keys, touch) = d.before_frame(keys::L2 | keys::RIGHT | keys::A | keys::B, &[], (0, 0));
         assert_eq!(keys, keys::B, "the D-pad, A and L2 are the cursor's");
         let (x, y) = touch.unwrap();
@@ -523,6 +548,14 @@ mod tests {
         );
         let (keys, touch) = d.before_frame(keys::A | keys::R2, &f, (256, 384));
         assert_eq!((keys, touch), (keys::A, None), "R2 never reaches the game");
+    }
+
+    #[test]
+    fn fulldex_is_known_by_the_games_it_has_layouts_for() {
+        for code in ["CPUE", "IPKE", "IPGE", "IRBO", "IRAO", "IREO", "IRDO"] {
+            assert!(has_fulldex(code), "{code}");
+        }
+        assert!(!has_fulldex("ABCD"));
     }
 
     #[test]

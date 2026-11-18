@@ -121,9 +121,13 @@ pub struct AppState {
     /// How a DS game's picture is shown when it was not set for itself: "actual" (Integer),
     /// "fit" or "stretch".
     pub ds_screen: String,
-    /// How a DS game's two screens are laid out when it was not set for itself: `one-screen`,
-    /// `focus`, `picture`, `stacked` or `side-by-side`.
+    /// How a DS game's two screens are laid out when it was not set for itself: `focus`,
+    /// `picture`, `stacked` or `side-by-side` (`one-screen`, kept from before Fulldex was a
+    /// switch of its own, is read as `focus`).
     pub ds_layout: String,
+    /// Fulldex lays out a DS game's screens as one when it was not switched for itself, for a
+    /// game with layouts of its own.
+    pub ds_fulldex: bool,
     /// How L2 brings up a DS game's touch cursor when it was not set for itself: `hold` or
     /// `toggle`.
     pub ds_cursor: String,
@@ -215,7 +219,8 @@ impl Default for AppState {
             picked_platform: None,
             psp_screen: "fit".to_string(),
             ds_screen: "actual".to_string(),
-            ds_layout: "one-screen".to_string(),
+            ds_layout: "focus".to_string(),
+            ds_fulldex: true,
             ds_cursor: "hold".to_string(),
             menu_sounds: true,
             menu_music: true,
@@ -530,6 +535,7 @@ const FIELDS: &[Field] = &[
     text!("psp_screen", psp_screen),
     text!("ds_screen", ds_screen),
     text!("ds_layout", ds_layout),
+    flag!("ds_fulldex", ds_fulldex),
     text!("ds_cursor", ds_cursor),
     flag!("menu_sounds", menu_sounds),
     flag!("menu_music", menu_music),

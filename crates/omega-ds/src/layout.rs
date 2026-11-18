@@ -1,4 +1,5 @@
-//! How the two screens are shown on the handheld's one, as the player sets it.
+//! How the two screens are shown on the handheld's one, as the player sets it: a layout, and
+//! Fulldex, a game's own layouts of both screens as one, over it for a game that has them.
 
 use crate::scene::{Piece, Scene};
 use crate::screen::{BOTTOM, H, TOP, W};
@@ -6,11 +7,8 @@ use crate::screen::{BOTTOM, H, TOP, W};
 /// A DS game's screen layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Layout {
-    /// One view made of both screens, laid out for what the game is doing: for a game with
-    /// layouts of its own (Platinum); Focus for any other.
-    #[default]
-    OneScreen,
     /// One screen at full size, the top one but while only the touch screen has anything on it.
+    #[default]
     Focus,
     /// One screen at full size, the other small in its lower right corner.
     Picture,
@@ -22,8 +20,7 @@ pub enum Layout {
 
 impl Layout {
     /// Every layout, in the order the menus step through them.
-    pub const ALL: [Layout; 5] = [
-        Layout::OneScreen,
+    pub const ALL: [Layout; 4] = [
         Layout::Focus,
         Layout::Picture,
         Layout::Stacked,
@@ -32,7 +29,6 @@ impl Layout {
 
     pub fn as_str(self) -> &'static str {
         match self {
-            Layout::OneScreen => "one-screen",
             Layout::Focus => "focus",
             Layout::Picture => "picture",
             Layout::Stacked => "stacked",
@@ -40,16 +36,21 @@ impl Layout {
         }
     }
 
+    /// The layout named `s`; `one-screen`, the name Fulldex was a layout by before it became a
+    /// switch of its own, is Focus, which it showed for a game without layouts of its own.
     pub fn parse(s: &str) -> Option<Layout> {
+        let s = s.trim();
+        if s.eq_ignore_ascii_case(LEGACY_ONE_SCREEN) {
+            return Some(Layout::Focus);
+        }
         Layout::ALL
             .into_iter()
-            .find(|l| l.as_str().eq_ignore_ascii_case(s.trim()))
+            .find(|l| l.as_str().eq_ignore_ascii_case(s))
     }
 
     /// As a menu prints it.
     pub fn word(self) -> &'static str {
         match self {
-            Layout::OneScreen => "ONE SCREEN",
             Layout::Focus => "FOCUS",
             Layout::Picture => "PICTURE IN PICTURE",
             Layout::Stacked => "STACKED",
@@ -62,6 +63,26 @@ impl Layout {
         let n = Layout::ALL.len();
         let i = Layout::ALL.iter().position(|l| *l == self).unwrap_or(0);
         Layout::ALL[if right { (i + 1) % n } else { (i + n - 1) % n }]
+    }
+}
+
+/// The name One Screen was kept under.
+const LEGACY_ONE_SCREEN: &str = "one-screen";
+
+/// How a DS game's screens show: its layout, and whether Fulldex lays them out as one in its
+/// stead for a game with layouts of its own (Pokémon's, after Pokémon Fulldex).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Arrangement {
+    pub layout: Layout,
+    pub fulldex: bool,
+}
+
+impl Default for Arrangement {
+    fn default() -> Arrangement {
+        Arrangement {
+            layout: Layout::default(),
+            fulldex: true,
+        }
     }
 }
 
@@ -96,13 +117,23 @@ mod tests {
         }
         assert_eq!(Layout::parse("Stacked "), Some(Layout::Stacked));
         assert_eq!(Layout::parse("upside-down"), None);
-        assert_eq!(Layout::default(), Layout::OneScreen);
+        assert_eq!(Layout::default(), Layout::Focus);
+    }
+
+    #[test]
+    fn one_screen_kept_from_before_reads_as_focus_with_fulldex() {
+        assert_eq!(Layout::parse("one-screen"), Some(Layout::Focus));
+        assert_eq!(Layout::parse(" One-Screen"), Some(Layout::Focus));
+        assert!(
+            Arrangement::default().fulldex,
+            "Fulldex is on until switched off"
+        );
     }
 
     #[test]
     fn the_layouts_step_round_both_ways() {
-        assert_eq!(Layout::SideBySide.step(true), Layout::OneScreen);
-        assert_eq!(Layout::OneScreen.step(false), Layout::SideBySide);
+        assert_eq!(Layout::SideBySide.step(true), Layout::Focus);
+        assert_eq!(Layout::Focus.step(false), Layout::SideBySide);
         assert_eq!(Layout::Focus.step(true), Layout::Picture);
     }
 }

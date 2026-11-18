@@ -140,6 +140,7 @@ impl OptionsPage {
             ],
             OptionsPage::Online => &[OptionRow::OnlineName, OptionRow::Relay],
             OptionsPage::Ds => &[
+                OptionRow::DsFulldex,
                 OptionRow::DsLayout,
                 OptionRow::DsScreen,
                 OptionRow::DsCursor,
@@ -304,7 +305,9 @@ pub enum OptionRow {
     DsScreen,
     /// GAMEPLAY's way into the NINTENDO DS panel.
     NintendoDs,
-    /// How a DS game's two screens show unless set for itself.
+    /// Whether Fulldex lays a DS game's two screens out as one unless switched for itself.
+    DsFulldex,
+    /// How a DS game's two screens show unless set for itself, where Fulldex does not.
     DsLayout,
     /// How L2 brings up a DS game's touch cursor unless set for itself: held or pressed.
     DsCursor,
@@ -466,6 +469,7 @@ impl OptionRow {
             OptionRow::PspScreen => "PSP Screen",
             OptionRow::DsScreen => "Picture",
             OptionRow::NintendoDs => "Nintendo DS",
+            OptionRow::DsFulldex => "Fulldex",
             OptionRow::DsLayout => "Screens",
             OptionRow::DsCursor => "Touch Cursor",
             OptionRow::SavesNas => "NAS Backup",
@@ -547,7 +551,8 @@ impl OptionRow {
             OptionRow::PspScreen => "Fit fills the width; each game can differ",
             OptionRow::DsScreen => "Integer keeps pixels even; R2 in a game steps it",
             OptionRow::NintendoDs => "The two screens and the touch screen",
-            OptionRow::DsLayout => "One Screen lays both out as one; each game can differ",
+            OptionRow::DsFulldex => "Pokémon's two screens as one; each game can differ",
+            OptionRow::DsLayout => "How both show without Fulldex; each game can differ",
             OptionRow::DsCursor => "L2 touches with the D-pad and A; each game can differ",
             OptionRow::SavesNas => "Saves copied to a NAS, and back",
             OptionRow::SavesSearch => "Find a game by its name",
@@ -831,6 +836,7 @@ impl App {
             OptionRow::PspScreen => self.psp_screen().word().to_string(),
             OptionRow::DsScreen => self.ds_screen().word_for(Platform::Nds).to_string(),
             OptionRow::NintendoDs => String::new(),
+            OptionRow::DsFulldex => on_off(s.ds_fulldex),
             OptionRow::DsLayout => self.ds_layout_default().word().to_string(),
             OptionRow::DsCursor => match self.ds_cursor_default() {
                 crate::input::Stick::ToggleL2 => "PRESS L2",
@@ -922,6 +928,7 @@ impl App {
             OptionRow::LoadOnInsert => s.auto_load = !s.auto_load,
             OptionRow::SaveOnEject => s.eject_save = !s.eject_save,
             OptionRow::Rewind => s.rewind = !s.rewind,
+            OptionRow::DsFulldex => s.ds_fulldex = !s.ds_fulldex,
             OptionRow::Turbo => s.turbo = !s.turbo,
             OptionRow::RunAhead => s.run_ahead = !s.run_ahead,
             OptionRow::Borders => s.borders = !s.borders,
