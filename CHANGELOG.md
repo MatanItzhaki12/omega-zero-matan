@@ -42,6 +42,11 @@
 - Leaving a DS game stops its 3D renderer's threads, which were left waiting for good each time
   a game was played again, and libretro's melonDS no longer frees a thread twice as it stops
   one (its join had already freed it, which crashed with a newer C library).
+- A Fulldex view laid out of pieces of both screens (a battle's panel, the X menu's buttons, the
+  save's card) is drawn in under half the time on the emulation's thread: a piece that only
+  covers draws each row straight from its source row and copies the row under it where it is
+  drawn twice as big, and the view is handed on as bytes written in place, rather than pushed
+  a pixel at a time. Each pixel comes out as before.
 - **Fulldex is a switch of its own**, in Settings › Gameplay › Nintendo DS (on by default) and,
   for a game it has layouts for, in the game's menu (Display › Fulldex), a line under each
   saying what it does: on, Pokémon's two screens are laid out as one view; off, they show as

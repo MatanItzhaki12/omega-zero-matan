@@ -388,9 +388,11 @@ impl Ds {
             return one(s, screen, out);
         }
         scene.draw(s, &mut self.view);
-        out.reserve(OUT_W * OUT_H * 4);
-        for &c in &self.view {
-            out.extend_from_slice(&c.to_le_bytes());
+        // as XRGB8888 bytes, written a pixel at a time into the room made for them at once: a
+        // store each, where extending the buffer a pixel at a time checked its room at each
+        out.resize(OUT_W * OUT_H * 4, 0);
+        for (bytes, c) in out.chunks_exact_mut(4).zip(&self.view) {
+            bytes.copy_from_slice(&c.to_le_bytes());
         }
         (OUT_W as u32, OUT_H as u32)
     }

@@ -341,10 +341,31 @@ fn draw_piece(piece: &Piece, screens: &Screens, out: &mut [u32]) {
     let sy_scale = piece.scale * k;
     let rows = screens.rows(screen);
     let keyed = piece.keys != [NO_KEY; 2];
+    // a piece that only covers (no layer left out, no colour keyed, opaque), as the screen a
+    // scene is mostly made of: each row straight from its source row, and a row whose source
+    // row is the one before's (a piece drawn bigger than it is) a copy of that one
+    let covers = piece.drop == 0 && !keyed && alpha == 255;
+    let mut drawn: Option<(usize, usize)> = None;
     for y in y0..y1 {
         let v = ((y as f32 + 0.5) / k - piece.dy) * k / sy_scale;
         let sy = (piece.sy + (v.max(0.0) as i32).min(piece.sh - 1)).clamp(0, H as i32 - 1) as usize;
         let src = &rows[sy * W * 4..(sy + 1) * W * 4];
+        if covers {
+            match drawn {
+                Some((from_sy, from_y)) if from_sy == sy => {
+                    out.copy_within(from_y * OUT_W + x0..from_y * OUT_W + x1, y * OUT_W + x0);
+                }
+                _ => {
+                    let row = &mut out[y * OUT_W + x0..y * OUT_W + x1];
+                    for (px, &sx) in row.iter_mut().zip(&cols) {
+                        *px =
+                            u32::from_le_bytes([src[sx * 4], src[sx * 4 + 1], src[sx * 4 + 2], 0]);
+                    }
+                }
+            }
+            drawn = Some((sy, y));
+            continue;
+        }
         let row = &mut out[y * OUT_W + x0..y * OUT_W + x1];
         for (px, &sx) in row.iter_mut().zip(&cols) {
             if piece.drop != 0 && layer_class(screens.layer(screen, sx, sy)) & piece.drop != 0 {
@@ -367,4 +388,95 @@ pub fn blend(under: u32, over: u32, a: u32) -> u32 {
         out |= ((o * a + u * (255 - a)) / 255) << shift;
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::screen::{BOTTOM, PIXELS, TOP};
+
+    /// Both screens, each pixel its own colour: its index, the touch screen's with a high bit.
+    fn numbered() -> Vec<u8> {
+        let mut f = Vec::with_capacity(2 * PIXELS * 4);
+        for i in 0..2 * PIXELS as u32 {
+            let c = if i < PIXELS as u32 {
+                i
+            } else {
+                0x80_0000 | (i - PIXELS as u32)
+            };
+            f.extend_from_slice(&[c as u8, (c >> 8) as u8, (c >> 16) as u8, 0]);
+        }
+        f
+    }
+
+    /// `piece` over `back`, a view pixel at a time, as a piece was drawn before its covering rows
+    /// were copied: the reference the drawing is checked against.
+    fn reference(piece: &Piece, s: &Screens, back: u32) -> Vec<u32> {
+        let mut out = vec![back; OUT_W * OUT_H];
+        let (x0, x1, y0, y1) = cover(piece, 0.0);
+        let k = SCALE as f32;
+        let Source::Screen(screen) = piece.source else {
+            unreachable!()
+        };
+        for y in y0..y1 {
+            let v = ((y as f32 + 0.5) / k - piece.dy) * k / (piece.scale * k);
+            let sy = (piece.sy + (v.max(0.0) as i32).min(piece.sh - 1)).clamp(0, H as i32 - 1);
+            for x in x0..x1 {
+                let u = ((x as f32 + 0.5) / k - piece.dx) * k / (piece.scale * piece.stretch_x * k);
+                let mut sx = (u.max(0.0) as i32).min(piece.sw - 1);
+                if piece.flip_x {
+                    sx = piece.sw - 1 - sx;
+                }
+                let sx = (piece.sx + sx).clamp(0, W as i32 - 1);
+                let c = s.pixel(screen, sx as usize, sy as usize) & 0xFF_FFFF;
+                let px = &mut out[y * OUT_W + x];
+                *px = match piece.alpha {
+                    255 => c,
+                    a => blend(*px, c, a as u32),
+                };
+            }
+        }
+        out
+    }
+
+    fn drawn(piece: Piece, s: &Screens) -> Vec<u32> {
+        let mut out = vec![0; OUT_W * OUT_H];
+        Scene {
+            name: "test",
+            pieces: vec![piece],
+            back: Back::Colour(0x123456),
+        }
+        .draw(s, &mut out);
+        out
+    }
+
+    #[test]
+    fn a_piece_is_drawn_pixel_for_pixel_as_its_source_says() {
+        let f = numbered();
+        let s = Screens::new(&f, (W as u32, 2 * H as u32), [&[], &[]]).unwrap();
+        let pieces = [
+            Piece::full(TOP),
+            Piece::crop(BOTTOM, 0, 78, 256, 114)
+                .scaled(0.44)
+                .at(140.0, 130.0),
+            Piece::crop(BOTTOM, 10, 20, 100, 50)
+                .scaled(1.7)
+                .at(5.0, 7.5),
+            Piece {
+                flip_x: true,
+                ..Piece::crop(TOP, 30, 40, 64, 64).scaled(0.5).at(100.0, 60.0)
+            },
+            Piece {
+                alpha: 128,
+                ..Piece::crop(TOP, 0, 0, 128, 96).scaled(2.0).at(0.0, 0.0)
+            },
+        ];
+        for piece in pieces {
+            assert_eq!(
+                drawn(piece.clone(), &s),
+                reference(&piece, &s, 0x123456),
+                "{piece:?}"
+            );
+        }
+    }
 }
