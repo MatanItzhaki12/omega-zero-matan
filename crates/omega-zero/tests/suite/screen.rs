@@ -345,7 +345,7 @@ fn a_psp_game_fits_its_own_shape_shows_its_actual_size_or_stretches() {
     );
 }
 
-/// A DS game at Integer: one screen's view, as the core draws it or One Screen at twice that, at
+/// A DS game at Integer: one screen's view, as the core draws it or Fulldex at twice that, at
 /// a whole 2x in the middle of each canvas, every DS pixel two by two; two screens stacked or
 /// side by side as big as the canvas holds them.
 #[test]

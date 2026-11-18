@@ -279,7 +279,7 @@ fn console_screen(c: Canvas, platform: Platform, mode: VideoMode, frame: (u32, u
 
 /// A DS game's view on a canvas `cw` by `ch`, for a frame `frame` big, in `mode`:
 ///
-/// - **Integer** (`Actual`): one screen's view, as the core's 256x192 or One Screen's drawing of
+/// - **Integer** (`Actual`): one screen's view, as the core's 256x192 or Fulldex's drawing of
 ///   it at twice that, at the largest whole number of panel pixels to a DS pixel the canvas
 ///   holds (2x, 512x384, on 640x480 and 720x480), every pixel one size, where a stretch to the
 ///   canvas's height would make some a column or a row bigger than others. Two screens stacked

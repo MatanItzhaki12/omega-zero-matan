@@ -740,7 +740,7 @@ Everything credited in the [README](README.md#credits-and-licence) still applies
 
 - DS games run on [libretro's melonDS](https://github.com/libretro/melonDS) (GPL-3.0), built
   with `cores/melonds`'s patches, its source beside it on the card.
-- The DS's One Screen layouts are ported from [Pokémon
+- The DS's Fulldex layouts are ported from [Pokémon
   Fulldex](https://github.com/mamesj/pokemon-fulldex) by mamesj (GPL-3.0): its merged view, its
   function watch (`crates/omega-ds`, the core's `one-screen.patch`), Platinum's scenes and its
   function table, cut to the functions the layouts watch (`crates/omega-ds/data/CPUE.txt`), and
