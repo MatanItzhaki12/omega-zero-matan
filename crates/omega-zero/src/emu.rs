@@ -55,6 +55,17 @@ const TRACE_EVERY: u64 = 300;
 
 const MAX_LINK_PACKETS_PER_PRESENT: u32 = 256;
 
+/// The pictures a DS game may have waiting for the display: the one being shown next and one
+/// more, run ahead. Pokémon's frames take turns, a light one and one heavier than a refresh
+/// (the game's own work done every other frame): a frame in hand lets each pair share two
+/// refreshes, where run one to a refresh the heavy one missed its own every time.
+const DS_PICTURES: usize = 2;
+
+/// The most presents a DS game catches up after it missed them (a frame that ran long, as one
+/// that compiles code or writes a save now and then does): each is a frame run first and not
+/// drawn, so the game keeps its speed, a picture dropped instead. Past these it is let go.
+const DS_CATCH_UP: u64 = 3;
+
 /// How far a core's own rate may sit from the present's 60 Hz and still run one frame to a
 /// present, as the handhelds' 59.73 and the SNES's 60.10 always have: a game a few tenths of a
 /// percent fast or slow is never noticed, a frame shown twice now and then would be.
@@ -803,6 +814,10 @@ impl Worker {
                 self.shared.resume_refused.store(true, Ordering::Release);
             }
         }
+        self.frames.set_depth(match self.rules.ds {
+            Some(_) => DS_PICTURES,
+            None => 1,
+        });
         if let Some(layout) = self.rules.ds {
             let screens = crate::ds_screen::DsScreens::start(&mut *core, &rom, layout);
             *self.ds.borrow_mut() = Some(screens);
@@ -857,8 +872,8 @@ impl Worker {
         let mut deadline = Instant::now();
         let mut served = 0u64;
         let mut ticked = false;
-        // a DS game that missed a present catches it up: the next present runs one frame more,
-        // first and not drawn, so the game keeps its speed and a picture is dropped instead
+        // a DS game that missed presents catches them up (DS_CATCH_UP): the next present runs a
+        // frame more for each, first and not drawn
         let mut behind = 0u32;
         let mut paced = 0u64;
         let mut scale = 0.0f64;
@@ -1202,9 +1217,11 @@ impl Worker {
                     }
                     let base = if lock { scale } else { 1.0 };
                     // fast-forward squeezes the frames it ran into the presents they took; at
-                    // normal speed a core at its own rate fills them on average, a present that
-                    // ran no frame made up by the next ones
-                    let (squeeze, over) = if speed == Speed::Fast || pace.lockstep() {
+                    // normal speed a core fills them on average, a present that ran no frame
+                    // made up by the next ones: a DS game's present that catches up frames it
+                    // missed plays all their sound, owed since those presents ran short, where
+                    // squeezed into one present's it was cut to a pitched-up half
+                    let (squeeze, over) = if speed == Speed::Fast {
                         (f64::from(span) * pace.per_present(), f64::from(ran))
                     } else {
                         (1.0, 1.0)
@@ -1246,6 +1263,18 @@ impl Worker {
                 post_cost = blend(post_cost, began.elapsed().saturating_sub(core_time));
             }
             self.frame_done(served);
+            // a DS game runs its next frame now, for the display's next refresh but one, while
+            // it has room for another picture ahead (DS_PICTURES)
+            if lock
+                && self.rules.ds.is_some()
+                && speed == Speed::Normal
+                && !rewinding
+                && self.frames.queued() < DS_PICTURES
+            {
+                served += 1;
+                ticked = true;
+                continue;
+            }
             if lock {
                 let patience = if stalled { PRESENT } else { STALL };
                 let until = Instant::now() + patience;
@@ -1253,7 +1282,7 @@ impl Worker {
                     match self.next_tick(served, until) {
                         Wait::Tick(tick) => {
                             if self.rules.ds.is_some() && served > 0 {
-                                behind = u32::from(tick > served + 1);
+                                behind = (tick - served - 1).min(DS_CATCH_UP) as u32;
                             }
                             served = tick;
                             stalled = false;
@@ -1486,10 +1515,13 @@ impl Worker {
     /// The frame the core just drew, published as it drew it: from memory, or from the GPU,
     /// as pixels read back or as a texture for the compositor.
     fn publish_core(&self, core: &dyn RetroCore) {
-        // a DS game's two screens, laid out on the handheld's one
+        // a DS game's two screens, laid out on the handheld's one, straight into the buffer
+        // handed on (a copy of the picture the less each frame)
         if let Some(ds) = self.ds.borrow_mut().as_mut() {
-            if let Some((view, size)) = ds.view(core) {
-                return self.publish(view, size);
+            let mut buf = self.frames.take_write();
+            match ds.view(core, &mut buf) {
+                Some(size) => return self.hand_on(buf, size),
+                None => self.frames.give_back(buf),
             }
         }
         let mut gpu = self.gpu.borrow_mut();
@@ -1521,6 +1553,11 @@ impl Worker {
         let mut buf = self.frames.take_write();
         buf.clear();
         buf.extend_from_slice(video);
+        self.hand_on(buf, size);
+    }
+
+    /// Hands the picture `buf`, `size` big, to the frontend.
+    fn hand_on(&self, buf: Vec<u8>, size: (u32, u32)) {
         self.frames.publish(buf, size);
         self.shared.published.fetch_add(1, Ordering::Relaxed);
         crate::latency::published();

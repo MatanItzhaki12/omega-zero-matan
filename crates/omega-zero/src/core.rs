@@ -292,10 +292,11 @@ pub fn core_options(
             put("ppsspp_button_preference", "Cross");
             put("ppsspp_psp_model", "psp_2000_3000");
         }
-        // the DS, recompiled, its 3D drawn on a thread of its own, both screens in one frame
-        // with the top one above, which omega-ds lays out; touched through libretro's pointer
-        // across that frame; started straight into the game. Names and values as libretro's
-        // melonDS declares them
+        // the DS, recompiled, its 3D drawn on a thread of its own and each 2D engine on another
+        // (cores/melonds/threaded-2d.patch: the emulation's thread is left the game's CPUs),
+        // both screens in one frame with the top one above, which omega-ds lays out; touched
+        // through libretro's pointer across that frame; started straight into the game. Names
+        // and values as libretro's melonDS declares them
         Core::MelonDs => {
             put("melonds_console_mode", "DS");
             put("melonds_boot_directly", "enabled");
@@ -305,6 +306,7 @@ pub fn core_options(
             put("melonds_jit_literal_optimisations", "enabled");
             put("melonds_jit_fast_memory", "enabled");
             put("melonds_threaded_renderer", "enabled");
+            put("melonds_threaded_2d", "enabled");
             put("melonds_screen_layout", "Top/Bottom");
             put("melonds_screen_gap", "0");
             put("melonds_touch_mode", "Touch");

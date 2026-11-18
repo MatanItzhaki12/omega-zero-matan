@@ -1,0 +1,66 @@
+diff --git a/src/GPU.cpp b/src/GPU.cpp
+index 39455c1..d1cc9ae 100644
+--- a/src/GPU.cpp
++++ b/src/GPU.cpp
+@@ -379,10 +379,11 @@ void DeInit()
+     GPU2D_Renderer.reset();
+     GPU3D::DeInit();
+ 
++    // omega-zero: each frame's two screens are one block (SetRenderSettings)
+     if (Framebuffer[0][0]) delete[] Framebuffer[0][0];
+-    if (Framebuffer[0][1]) delete[] Framebuffer[0][1];
+     if (Framebuffer[1][0]) delete[] Framebuffer[1][0];
+-    if (Framebuffer[1][1]) delete[] Framebuffer[1][1];
++    Framebuffer[0][0] = Framebuffer[0][1] = nullptr;
++    Framebuffer[1][0] = Framebuffer[1][1] = nullptr;
+ }
+ 
+ void ResetVRAMCache()
+@@ -683,15 +684,17 @@ void SetRenderSettings(int renderer, RenderSettings& settings)
+     else
+         fbsize = 256 * 192;
+ 
++    // omega-zero: each frame's two screens are one block, the top one first, so that a frontend
++    // shown them stacked is handed the block as it is (libretro.cpp's render_frame) rather than
++    // a copy of both made first
+     if (Framebuffer[0][0]) { delete[] Framebuffer[0][0]; Framebuffer[0][0] = nullptr; }
+     if (Framebuffer[1][0]) { delete[] Framebuffer[1][0]; Framebuffer[1][0] = nullptr; }
+-    if (Framebuffer[0][1]) { delete[] Framebuffer[0][1]; Framebuffer[0][1] = nullptr; }
+-    if (Framebuffer[1][1]) { delete[] Framebuffer[1][1]; Framebuffer[1][1] = nullptr; }
++    Framebuffer[0][1] = Framebuffer[1][1] = nullptr;
+ 
+-    Framebuffer[0][0] = new u32[fbsize];
+-    Framebuffer[1][0] = new u32[fbsize];
+-    Framebuffer[0][1] = new u32[fbsize];
+-    Framebuffer[1][1] = new u32[fbsize];
++    Framebuffer[0][0] = new u32[fbsize * 2];
++    Framebuffer[1][0] = new u32[fbsize * 2];
++    Framebuffer[0][1] = Framebuffer[0][0] + fbsize;
++    Framebuffer[1][1] = Framebuffer[1][0] + fbsize;
+ 
+     memset(Framebuffer[0][0], 0, fbsize*4);
+     memset(Framebuffer[1][0], 0, fbsize*4);
+diff --git a/src/libretro/libretro.cpp b/src/libretro/libretro.cpp
+index cb6d61c..14b604b 100644
+--- a/src/libretro/libretro.cpp
++++ b/src/libretro/libretro.cpp
+@@ -714,6 +714,19 @@ static void render_frame(void)
+ 
+          video_cb((uint8_t*)screen_layout_data.buffer_ptr, screen_layout_data.buffer_width, screen_layout_data.buffer_height, screen_layout_data.buffer_width * sizeof(uint32_t));
+       }
++      // omega-zero: the screens stacked at their own size with no gap, the top one above and
++      // no cursor drawn over them, are the frame's block as the GPU drew it (GPU.cpp)
++      else if (screen_layout_data.enable_top_screen && screen_layout_data.enable_bottom_screen
++         && screen_layout_data.scale == 1 && screen_layout_data.pixel_size == 4
++         && screen_layout_data.buffer_width == VIDEO_WIDTH
++         && screen_layout_data.buffer_height == VIDEO_HEIGHT * 2
++         && screen_layout_data.top_screen_offset == 0
++         && screen_layout_data.bottom_screen_offset == VIDEO_WIDTH * VIDEO_HEIGHT
++         && !cursor_enabled(&input_state)
++         && GPU::Framebuffer[frontbuf][1] == GPU::Framebuffer[frontbuf][0] + VIDEO_WIDTH * VIDEO_HEIGHT)
++      {
++         video_cb((uint8_t*)GPU::Framebuffer[frontbuf][0], VIDEO_WIDTH, VIDEO_HEIGHT * 2, VIDEO_WIDTH * sizeof(uint32_t));
++      }
+       else
+       {
+          if(screen_layout_data.enable_top_screen)

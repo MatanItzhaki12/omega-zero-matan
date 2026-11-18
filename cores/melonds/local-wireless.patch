@@ -1,0 +1,15 @@
+diff --git a/src/libretro/platform.cpp b/src/libretro/platform.cpp
+index 3a4f6f6..7ed8464 100644
+--- a/src/libretro/platform.cpp
++++ b/src/libretro/platform.cpp
+@@ -328,7 +328,9 @@ namespace Platform
+       tv.tv_sec = 0;
+       tv.tv_usec = block ? 5000 : 0;
+ 
+-      if (!select(MPSocket+1, &fd, 0, 0, &tv))
++      // omega-zero: select fails (-1) when a signal interrupts it, which is not a packet waiting;
++      // taken for one, the read below blocked the emulation for good
++      if (select(MPSocket+1, &fd, 0, 0, &tv) <= 0)
+       {
+          return 0;
+       }

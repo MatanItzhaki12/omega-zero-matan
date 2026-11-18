@@ -658,16 +658,22 @@ tasks:
       - |
         set -euo pipefail
         # Supafaust and pcsx_rearmed are GPL-2.0 as gpSP is, and Snes9x holds the LGPL-2.1
-        # snes_ntsc filter: each ships its source archive, build stamp and patches beside it
+        # snes_ntsc filter: each ships its source archive, build stamp and patches beside it,
+        # and its build script, and the profile a core is optimised by where it has one
+        # (melonDS's), which the build compiles against
         for core in {{.SOURCE_CORES}}; do
           name="${core%%:*}" lib="${core#*:}"
           sha="$(cat "vendor/$name-src.sha")"
           cp "vendor/$name-src.tar.gz" "{{.OUT}}/System/licenses/$name-${sha}.tar.gz"
           cp "vendor/${lib}_libretro.so.meta" "{{.OUT}}/System/licenses/$name-${sha}.meta"
+          cp "cores/$name/build.sh" "{{.OUT}}/System/licenses/$name-build.sh"
           for p in cores/$name/*.patch; do
             [ -f "$p" ] || continue
             cp "$p" "{{.OUT}}/System/licenses/$name-$(basename "$p")"
           done
+          if [ -d "cores/$name/profile" ]; then
+            tar -czf "{{.OUT}}/System/licenses/$name-profile.tar.gz" -C "cores/$name" profile
+          fi
         done
       - 'echo "device tree ready at {{.OUT}}, copy its contents to SD2"'
 

@@ -6,6 +6,29 @@
   2.5x to the screen's height, which made some pixels a row or a column bigger than others.
   Two screens, stacked or side by side, still fill as much of the screen as they can.
 - Leaving a DS game no longer takes omega-zero down with it.
+- **DS games run at full speed.** Each of the DS's two 2D engines now draws on a CPU core of its
+  own, a scanline behind the emulation, rather than on the emulation's: everything an engine
+  reads waits for the lines queued before it changes, so every frame comes out as before, pixel
+  for pixel. melonDS is also built with its internals hidden from the library's exports and
+  optimised by a profile of the Pokémon games running on the RG SP (`cores/melonds/profile`).
+  HeartGold's New Bark Town went from 44 frames a second to 63, Platinum's bedroom from 47 to 99.
+- Pokémon White 2 starts: its 512 MB is mapped without the kernel reserving memory for all of it,
+  which it refused with less than that free.
+- A DS game no longer freezes for good when a signal interrupts melonDS's local-wireless check
+  (its socket read then waited for a packet that never came).
+- **A DS game's sound no longer breaks up.** A present that caught up frames the game had missed
+  squeezed their sound into one present's time, a pitched-up half of it, and the sound ran dry;
+  it now plays it all. A DS game also keeps one picture in hand ahead of the display: Pokémon's
+  frames take turns, a light one and one heavier than a refresh, and each pair now shares two
+  refreshes rather than the heavy one missing its own. Every present it misses is caught up, not
+  only the first.
+- A DS game resumes: a state saved while the game was copying memory by DMA took omega-zero down
+  as it was loaded, the copy's timing read through a pointer the state never held.
+- A DS game's achievements are checked on a thread of their own, from a copy of the pages of
+  memory they read each frame, rather than on the emulation's, which they took an eighth of. A
+  check that reads a page first is made on the emulation's thread while the pages are learned.
+- A DS game's picture is copied one time less each frame, and melonDS hands omega-zero both
+  screens where it drew them rather than a copy.
 
 ## omega-zero 2.8.0
 

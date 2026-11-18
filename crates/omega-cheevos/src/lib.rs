@@ -92,6 +92,21 @@ extern "C" {
     fn oc_frame_on(snap: *const u8, len: usize);
     fn oc_snapshot_size() -> usize;
     fn oc_snapshot(dst: *mut u8, len: usize);
+    fn oc_paged_start() -> usize;
+    fn oc_paged_stop();
+    fn oc_paged_learned() -> u32;
+    fn oc_paged_missed() -> c_int;
+    fn oc_snapshot_pages(dst: *mut u8, len: usize, held: *mut u8);
+    fn oc_frame_on_pages(snap: *const u8, len: usize, held: *const u8);
+    #[cfg(test)]
+    fn oc_read_as_check(
+        snap: *const u8,
+        len: usize,
+        held: *const u8,
+        address: u32,
+        buffer: *mut u8,
+        num_bytes: u32,
+    ) -> u32;
     #[cfg(test)]
     fn oc_read_live(address: u32, buffer: *mut u8, num_bytes: u32) -> u32;
     #[cfg(test)]
@@ -146,10 +161,14 @@ static CHECKER: Mutex<Option<Checker>> = Mutex::new(None);
 /// step the client offline, frame by frame, check on the core's thread instead.
 static PARALLEL: AtomicBool = AtomicBool::new(true);
 
-/// The most memory a game may have for its achievements to be checked from a copy of each
+/// The most memory a game may have for its achievements to be checked from a whole copy of each
 /// frame's: a GBA's is 352 KB, a SNES's under 300 KB, a Game Boy's 64 KB, all copied in a tenth
 /// of a millisecond or so; a PlayStation's 2 MB and a PSP's 32 MB are checked as they run.
 pub const PARALLEL_MOST: usize = 1 << 20;
+
+/// The frames in a row, each checked on the core's thread, that read no page first before the
+/// checks go to their own thread on paged copies.
+const PAGED_STEADY: u32 = 60;
 
 /// How many frames' copies may wait for the check: the core runs that far ahead of it.
 const COPIES: usize = 4;
@@ -168,7 +187,8 @@ const STUCK: std::time::Duration = std::time::Duration::from_millis(500);
 
 /// What the checking thread is handed, in the order the core ran it.
 enum Job {
-    /// A frame's memory, to be checked and its copy handed back.
+    /// A frame's memory, to be checked and its copy handed back: whole, or paged, the pages it
+    /// holds marked after it.
     Frame(Vec<u8>),
     /// The memory jumped (a state loaded, a rewind): the check starts again from here.
     Reset,
@@ -181,14 +201,22 @@ struct Checker {
     thread: Option<std::thread::JoinHandle<()>>,
     /// Frames the check was too far behind for, since the last said.
     skipped: u32,
+    /// The memory a copy holds, and for paged copies the pages it spans.
+    len: usize,
+    pages: usize,
+    /// Paged: the frames in a row checked on the core's thread that read no page first.
+    steady: u32,
 }
 
 impl Checker {
-    fn start(len: usize) -> Option<Checker> {
+    /// The checking thread, for `len` bytes of memory copied whole, or paged over `pages`
+    /// pages. A copy is zeros until written, and of a paged one only the pages the checks read
+    /// are ever written.
+    fn start(len: usize, pages: usize) -> Option<Checker> {
         let (jobs, take) = std::sync::mpsc::sync_channel::<Job>(COPIES);
         let (give, free) = std::sync::mpsc::sync_channel::<Vec<u8>>(COPIES);
         for _ in 0..COPIES {
-            give.send(vec![0; len]).ok()?;
+            give.send(vec![0; len + pages]).ok()?;
         }
         let thread = std::thread::Builder::new()
             .name("omega-cheevos-check".into())
@@ -200,7 +228,12 @@ impl Checker {
                             // SAFETY: under the lock; the copy is read only through the call
                             with_client(|| {
                                 CHECKING.store(true, Ordering::Release);
-                                unsafe { oc_frame_on(copy.as_ptr(), copy.len()) };
+                                if pages > 0 {
+                                    let held = copy[len..].as_ptr();
+                                    unsafe { oc_frame_on_pages(copy.as_ptr(), len, held) };
+                                } else {
+                                    unsafe { oc_frame_on(copy.as_ptr(), len) };
+                                }
                                 CHECKING.store(false, Ordering::Release);
                             });
                             let _ = give.send(copy);
@@ -220,12 +253,47 @@ impl Checker {
             free,
             thread: Some(thread),
             skipped: 0,
+            len,
+            pages,
+            steady: 0,
         })
+    }
+
+    /// Paged, while the pages the checks read are still being learned: the frame is checked
+    /// here, on the core's thread, after the frames handed over before it, the pages it reads
+    /// noted. True where it was; false once the checks have read no new page for a while, and
+    /// the frame goes to the thread. A check there that found a page missing from its copy
+    /// brings the frames back here until the pages hold steady again.
+    fn learn(&mut self) -> bool {
+        // SAFETY: the flag is atomic
+        if unsafe { oc_paged_missed() } != 0 {
+            self.steady = 0;
+        }
+        if self.steady >= PAGED_STEADY {
+            return false;
+        }
+        // the frames already with the thread go first: checks run in the order the game did
+        let began = std::time::Instant::now();
+        while QUEUED.load(Ordering::Acquire) > 0 && began.elapsed() < STUCK {
+            std::thread::yield_now();
+        }
+        // SAFETY: under the lock, on the thread that runs the core
+        try_client(|| unsafe { oc_frame() });
+        // SAFETY: the counter is atomic
+        if unsafe { oc_paged_learned() } == 0 {
+            self.steady += 1;
+        } else {
+            self.steady = 0;
+        }
+        true
     }
 
     /// Copies this frame's memory for the check, waiting a moment for a copy to come free; false
     /// where none did, and the frame goes unchecked.
     fn frame(&mut self) -> bool {
+        if self.pages > 0 && self.learn() {
+            return true;
+        }
         // a check under way only slower than the game holds the game back until it is done, so
         // no frame goes unchecked for fast-forward; a check that cannot get at the client (its
         // achievements still coming in) lets the frame go, so the game never stands still
@@ -252,8 +320,15 @@ impl Checker {
             return false;
         };
         // SAFETY: on the core's thread, between its frames, which is where its memory holds
-        // still; the copy is as long as the regions say
-        unsafe { oc_snapshot(copy.as_mut_ptr(), copy.len()) };
+        // still; the copy is as long as the regions say, and its page marks after that
+        unsafe {
+            if self.pages > 0 {
+                let (memory, held) = copy.split_at_mut(self.len);
+                oc_snapshot_pages(memory.as_mut_ptr(), self.len, held.as_mut_ptr());
+            } else {
+                oc_snapshot(copy.as_mut_ptr(), self.len);
+            }
+        }
         let Some(jobs) = &self.jobs else {
             return false;
         };
@@ -559,26 +634,46 @@ pub fn begin_game(console: u32, rom: &Path, memory: &CoreMemory) {
         oc_game_hashing();
     });
     if begun.is_some() {
-        start_checker();
+        start_checker(console);
         load_in_turn(game, console, rom);
     }
 }
 
 /// The game's achievements checked on a thread of their own from here, where its memory is
 /// small enough to copy every frame, and the frames are not stepped offline by a test.
-fn start_checker() {
+fn start_checker(console: u32) {
     if let Some(old) = lock(&CHECKER).take() {
         old.stop();
     }
+    // SAFETY: under the lock, the checking thread gone
+    with_client(|| unsafe { oc_paged_stop() });
     // SAFETY: the regions are set; the size is only read
     let len = unsafe { oc_snapshot_size() };
-    if !PARALLEL.load(Ordering::Acquire) || len == 0 || len > PARALLEL_MOST {
+    // A DS game's achievements are checked from a paged copy of each frame's memory, only the
+    // pages its checks read: its 16 MB of addresses (its 4 MB of main memory, the DSi's further
+    // 12 MB, empty on a DS, and 16 KB of fast data memory) are too many to copy whole every
+    // frame, and Pokémon's checks read a few dozen pages of them. A check that reads a page
+    // first is made on the core's thread, which learns it.
+    let paged = console == CONSOLE_DS;
+    if !PARALLEL.load(Ordering::Acquire) || len == 0 || (len > PARALLEL_MOST && !paged) {
         return;
     }
-    match Checker::start(len) {
+    let pages = match paged {
+        // SAFETY: under the lock; no check runs elsewhere yet
+        true => with_client(|| unsafe { oc_paged_start() }).unwrap_or(0),
+        false => 0,
+    };
+    if paged && pages == 0 {
+        return;
+    }
+    match Checker::start(len, pages) {
         Some(checker) => {
+            let copied = match paged {
+                true => format!("the pages its checks read of {len} bytes"),
+                false => format!("{len} bytes"),
+            };
             trace(&format!(
-                "achievements checked on a thread of their own, {len} bytes a frame"
+                "achievements checked on a thread of their own, {copied} a frame"
             ));
             *lock(&CHECKER) = Some(checker);
         }
@@ -795,8 +890,11 @@ pub fn end_game() {
     if let Some(checker) = lock(&CHECKER).take() {
         checker.stop();
     }
-    // SAFETY: under the lock
-    with_client(|| unsafe { oc_unload_game() });
+    // SAFETY: under the lock, the checking thread gone
+    with_client(|| unsafe {
+        oc_paged_stop();
+        oc_unload_game();
+    });
 }
 
 pub fn take_events() -> Vec<Event> {
@@ -1360,7 +1458,7 @@ mod tests {
             );
         }
         let was = PARALLEL.swap(true, Ordering::AcqRel);
-        start_checker();
+        start_checker(CONSOLE_GBA);
         assert!(
             lock(&CHECKER).is_some(),
             "a GBA's memory is checked on its own thread"
@@ -1414,5 +1512,75 @@ mod tests {
         assert!(lock(&CHECKER).is_none(), "the thread outlived its game");
         PARALLEL.store(was, Ordering::Release);
         drop((system, save));
+    }
+
+    #[test]
+    fn a_ds_games_checks_read_paged_copies_of_the_pages_they_read() {
+        let _turn = lock(&ONE_AT_A_TIME);
+        let mut system = vec![0u8; 4 << 20];
+        system[0x1234] = 7;
+        system[0x5678] = 9;
+        // SAFETY: the memory outlives the game, ended below before it goes
+        unsafe {
+            oc_set_memory(
+                std::ptr::null(),
+                0,
+                CONSOLE_DS,
+                system.as_mut_ptr(),
+                system.len(),
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null_mut(),
+                0,
+            );
+        }
+        let len = unsafe { oc_snapshot_size() };
+        assert!(len > PARALLEL_MOST, "{len}");
+        let pages = unsafe { oc_paged_start() };
+        assert_eq!(pages, len.div_ceil(4096));
+        let read = |snap: Option<&[u8]>, address: u32| {
+            let mut b = [0u8];
+            let (ptr, held) = match snap {
+                Some(c) => (c.as_ptr(), c[len..].as_ptr()),
+                None => (std::ptr::null(), std::ptr::null()),
+            };
+            // SAFETY: the copy is `len` bytes and its page marks
+            unsafe { oc_read_as_check(ptr, len, held, address, b.as_mut_ptr(), 1) };
+            b[0]
+        };
+
+        // a read on the core's thread is of the live memory, and its page is learned
+        assert_eq!(read(None, 0x1234), 7);
+        assert_eq!(unsafe { oc_paged_learned() }, 1);
+        assert_eq!(read(None, 0x1235), 0, "the same page, learned once");
+        assert_eq!(unsafe { oc_paged_learned() }, 0);
+
+        // the frame's copy holds that page, as the frame ended, and only that page
+        let mut copy = vec![0u8; len + pages];
+        let (memory, held) = copy.split_at_mut(len);
+        unsafe { oc_snapshot_pages(memory.as_mut_ptr(), len, held.as_mut_ptr()) };
+        assert_eq!((held[1], held[0], held[5]), (1, 0, 0));
+        system[0x1234] = 8;
+        assert_eq!(
+            read(Some(&copy), 0x1234),
+            7,
+            "the copy is the frame's, not live"
+        );
+        assert_eq!(unsafe { oc_paged_missed() }, 0);
+
+        // a page the copy lacks is read live, and brings the checks back to learn it
+        assert_eq!(read(Some(&copy), 0x5678), 9);
+        assert_eq!(unsafe { oc_paged_missed() }, 1);
+        assert_eq!(unsafe { oc_paged_learned() }, 1);
+        let (memory, held) = copy.split_at_mut(len);
+        unsafe { oc_snapshot_pages(memory.as_mut_ptr(), len, held.as_mut_ptr()) };
+        assert_eq!(held[5], 1, "learned, it is copied from the next frame on");
+
+        // SAFETY: under the turn, no check runs elsewhere
+        unsafe {
+            oc_paged_stop();
+            oc_unload_game();
+        }
+        drop(system);
     }
 }

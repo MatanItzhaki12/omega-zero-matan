@@ -82,7 +82,6 @@ pub struct Ds {
     focus_bottom: bool,
     focus_pending: u32,
     /// The frame shown last, for the input of the next; and the one drawn into.
-    last: Vec<u8>,
     work: Vec<u8>,
     view: Vec<u32>,
     scene: &'static str,
@@ -110,7 +109,6 @@ impl Ds {
             frame: 0,
             focus_bottom: false,
             focus_pending: 0,
-            last: Vec::new(),
             work: Vec::new(),
             view: vec![0; OUT_W * OUT_H],
             scene: "",
@@ -159,8 +157,15 @@ impl Ds {
 
     /// The keys the game is handed for the next frame, from the buttons held (libretro's joypad
     /// mask, L2 the cursor), and where the touch screen is touched, as libretro's pointer has it
-    /// across the core's frame of both screens.
-    pub fn before_frame(&mut self, held: u16) -> (u16, Option<(i16, i16)>) {
+    /// across the core's frame of both screens. `shown` is the frame the core drew last, of
+    /// `size` (both screens, XRGB8888, still the core's own until it runs the next), which a
+    /// game's layout reads its buttons from.
+    pub fn before_frame(
+        &mut self,
+        held: u16,
+        shown: &[u8],
+        size: (u32, u32),
+    ) -> (u16, Option<(i16, i16)>) {
         let mut keys = held & !(keys::L2 | keys::R2);
         self.cursor.on = held & keys::L2 != 0;
         let mut touch = None;
@@ -184,7 +189,7 @@ impl Ds {
             self.cursor.touching = false;
             if self.layout == Layout::OneScreen && !self.swapped {
                 if let Some(g) = &mut self.game {
-                    let shown = Screens::new(&self.last, (W as u32, 2 * H as u32), [&[], &[]]);
+                    let shown = Screens::new(shown, size, [&[], &[]]);
                     let (k, t) = g.platinum.input(self.frame, keys, &g.watch, shown.as_ref());
                     keys = k;
                     touch = t;
@@ -214,8 +219,6 @@ impl Ds {
         out: &mut Vec<u8>,
     ) -> Option<(u32, u32)> {
         Screens::new(frame, size, layers)?;
-        self.last.clear();
-        self.last.extend_from_slice(frame);
         // without the cursor the frame is laid out as it is; with it, from a copy it is drawn in
         if !self.cursor.on {
             return Screens::new(frame, size, layers).map(|s| self.show(&s, out));
@@ -467,7 +470,7 @@ mod tests {
     #[test]
     fn l2_makes_the_dpad_a_cursor_and_a_a_touch() {
         let mut d = ds(Layout::OneScreen);
-        let (keys, touch) = d.before_frame(keys::L2 | keys::RIGHT | keys::A | keys::B);
+        let (keys, touch) = d.before_frame(keys::L2 | keys::RIGHT | keys::A | keys::B, &[], (0, 0));
         assert_eq!(keys, keys::B, "the D-pad, A and L2 are the cursor's");
         let (x, y) = touch.unwrap();
         assert!(x > 0 && y > 0x4000, "on the lower half: {x},{y}");
@@ -478,7 +481,7 @@ mod tests {
             "cursor",
             "the touch screen shows while the cursor is on"
         );
-        let (keys, touch) = d.before_frame(keys::A | keys::R2);
+        let (keys, touch) = d.before_frame(keys::A | keys::R2, &f, (256, 384));
         assert_eq!((keys, touch), (keys::A, None), "R2 never reaches the game");
     }
 

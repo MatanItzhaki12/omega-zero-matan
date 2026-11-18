@@ -208,17 +208,20 @@ jobs:
             test -f "$out/System/licenses/mgba-$(basename "$p")"
           done
           # Supafaust and pcsx_rearmed are GPL-2.0 as gpSP is, melonDS GPL-3.0, and Snes9x holds
-          # the LGPL-2.1 snes_ntsc filter: each one's source, build stamp and patches ship beside it
+          # the LGPL-2.1 snes_ntsc filter: each one's source, build stamp, build script and patches
+          # ship beside it, and melonDS's profile, which its build compiles against
           for name in snes9x supafaust pcsx_rearmed melonds; do
             src_sha="$(cat "vendor/$name-src.sha")"
             test -f "$out/System/licenses/$name-${src_sha}.tar.gz"
             test -f "$out/System/licenses/$name-${src_sha}.meta"
             grep -qx "commit=${src_sha}" "$out/System/licenses/$name-${src_sha}.meta"
+            test -f "$out/System/licenses/$name-build.sh"
             for p in cores/$name/*.patch; do
               [ -f "$p" ] || continue
               test -f "$out/System/licenses/$name-$(basename "$p")"
             done
           done
+          tar -tzf "$out/System/licenses/melonds-profile.tar.gz" | grep -q '^profile/src/NDS.gcda$'
           for licence in snes9x-non-commercial snes9x-snes_ntsc-LGPL-2.1 supafaust-GPL-2.0 \
             pcsx_rearmed-GPL-2.0 ppsspp-GPL-2.0 melonds-GPL-3.0; do
             test -f "$out/System/licenses/$licence.txt"

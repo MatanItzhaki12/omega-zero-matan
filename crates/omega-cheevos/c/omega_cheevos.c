@@ -163,13 +163,58 @@ static uint32_t read_snapshot(const uint8_t* snap, size_t len, uint32_t address,
   return bytes_read;
 }
 
+/* Paged copies, for a game whose memory is too big to copy whole every frame (a DS's 4 MB): a
+ * frame's copy holds only the pages, OC_PAGE bytes each, that the game's checks read, and after
+ * the copy a byte a page says which it holds. A copy's offsets are the checks' addresses, the
+ * regions laid end to end. Every page a check reads is noted in `wanted`: on the core's thread,
+ * as the checks are learned there, and on the checking thread when its copy lacked one, which
+ * that one read then takes from the live memory instead. */
+#define OC_PAGE_SHIFT 12
+#define OC_PAGE ((size_t)1 << OC_PAGE_SHIFT)
+static uint8_t* wanted;           /* a byte a page: a check has read it */
+static size_t wanted_count;       /* the regions' pages, and so `wanted`'s bytes */
+static uint32_t wanted_new;       /* pages first read since oc_paged_learned looked */
+static int missed;                /* a paged check read a page its copy did not hold */
+static const uint8_t* snapshot_held; /* the copy's byte a page, beside `snapshot` */
+
+static void note_pages(uint32_t address, uint32_t num_bytes) {
+  if (!wanted || num_bytes == 0)
+    return;
+  size_t last = ((size_t)address + num_bytes - 1) >> OC_PAGE_SHIFT;
+  for (size_t p = address >> OC_PAGE_SHIFT; p <= last && p < wanted_count; ++p) {
+    if (!__atomic_load_n(&wanted[p], __ATOMIC_RELAXED)) {
+      __atomic_store_n(&wanted[p], 1, __ATOMIC_RELAXED);
+      __atomic_fetch_add(&wanted_new, 1, __ATOMIC_RELAXED);
+    }
+  }
+}
+
+/* Whether the copy holds every page of a read: a page past the regions counts as held, the read
+ * of it ending there as it does live. */
+static int pages_held(const uint8_t* held, uint32_t address, uint32_t num_bytes) {
+  if (num_bytes == 0)
+    return 1;
+  size_t last = ((size_t)address + num_bytes - 1) >> OC_PAGE_SHIFT;
+  for (size_t p = address >> OC_PAGE_SHIFT; p <= last && p < wanted_count; ++p)
+    if (!held[p])
+      return 0;
+  return 1;
+}
+
 static uint32_t RC_CCONV read_memory(uint32_t address, uint8_t* buffer, uint32_t num_bytes,
                                      rc_client_t* c) {
   (void)c;
   if (!regions_ready)
     return 0;
-  if (snapshot)
+  if (snapshot) {
+    if (snapshot_held && !pages_held(snapshot_held, address, num_bytes)) {
+      note_pages(address, num_bytes);
+      __atomic_store_n(&missed, 1, __ATOMIC_RELAXED);
+      return rc_libretro_memory_read(&regions, address, buffer, num_bytes);
+    }
     return read_snapshot(snapshot, snapshot_len, address, buffer, num_bytes);
+  }
+  note_pages(address, num_bytes);
   return rc_libretro_memory_read(&regions, address, buffer, num_bytes);
 }
 
@@ -200,6 +245,72 @@ void oc_snapshot(uint8_t* dst, size_t len) {
       memset(dst + at, 0, size);
     at += size;
   }
+}
+
+/* Starts noting the pages the checks read, for paged copies of the regions as they are: how
+ * many pages they span, the bytes a copy keeps after its memory. None with no game's memory. */
+size_t oc_paged_start(void) {
+  free(wanted);
+  wanted = NULL;
+  wanted_count = 0;
+  wanted_new = 0;
+  missed = 0;
+  size_t len = oc_snapshot_size();
+  if (len == 0)
+    return 0;
+  wanted_count = (len + OC_PAGE - 1) >> OC_PAGE_SHIFT;
+  wanted = calloc(wanted_count, 1);
+  if (!wanted)
+    wanted_count = 0;
+  return wanted_count;
+}
+
+/* Stops noting pages: called once the checking thread is gone. */
+void oc_paged_stop(void) {
+  free(wanted);
+  wanted = NULL;
+  wanted_count = 0;
+}
+
+/* How many pages the checks read first since the last call. */
+uint32_t oc_paged_learned(void) {
+  return __atomic_exchange_n(&wanted_new, 0, __ATOMIC_RELAXED);
+}
+
+/* Whether a paged check read a page its copy lacked since the last call. */
+int oc_paged_missed(void) {
+  return __atomic_exchange_n(&missed, 0, __ATOMIC_RELAXED);
+}
+
+/* Copies the pages the checks read, as they are now, into `dst` (`len` bytes, at the checks'
+ * addresses), marking each in `held`, a byte a page. Called on the thread that runs the core,
+ * between its frames. */
+void oc_snapshot_pages(uint8_t* dst, size_t len, uint8_t* held) {
+  if (!regions_ready || !wanted)
+    return;
+  for (size_t p = 0; p < wanted_count; ++p) {
+    const size_t at = p << OC_PAGE_SHIFT;
+    held[p] = 0;
+    if (!__atomic_load_n(&wanted[p], __ATOMIC_RELAXED) || at >= len)
+      continue;
+    const size_t size = len - at < OC_PAGE ? len - at : OC_PAGE;
+    rc_libretro_memory_read(&regions, (uint32_t)at, dst + at, (uint32_t)size);
+    held[p] = 1;
+  }
+}
+
+/* A read as a check makes it, of the live memory with `snap` null, else of the copy `snap`
+ * (`len` bytes, `held` its pages where paged): for tests. */
+uint32_t oc_read_as_check(const uint8_t* snap, size_t len, const uint8_t* held, uint32_t address,
+                          uint8_t* buffer, uint32_t num_bytes) {
+  snapshot = snap;
+  snapshot_len = len;
+  snapshot_held = held;
+  uint32_t read = read_memory(address, buffer, num_bytes, NULL);
+  snapshot = NULL;
+  snapshot_len = 0;
+  snapshot_held = NULL;
+  return read;
 }
 
 /* What the live memory and a frame's copy of it answer for a read: for tests. */
@@ -531,6 +642,13 @@ void oc_frame_on(const uint8_t* snap, size_t len) {
   oc_frame();
   snapshot = NULL;
   snapshot_len = 0;
+}
+
+/* A frame checked from its paged copy, `snap` holding the pages `held` marks. */
+void oc_frame_on_pages(const uint8_t* snap, size_t len, const uint8_t* held) {
+  snapshot_held = held;
+  oc_frame_on(snap, len);
+  snapshot_held = NULL;
 }
 
 void oc_idle(void) {

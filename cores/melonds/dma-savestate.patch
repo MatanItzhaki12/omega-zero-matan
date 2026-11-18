@@ -1,0 +1,30 @@
+diff --git a/src/DMA.cpp b/src/DMA.cpp
+index e601871..5a4341a 100644
+--- a/src/DMA.cpp
++++ b/src/DMA.cpp
+@@ -79,6 +79,7 @@ void DMA::Reset()
+     Running = false;
+     InProgress = false;
+     MRAMBurstCount = 0;
++    MRAMBurstTable = DMATiming::MRAMDummy; // omega-zero: never left unset (DoSavestate)
+ }
+ 
+ void DMA::DoSavestate(Savestate* file)
+@@ -103,6 +104,17 @@ void DMA::DoSavestate(Savestate* file)
+     file->Bool32(&InProgress);
+     file->Bool32(&IsGXFIFODMA);
+     file->Var32(&MRAMBurstCount);
++
++    // omega-zero: the state holds the burst's position but not the table it is a position in,
++    // which only this process's pointer named. Loaded into a DMA in the middle of a burst, it
++    // was read through whatever the pointer held, a fresh process's leftover garbage, and the
++    // game went down as it resumed. The burst starts again instead: the next unit picks its
++    // table, as a DMA that has just started does, a few cycles off where the burst would be.
++    if (!file->Saving)
++    {
++        MRAMBurstTable = DMATiming::MRAMDummy;
++        MRAMBurstCount = 0;
++    }
+ }
+ 
+ void DMA::WriteCnt(u32 val)

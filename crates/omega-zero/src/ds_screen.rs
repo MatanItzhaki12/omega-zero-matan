@@ -29,7 +29,6 @@ pub struct DsScreens {
     hooks: Option<DsHooks>,
     /// The DS's main memory, as the core answers for it: good while the game is loaded.
     main_ram: (*const u8, usize),
-    out: Vec<u8>,
 }
 
 // SAFETY: made and used only on the emulator thread that runs the core it reads, whose main
@@ -61,7 +60,6 @@ impl DsScreens {
             ds,
             hooks,
             main_ram,
-            out: Vec::new(),
         }
     }
 
@@ -81,7 +79,9 @@ impl DsScreens {
     /// The buttons the game is handed for the next frame, the touch screen touched on `core`
     /// as the cursor or a layout's button says.
     pub fn input(&mut self, core: &mut dyn RetroCore, held: ButtonMask) -> ButtonMask {
-        let (keys, touch) = self.ds.before_frame(held.0);
+        let (keys, touch) = self
+            .ds
+            .before_frame(held.0, core.video_xrgb8888(), core.video_size());
         core.set_pointer(touch);
         ButtonMask(keys)
     }
@@ -99,21 +99,16 @@ impl DsScreens {
         self.ds.ran(ram);
     }
 
-    /// The picture for the frame `core` drew last, laid out, and its size: none for a frame that
-    /// is not the DS's two screens (the mock's, with no core).
-    pub fn view(&mut self, core: &dyn RetroCore) -> Option<(&[u8], (u32, u32))> {
+    /// The picture for the frame `core` drew last, laid out into `out`, and its size: none for a
+    /// frame that is not the DS's two screens (the mock's, with no core).
+    pub fn view(&mut self, core: &dyn RetroCore, out: &mut Vec<u8>) -> Option<(u32, u32)> {
         let layers = match &self.hooks {
             // SAFETY: on the core's thread, between its frames, read before the next
             Some(h) => unsafe { [h.layers(0), h.layers(1)] },
             None => [&[][..], &[][..]],
         };
-        let size = self.ds.view(
-            core.video_xrgb8888(),
-            core.video_size(),
-            layers,
-            &mut self.out,
-        )?;
-        Some((&self.out, size))
+        self.ds
+            .view(core.video_xrgb8888(), core.video_size(), layers, out)
     }
 }
 
