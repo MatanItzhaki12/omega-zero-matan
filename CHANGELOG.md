@@ -19,6 +19,14 @@
   the emulation waits only for the frame's own lines, and a thread asleep is woken at once from
   the last visible line on, rather than once eight lines wait for it. The profile is retrained
   for the changed code.
+- **A DS game's 3D is drawn on three CPU cores** rather than one: the render thread and two
+  helpers each take the frame's next band of eight lines, set up where the band starts as the
+  line by line drawing would have it, and each line's final pass (edge marking, fog,
+  antialiasing) runs in order as the line below it is drawn, so every frame comes out as before,
+  pixel for pixel. Each band clears its own lines too. On the RG SP, flat out and warm, Pokémon
+  White's Nuvema Town went from 40 frames a second to 60, where its 3D alone had taken a whole
+  core, HeartGold's New Bark Town from 65 to 69 and Platinum's bedroom from 103 to 109, the
+  profile retrained for the changed code and with White's outdoors.
 - Pokémon White 2 starts: its 512 MB is mapped without the kernel reserving memory for all of it,
   which it refused with less than that free.
 - A DS game no longer freezes for good when a signal interrupts melonDS's local-wireless check

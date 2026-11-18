@@ -27,8 +27,9 @@ The counts hold no game data, only numbers of times code ran.
    directory: in a frontend (omega-zero with it as `System/melonds_libretro.so`), or a small
    libretro runner. Each run adds to the counts. What the profile was made from: HeartGold
    walking about New Bark Town from a save, Platinum continuing a save in the player's room,
-   White and White 2 from boot through their openings (3,000 to 6,000 frames each), with the
-   core options omega-zero sets (`crates/omega-zero/src/core.rs`).
+   White continuing a save and walking about Nuvema Town, and White and White 2 from boot
+   through their openings with no save (3,000 to 4,000 frames each), with the core options
+   omega-zero sets (`crates/omega-zero/src/core.rs`).
 
    ```sh
    GCOV_PREFIX=/tmp/counts GCOV_PREFIX_STRIP=0 <runner> ...

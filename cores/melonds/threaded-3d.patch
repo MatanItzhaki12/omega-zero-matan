@@ -1,0 +1,492 @@
+diff --git a/src/GPU3D_Soft.cpp b/src/GPU3D_Soft.cpp
+index afaf614..69a2c17 100644
+--- a/src/GPU3D_Soft.cpp
++++ b/src/GPU3D_Soft.cpp
+@@ -40,6 +40,14 @@ void SoftRenderer::StopRenderThread()
+         Platform::Semaphore_Post(Sema_RenderStart);
+         Platform::Thread_Wait(RenderThread);
+         Platform::Thread_Free(RenderThread);
++
++        // the render thread is done with its frame, and the helpers with theirs
++        Platform::Semaphore_Post(Sema_RasterStart, RasterHelpers);
++        for (int i = 0; i < RasterHelpers; i++)
++        {
++            Platform::Thread_Wait(RasterHelperThreads[i]);
++            Platform::Thread_Free(RasterHelperThreads[i]);
++        }
+     }
+ }
+ 
+@@ -51,6 +59,8 @@ void SoftRenderer::SetupRenderThread()
+         {
+             RenderThreadRunning = true;
+             RenderThread = Platform::Thread_Create(std::bind(&SoftRenderer::RenderThreadFunc, this));
++            for (int i = 0; i < RasterHelpers; i++)
++                RasterHelperThreads[i] = Platform::Thread_Create(std::bind(&SoftRenderer::RasterHelperFunc, this, 1 + i));
+         }
+ 
+         // otherwise more than one frame can be queued up at once
+@@ -83,6 +93,9 @@ bool SoftRenderer::Init()
+     Sema_RenderStart = Platform::Semaphore_Create();
+     Sema_RenderDone = Platform::Semaphore_Create();
+     Sema_ScanlineCount = Platform::Semaphore_Create();
++    Sema_RasterStart = Platform::Semaphore_Create();
++    Sema_RasterDone = Platform::Semaphore_Create();
++    FinalPassLock = Platform::Mutex_Create();
+ 
+     Threaded = false;
+     RenderThreadRunning = false;
+@@ -98,6 +111,9 @@ void SoftRenderer::DeInit()
+     Platform::Semaphore_Free(Sema_RenderStart);
+     Platform::Semaphore_Free(Sema_RenderDone);
+     Platform::Semaphore_Free(Sema_ScanlineCount);
++    Platform::Semaphore_Free(Sema_RasterStart);
++    Platform::Semaphore_Free(Sema_RasterDone);
++    Platform::Mutex_Free(FinalPassLock);
+ }
+ 
+ void SoftRenderer::Reset()
+@@ -107,7 +123,6 @@ void SoftRenderer::Reset()
+     memset(DepthBuffer, 0, BufferSize * 2 * 4);
+     memset(AttrBuffer, 0, BufferSize * 2 * 4);
+ 
+-    PrevIsShadowMask = false;
+ 
+     SetupRenderThread();
+ }
+@@ -678,7 +693,7 @@ void SoftRenderer::SetupPolygon(SoftRenderer::RendererPolygon* rp, Polygon* poly
+     }
+ }
+ 
+-void SoftRenderer::RenderShadowMaskScanline(RendererPolygon* rp, s32 y)
++void SoftRenderer::RenderShadowMaskScanline(RasterLane& lane, RendererPolygon* rp, s32 y)
+ {
+     Polygon* polygon = rp->PolyData;
+ 
+@@ -696,10 +711,10 @@ void SoftRenderer::RenderShadowMaskScanline(RendererPolygon* rp, s32 y)
+     else
+         fnDepthTest = DepthTest_LessThan;
+ 
+-    if (!PrevIsShadowMask)
+-        memset(&StencilBuffer[256 * (y&0x1)], 0, 256);
++    if (!lane.PrevIsShadowMask)
++        memset(&lane.StencilBuffer[256 * (y&0x1)], 0, 256);
+ 
+-    PrevIsShadowMask = true;
++    lane.PrevIsShadowMask = true;
+ 
+     if (polygon->YTop != polygon->YBottom)
+     {
+@@ -821,13 +836,13 @@ void SoftRenderer::RenderShadowMaskScanline(RendererPolygon* rp, s32 y)
+             continue;
+ 
+         if (!fnDepthTest(DepthBuffer[pixeladdr], z, dstattr))
+-            StencilBuffer[256*(y&0x1) + x] = 1;
++            lane.StencilBuffer[256*(y&0x1) + x] = 1;
+ 
+         if (dstattr & 0x3)
+         {
+             pixeladdr += BufferSize;
+             if (!fnDepthTest(DepthBuffer[pixeladdr], z, AttrBuffer[pixeladdr]))
+-                StencilBuffer[256*(y&0x1) + x] |= 0x2;
++                lane.StencilBuffer[256*(y&0x1) + x] |= 0x2;
+         }
+     }
+ 
+@@ -847,13 +862,13 @@ void SoftRenderer::RenderShadowMaskScanline(RendererPolygon* rp, s32 y)
+         u32 dstattr = AttrBuffer[pixeladdr];
+ 
+         if (!fnDepthTest(DepthBuffer[pixeladdr], z, dstattr))
+-            StencilBuffer[256*(y&0x1) + x] = 1;
++            lane.StencilBuffer[256*(y&0x1) + x] = 1;
+ 
+         if (dstattr & 0x3)
+         {
+             pixeladdr += BufferSize;
+             if (!fnDepthTest(DepthBuffer[pixeladdr], z, AttrBuffer[pixeladdr]))
+-                StencilBuffer[256*(y&0x1) + x] |= 0x2;
++                lane.StencilBuffer[256*(y&0x1) + x] |= 0x2;
+         }
+     }
+ 
+@@ -876,13 +891,13 @@ void SoftRenderer::RenderShadowMaskScanline(RendererPolygon* rp, s32 y)
+             continue;
+ 
+         if (!fnDepthTest(DepthBuffer[pixeladdr], z, dstattr))
+-            StencilBuffer[256*(y&0x1) + x] = 1;
++            lane.StencilBuffer[256*(y&0x1) + x] = 1;
+ 
+         if (dstattr & 0x3)
+         {
+             pixeladdr += BufferSize;
+             if (!fnDepthTest(DepthBuffer[pixeladdr], z, AttrBuffer[pixeladdr]))
+-                StencilBuffer[256*(y&0x1) + x] |= 0x2;
++                lane.StencilBuffer[256*(y&0x1) + x] |= 0x2;
+         }
+     }
+ 
+@@ -890,7 +905,7 @@ void SoftRenderer::RenderShadowMaskScanline(RendererPolygon* rp, s32 y)
+     rp->XR = rp->SlopeR.Step();
+ }
+ 
+-void SoftRenderer::RenderPolygonScanline(RendererPolygon* rp, s32 y)
++void SoftRenderer::RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp, s32 y)
+ {
+     Polygon* polygon = rp->PolyData;
+ 
+@@ -908,7 +923,7 @@ void SoftRenderer::RenderPolygonScanline(RendererPolygon* rp, s32 y)
+     else
+         fnDepthTest = DepthTest_LessThan;
+ 
+-    PrevIsShadowMask = false;
++    lane.PrevIsShadowMask = false;
+ 
+     if (polygon->YTop != polygon->YBottom)
+     {
+@@ -1049,7 +1064,7 @@ void SoftRenderer::RenderPolygonScanline(RendererPolygon* rp, s32 y)
+         // check stencil buffer for shadows
+         if (polygon->IsShadow)
+         {
+-            u8 stencil = StencilBuffer[256*(y&0x1) + x];
++            u8 stencil = lane.StencilBuffer[256*(y&0x1) + x];
+             if (!stencil)
+                 continue;
+             if (!(stencil & 0x1))
+@@ -1145,7 +1160,7 @@ void SoftRenderer::RenderPolygonScanline(RendererPolygon* rp, s32 y)
+         // check stencil buffer for shadows
+         if (polygon->IsShadow)
+         {
+-            u8 stencil = StencilBuffer[256*(y&0x1) + x];
++            u8 stencil = lane.StencilBuffer[256*(y&0x1) + x];
+             if (!stencil)
+                 continue;
+             if (!(stencil & 0x1))
+@@ -1220,7 +1235,7 @@ void SoftRenderer::RenderPolygonScanline(RendererPolygon* rp, s32 y)
+         // check stencil buffer for shadows
+         if (polygon->IsShadow)
+         {
+-            u8 stencil = StencilBuffer[256*(y&0x1) + x];
++            u8 stencil = lane.StencilBuffer[256*(y&0x1) + x];
+             if (!stencil)
+                 continue;
+             if (!(stencil & 0x1))
+@@ -1304,19 +1319,19 @@ void SoftRenderer::RenderPolygonScanline(RendererPolygon* rp, s32 y)
+     rp->XR = rp->SlopeR.Step();
+ }
+ 
+-void SoftRenderer::RenderScanline(s32 y, int npolys)
++void SoftRenderer::RenderScanline(RasterLane& lane, s32 y)
+ {
+-    for (int i = 0; i < npolys; i++)
++    for (int i = 0; i < lane.NumPolygons; i++)
+     {
+-        RendererPolygon* rp = &PolygonList[i];
++        RendererPolygon* rp = &lane.Polygons[i];
+         Polygon* polygon = rp->PolyData;
+ 
+         if (y >= polygon->YTop && (y < polygon->YBottom || (y == polygon->YTop && polygon->YBottom == polygon->YTop)))
+         {
+             if (polygon->IsShadowMask)
+-                RenderShadowMaskScanline(rp, y);
++                RenderShadowMaskScanline(lane, rp, y);
+             else
+-                RenderPolygonScanline(rp, y);
++                RenderPolygonScanline(lane, rp, y);
+         }
+     }
+ }
+@@ -1529,21 +1544,26 @@ void SoftRenderer::ScanlineFinalPass(s32 y)
+     }
+ }
+ 
+-void SoftRenderer::ClearBuffers()
++// Clears lines `top` to `bottom` - 1 for a band, with the border about them that edge marking
++// reads: their ends, the row above line 0 and the row below line 191.
++void SoftRenderer::ClearLines(s32 top, s32 bottom)
+ {
+     u32 clearz = ((RenderClearAttr2 & 0x7FFF) * 0x200) + 0x1FF;
+     u32 polyid = RenderClearAttr1 & 0x3F000000; // this sets the opaque polygonID
+ 
+     // fill screen borders for edge marking
+ 
+-    for (int x = 0; x < ScanlineWidth; x++)
++    if (top == 0)
+     {
+-        ColorBuffer[x] = 0;
+-        DepthBuffer[x] = clearz;
+-        AttrBuffer[x] = polyid;
++        for (int x = 0; x < ScanlineWidth; x++)
++        {
++            ColorBuffer[x] = 0;
++            DepthBuffer[x] = clearz;
++            AttrBuffer[x] = polyid;
++        }
+     }
+ 
+-    for (int x = ScanlineWidth; x < ScanlineWidth*193; x+=ScanlineWidth)
++    for (int x = (top + 1) * ScanlineWidth; x < (bottom + 1) * ScanlineWidth; x += ScanlineWidth)
+     {
+         ColorBuffer[x] = 0;
+         DepthBuffer[x] = clearz;
+@@ -1553,22 +1573,27 @@ void SoftRenderer::ClearBuffers()
+         AttrBuffer[x+257] = polyid;
+     }
+ 
+-    for (int x = ScanlineWidth*193; x < ScanlineWidth*194; x++)
++    if (bottom == 192)
+     {
+-        ColorBuffer[x] = 0;
+-        DepthBuffer[x] = clearz;
+-        AttrBuffer[x] = polyid;
++        for (int x = ScanlineWidth*193; x < ScanlineWidth*194; x++)
++        {
++            ColorBuffer[x] = 0;
++            DepthBuffer[x] = clearz;
++            AttrBuffer[x] = polyid;
++        }
+     }
+ 
+     // clear the screen
+ 
+     if (RenderDispCnt & (1<<14))
+     {
+-        u8 xoff = (RenderClearAttr2 >> 16) & 0xFF;
+-        u8 yoff = (RenderClearAttr2 >> 24) & 0xFF;
++        // the rear plane's bitmap, its rows from yoff on and each from xoff, both wrapping at 256
++        u8 xoff0 = (RenderClearAttr2 >> 16) & 0xFF;
++        u8 yoff = ((RenderClearAttr2 >> 24) + top) & 0xFF;
+ 
+-        for (int y = 0; y < ScanlineWidth*192; y+=ScanlineWidth)
++        for (int y = top * ScanlineWidth; y < bottom * ScanlineWidth; y += ScanlineWidth)
+         {
++            u8 xoff = xoff0;
+             for (int x = 0; x < 256; x++)
+             {
+                 u16 val2 = ReadVRAM_Texture<u16>(0x40000 + (yoff << 9) + (xoff << 1));
+@@ -1605,7 +1630,7 @@ void SoftRenderer::ClearBuffers()
+ 
+         polyid |= (RenderClearAttr1 & 0x8000);
+ 
+-        for (int y = 0; y < ScanlineWidth*192; y+=ScanlineWidth)
++        for (int y = top * ScanlineWidth; y < bottom * ScanlineWidth; y += ScanlineWidth)
+         {
+             for (int x = 0; x < 256; x++)
+             {
+@@ -1620,28 +1645,110 @@ void SoftRenderer::ClearBuffers()
+ 
+ void SoftRenderer::RenderPolygons(bool threaded, Polygon** polygons, int npolys)
+ {
+-    int j = 0;
++    RasterNumPolygons = 0;
+     for (int i = 0; i < npolys; i++)
+     {
+-        if (polygons[i]->Degenerate) continue;
+-        SetupPolygon(&PolygonList[j++], polygons[i]);
++        if (!polygons[i]->Degenerate)
++            RasterPolygons[RasterNumPolygons++] = polygons[i];
++    }
++
++    for (int band = 0; band < RasterBands; band++)
++        BandDone[band] = false;
++    NextFinalLine = 0;
++    NextBand.store(0, std::memory_order_relaxed);
++    RasterThreaded = threaded;
++
++    // the helpers wait on the render thread, which alone runs unthreaded
++    if (threaded)
++        Platform::Semaphore_Post(Sema_RasterStart, RasterHelpers);
++    DrawBands(Lanes[0]);
++    if (threaded)
++    {
++        for (int i = 0; i < RasterHelpers; i++)
++            Platform::Semaphore_Wait(Sema_RasterDone);
++    }
++}
++
++// The polygons of `band` into `lane`, in their order, each set up at the band's first line as the
++// frame's line by line stepping would have it there (Slope::Setup takes the line to start at).
++void SoftRenderer::SetupBand(RasterLane& lane, int band)
++{
++    s32 top = band * RasterBandLines;
++    s32 bottom = top + RasterBandLines;
++
++    lane.NumPolygons = 0;
++    for (int i = 0; i < RasterNumPolygons; i++)
++    {
++        Polygon* polygon = RasterPolygons[i];
++        bool flat = polygon->YTop == polygon->YBottom;
++        // RenderScanline's test for a line, over the band's lines
++        if (polygon->YTop >= bottom || (flat ? polygon->YTop < top : polygon->YBottom <= top))
++            continue;
++
++        RendererPolygon* rp = &lane.Polygons[lane.NumPolygons++];
++        SetupPolygon(rp, polygon);
++        if (!flat && polygon->YTop < top)
++        {
++            SetupPolygonLeftEdge(rp, top);
++            SetupPolygonRightEdge(rp, top);
++        }
+     }
+ 
+-    RenderScanline(0, j);
++    // a band starts its stencil afresh, as a frame does: a shadow mask whose shadow is drawn in
++    // the band before is not carried over its first line
++    lane.PrevIsShadowMask = false;
++    memset(lane.StencilBuffer, 0, sizeof(lane.StencilBuffer));
++}
++
++// Draws the frame's bands not taken yet, one at a time and topmost first, until none is left.
++void SoftRenderer::DrawBands(RasterLane& lane)
++{
++    for (;;)
++    {
++        int band = NextBand.fetch_add(1, std::memory_order_relaxed);
++        if (band >= RasterBands)
++            return;
++
++        s32 top = band * RasterBandLines;
++        ClearLines(top, top + RasterBandLines);
++        SetupBand(lane, band);
++        for (s32 y = top; y < top + RasterBandLines; y++)
++            RenderScanline(lane, y);
++        FinishBand(band);
++    }
++}
+ 
+-    for (s32 y = 1; y < 192; y++)
++// Runs the final pass over each line in turn whose line below is drawn now that `band` is, and
++// counts it drawn for GetLine.
++void SoftRenderer::FinishBand(int band)
++{
++    Platform::Mutex_Lock(FinalPassLock);
++    BandDone[band] = true;
++    while (NextFinalLine < 192)
+     {
+-        RenderScanline(y, j);
+-        ScanlineFinalPass(y-1);
++        s32 y = NextFinalLine;
++        if (!BandDone[y / RasterBandLines] || (y < 191 && !BandDone[(y + 1) / RasterBandLines]))
++            break;
+ 
+-        if (threaded)
++        ScanlineFinalPass(y);
++        NextFinalLine++;
++        if (RasterThreaded)
+             Platform::Semaphore_Post(Sema_ScanlineCount);
+     }
++    Platform::Mutex_Unlock(FinalPassLock);
++}
+ 
+-    ScanlineFinalPass(191);
++void SoftRenderer::RasterHelperFunc(int lane)
++{
++    for (;;)
++    {
++        Platform::Semaphore_Wait(Sema_RasterStart);
++        if (!RenderThreadRunning.load(std::memory_order_relaxed))
++            return;
+ 
+-    if (threaded)
+-        Platform::Semaphore_Post(Sema_ScanlineCount);
++        DrawBands(Lanes[lane]);
++        Platform::Semaphore_Post(Sema_RasterDone);
++    }
+ }
+ 
+ void SoftRenderer::VCount144()
+@@ -1672,7 +1779,6 @@ void SoftRenderer::RenderFrame()
+     }
+     else if (!FrameIdentical)
+     {
+-        ClearBuffers();
+         RenderPolygons(false, &RenderPolygonRAM[0], RenderNumPolygons);
+     }
+ }
+@@ -1696,7 +1802,6 @@ void SoftRenderer::RenderThreadFunc()
+         }
+         else
+         {
+-            ClearBuffers();
+             RenderPolygons(true, &RenderPolygonRAM[0], RenderNumPolygons);
+         }
+ 
+diff --git a/src/GPU3D_Soft.h b/src/GPU3D_Soft.h
+index 5418b6f..8a131a3 100644
+--- a/src/GPU3D_Soft.h
++++ b/src/GPU3D_Soft.h
+@@ -456,19 +456,50 @@ private:
+ 
+     };
+ 
+-    RendererPolygon PolygonList[2048];
++    // omega-zero: the frame's scanlines are drawn in bands of RasterBandLines lines, taken in
++    // turn by the render thread and RasterHelpers helper threads, so that a frame's polygons are
++    // drawn on as many cores. A band is drawn by one thread from its first line to its last, in
++    // the polygons' order as the frame's single thread would; each thread has a lane: its
++    // polygons' edges set up at the band's first line, and its shadow mask's stencil. The final
++    // pass (edge marking, fog, antialiasing) reads a line's neighbours, so it is run line by line
++    // in order as the lines below are drawn, by whichever thread finishes a band.
++    static constexpr int RasterBandLines = 8;
++    static constexpr int RasterBands = 192 / RasterBandLines;
++    static constexpr int RasterHelpers = 2;
++
++    struct RasterLane
++    {
++        RendererPolygon Polygons[2048];
++        int NumPolygons;
++        u8 StencilBuffer[256*2];
++        bool PrevIsShadowMask;
++    };
++
++    RasterLane Lanes[1 + RasterHelpers];
++    Polygon* RasterPolygons[2048]; // the frame's polygons, its degenerate ones left out
++    int RasterNumPolygons;
++    std::atomic_int NextBand;
++    Platform::Mutex* FinalPassLock; // over BandDone and NextFinalLine
++    bool BandDone[RasterBands];
++    s32 NextFinalLine;
++    bool RasterThreaded; // whether the drawn lines are counted for GetLine
++
++    void ClearLines(s32 top, s32 bottom);
++    void SetupBand(RasterLane& lane, int band);
++    void DrawBands(RasterLane& lane);
++    void FinishBand(int band);
++    void RasterHelperFunc(int lane);
+     void TextureLookup(u32 texparam, u32 texpal, s16 s, s16 t, u16* color, u8* alpha);
+     u32 RenderPixel(Polygon* polygon, u8 vr, u8 vg, u8 vb, s16 s, s16 t);
+     void PlotTranslucentPixel(u32 pixeladdr, u32 color, u32 z, u32 polyattr, u32 shadow);
+     void SetupPolygonLeftEdge(RendererPolygon* rp, s32 y);
+     void SetupPolygonRightEdge(RendererPolygon* rp, s32 y);
+     void SetupPolygon(RendererPolygon* rp, Polygon* polygon);
+-    void RenderShadowMaskScanline(RendererPolygon* rp, s32 y);
+-    void RenderPolygonScanline(RendererPolygon* rp, s32 y);
+-    void RenderScanline(s32 y, int npolys);
++    void RenderShadowMaskScanline(RasterLane& lane, RendererPolygon* rp, s32 y);
++    void RenderPolygonScanline(RasterLane& lane, RendererPolygon* rp, s32 y);
++    void RenderScanline(RasterLane& lane, s32 y);
+     u32 CalculateFogDensity(u32 pixeladdr);
+     void ScanlineFinalPass(s32 y);
+-    void ClearBuffers();
+     void RenderPolygons(bool threaded, Polygon** polygons, int npolys);
+ 
+     void RenderThreadFunc();
+@@ -503,9 +534,6 @@ private:
+     // bit22: translucent flag
+     // bit24-29: polygon ID for opaque pixels
+ 
+-    u8 StencilBuffer[256*2];
+-    bool PrevIsShadowMask;
+-
+     bool Enabled;
+ 
+     bool FrameIdentical;
+@@ -519,5 +547,8 @@ private:
+     Platform::Semaphore* Sema_RenderStart;
+     Platform::Semaphore* Sema_RenderDone;
+     Platform::Semaphore* Sema_ScanlineCount;
++    Platform::Thread* RasterHelperThreads[RasterHelpers];
++    Platform::Semaphore* Sema_RasterStart;
++    Platform::Semaphore* Sema_RasterDone;
+ };
+ }
+\ No newline at end of file
