@@ -64,7 +64,13 @@ impl ControlsView {
             if platform.rewinds() {
                 game.push(("L2", "REWIND"));
             }
-            game.extend([("R2", "FAST FORWARD"), ("L2+R2", "LOCK FAST FWD")]);
+            if platform.fast_forwards() {
+                game.extend([("R2", "FAST FORWARD"), ("L2+R2", "LOCK FAST FWD")]);
+            }
+            // a DS game's R2, with no fast-forward: Integer, Fit or Stretch
+            if platform.two_screens() {
+                game.push(("R2", "PICTURE"));
+            }
         }
         game.extend([
             ("MENU", "GAME MENU"),

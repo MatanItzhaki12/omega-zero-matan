@@ -96,6 +96,7 @@ is made. ▲ ▼ move between the rows, ◀ ▶ change the one lit, **A on Save*
 | Hold X / Y | Turbo A / B |
 | L1 / R1 | Stretch or restore the picture, on the Game Boys |
 | SELECT + Y | Swap the screens, on the DS (rather than color correction) |
+| R2 | The DS's picture: Integer, Fit, Stretch, kept for the game (the DS has no fast forward) |
 | Hold L2 | The DS's touch cursor: the D-pad moves it, A touches (rather than rewind) |
 | Tap / hold POWER | Sleep / power off |
 | START while holding POWER | Restart |
@@ -167,7 +168,11 @@ closes up on a handheld with no Wi-Fi or Bluetooth.
 
 **DISPLAY ›** holds how games are drawn, as the in-game menu's DISPLAY page does, with the same
 rows, notes and values: Screen Filter, Game Boy Palette, Color Correction, Frame Blending,
-Brightness, Blue Light Filter and PSP Screen.
+Brightness, Blue Light Filter, Borders and PSP Screen. **Borders** (on by default) draws a little
+pastel console round a picture that leaves the screen bare (the Game Boys, the SNES, the
+PlayStation, the PSP, a DS game short of the screen), unless the system has a border of the
+player's own in `Overlays/`. The NINTENDO DS page holds the DS's **Picture**: Integer, every DS
+pixel the same whole size (2x, the default), Fit, as big as the screen holds it, or Stretch.
 
 **GAMEPLAY ›** (each row shows a line under the panel saying what it does)
 
@@ -246,7 +251,7 @@ goes straight to the save states without the menu flashing up first.
 |---|---|
 | MENU | Resume · Undo Save · Undo Load · States · Settings › · Restart · Exit Game |
 | SETTINGS | Display › · Gameplay › · Achievements › · Controls › |
-| DISPLAY | Screen Filter · Game Boy Palette · Color Correction · Frame Blending · Brightness · Blue Light Filter · PSP Screen (for this game) · DS Screens and Swap Screens (DS) |
+| DISPLAY | Screen Filter · Game Boy Palette · Color Correction · Frame Blending · Brightness · Blue Light Filter · Borders · PSP Screen (for this game) · DS Picture, DS Screens and Swap Screens (DS) |
 | GAMEPLAY | Fast Forward · Fast Forward Sound · Rewind · Turbo Buttons · Run-Ahead (gpSP) · Rumble · Load State on Insert · Save State on Eject · Stick (PSP) · Touch Cursor (DS) |
 | ACHIEVEMENTS | Game · Unlocked · View All › · RetroAchievements · Hardcore |
 | ALL ACHIEVEMENTS | Every achievement of the game, unlocked or locked |

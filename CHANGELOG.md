@@ -31,6 +31,16 @@
   screens where it drew them rather than a copy.
 - A DS game no longer fast-forwards: the handheld runs one at its own speed with little to spare,
   and held R2 played HeartGold slower than not (52 frames a second).
+- **R2 steps a DS game's picture**: Integer, every DS pixel the same whole size (2x, as before),
+  Fit, as big as the screen holds it, or Stretch, the whole screen, kept for the game, a toast
+  saying which. Its default is Settings › Gameplay › Nintendo DS › Picture, and each game's menu
+  has it as Display › DS Picture.
+- **Borders**: a little pastel console round a picture that leaves the screen bare, its system's
+  touches in the room either side (a Game Boy's D-pad and buttons, the DS's speakers and lights,
+  the SNES's four colours), a sparkle and a heart in the corners, for the Game Boys, the SNES,
+  the PlayStation, the PSP and a DS game short of the screen. On by default, in Settings ›
+  Display › Borders and each game's menu; a border of the player's own in `Overlays/` is drawn
+  instead.
 
 ## omega-zero 2.8.0
 

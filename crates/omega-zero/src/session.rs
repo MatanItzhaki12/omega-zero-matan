@@ -563,6 +563,7 @@ impl Session {
         self.app.set_platform(platform);
         let fallback = match platform {
             Platform::Psp => self.app.psp_screen(),
+            Platform::Nds => self.app.ds_screen(),
             _ => crate::video_mode::VideoMode::default(),
         };
         self.app

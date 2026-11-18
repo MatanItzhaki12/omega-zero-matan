@@ -55,6 +55,19 @@ impl VideoMode {
     /// The picture modes a PSP game steps through, Fit first.
     pub const PSP: [VideoMode; 3] = [VideoMode::Fit, VideoMode::Actual, VideoMode::Stretch];
 
+    /// The picture modes a DS game steps through, Integer (Actual) first.
+    pub const DS: [VideoMode; 3] = [VideoMode::Actual, VideoMode::Fit, VideoMode::Stretch];
+
+    /// The modes a game of `platform` chooses among, in its menu's order: none for a system
+    /// whose picture has one shape on the screen.
+    pub fn modes(platform: Platform) -> Option<&'static [VideoMode]> {
+        match platform {
+            Platform::Psp => Some(&VideoMode::PSP),
+            Platform::Nds => Some(&VideoMode::DS),
+            _ => None,
+        }
+    }
+
     /// The mode after this one among `modes`, or before it.
     pub fn step_in(self, modes: &[VideoMode], right: bool) -> VideoMode {
         let n = modes.len();
@@ -68,6 +81,25 @@ impl VideoMode {
             VideoMode::Actual => "ACTUAL",
             VideoMode::Stretch => "STRETCH",
             VideoMode::Fit => "FIT",
+        }
+    }
+
+    /// As a menu prints it for a game of `platform`: a DS game's actual size is a whole scale
+    /// of it, its pixels all one size, named so.
+    pub fn word_for(self, platform: Platform) -> &'static str {
+        match (platform, self) {
+            (Platform::Nds, VideoMode::Actual) => "INTEGER",
+            _ => self.word(),
+        }
+    }
+
+    /// As a toast says it, for a game of `platform`.
+    pub fn name_for(self, platform: Platform) -> &'static str {
+        match (platform, self) {
+            (Platform::Nds, VideoMode::Actual) => "Integer",
+            (_, VideoMode::Actual) => "Actual",
+            (_, VideoMode::Fit) => "Fit",
+            (_, VideoMode::Stretch) => "Stretch",
         }
     }
 }
@@ -228,9 +260,8 @@ fn console_screen(c: Canvas, platform: Platform, mode: VideoMode, frame: (u32, u
             (pw as f32, ph as f32)
         }
         (Platform::Psp, VideoMode::Fit) => fit(cw, ch, platform.picture()),
-        // a DS game's view, whatever shape its layout makes it: one screen at a whole scale,
-        // two as big as fits
-        (Platform::Nds, _) => ds_view(cw, ch, frame),
+        // a DS game's view, whatever shape its layout makes it
+        (Platform::Nds, mode) => ds_view(cw, ch, frame, mode),
         _ => four_three(cw, ch),
     };
     let rect = [((cw - w) / 2.0).round(), ((ch - h) / 2.0).round(), w, h];
@@ -246,18 +277,28 @@ fn console_screen(c: Canvas, platform: Platform, mode: VideoMode, frame: (u32, u
     }
 }
 
-/// A DS game's view on a canvas `cw` by `ch`, for a frame `frame` big. One screen's view, as the
-/// core's 256x192 or One Screen's drawing of it at twice that, goes at the largest whole number
-/// of panel pixels to a DS pixel the canvas holds (2x, 512x384, on 640x480 and 720x480): a
-/// stretch to the canvas's height would make some pixels a column or a row bigger than others.
-/// Two screens stacked or side by side, at 1x too small to play, are as big as the canvas holds.
-fn ds_view(cw: f32, ch: f32, frame: (u32, u32)) -> (f32, f32) {
+/// A DS game's view on a canvas `cw` by `ch`, for a frame `frame` big, in `mode`:
+///
+/// - **Integer** (`Actual`): one screen's view, as the core's 256x192 or One Screen's drawing of
+///   it at twice that, at the largest whole number of panel pixels to a DS pixel the canvas
+///   holds (2x, 512x384, on 640x480 and 720x480), every pixel one size, where a stretch to the
+///   canvas's height would make some a column or a row bigger than others. Two screens stacked
+///   or side by side, at 1x too small to play, are as big as the canvas holds instead.
+/// - **Fit**: as big as the canvas holds the view, in its own shape (one screen 640x480).
+/// - **Stretch**: the whole canvas.
+fn ds_view(cw: f32, ch: f32, frame: (u32, u32), mode: VideoMode) -> (f32, f32) {
     let (sw, sh) = (omega_ds::screen::W as u32, omega_ds::screen::H as u32);
     // (no frame yet is one screen's, as a game starts)
-    let one_screen = match frame {
-        (0, _) | (_, 0) => true,
-        (w, h) => w * sh == h * sw && w % sw == 0,
+    let frame = match frame {
+        (0, _) | (_, 0) => (sw, sh),
+        f => f,
     };
+    match mode {
+        VideoMode::Stretch => return (cw, ch),
+        VideoMode::Fit => return fit(cw, ch, frame),
+        VideoMode::Actual => {}
+    }
+    let one_screen = frame.0 * sh == frame.1 * sw && frame.0 % sw == 0;
     if !one_screen {
         return fit(cw, ch, frame);
     }

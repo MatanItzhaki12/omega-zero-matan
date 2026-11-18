@@ -345,9 +345,9 @@ fn a_psp_game_fits_its_own_shape_shows_its_actual_size_or_stretches() {
     );
 }
 
-/// A DS game: one screen's view, as the core draws it or One Screen at twice that, at a whole
-/// 2x in the middle of each canvas, every DS pixel two by two; two screens stacked or side by
-/// side as big as the canvas holds them.
+/// A DS game at Integer: one screen's view, as the core draws it or One Screen at twice that, at
+/// a whole 2x in the middle of each canvas, every DS pixel two by two; two screens stacked or
+/// side by side as big as the canvas holds them.
 #[test]
 fn a_ds_screen_shows_at_a_whole_scale_and_two_screens_fit() {
     for (c, one) in [
@@ -356,12 +356,43 @@ fn a_ds_screen_shows_at_a_whole_scale_and_two_screens_fit() {
         (Canvas::SQUARE, [104.0, 168.0, 512.0, 384.0]),
     ] {
         for frame in [(256, 192), (512, 384), (0, 0)] {
-            let view = screen_on_frame(c, Platform::Nds, VideoMode::Fit, frame).view;
+            let view = screen_on_frame(c, Platform::Nds, VideoMode::Actual, frame).view;
             assert_eq!(view.rect, one, "{c:?} {frame:?}");
+        }
+    }
+    let stacked = screen_on_frame(Canvas::WIDE, Platform::Nds, VideoMode::Actual, (256, 384)).view;
+    assert_eq!(stacked.rect, [200.0, 0.0, 320.0, 480.0]);
+    let beside = screen_on_frame(Canvas::WIDE, Platform::Nds, VideoMode::Actual, (512, 192)).view;
+    assert_eq!(beside.rect, [0.0, 105.0, 720.0, 270.0]);
+}
+
+/// A DS game at Fit is as big as the canvas holds it in its own shape, and at Stretch the whole
+/// canvas, whatever its layout.
+#[test]
+fn a_ds_screen_fits_or_stretches_as_chosen() {
+    for (c, fit) in [
+        (Canvas::FOUR_THREE, [0.0, 0.0, 640.0, 480.0]),
+        (Canvas::WIDE, [40.0, 0.0, 640.0, 480.0]),
+        (Canvas::SQUARE, [0.0, 90.0, 720.0, 540.0]),
+    ] {
+        for frame in [(256, 192), (512, 384)] {
+            let view = screen_on_frame(c, Platform::Nds, VideoMode::Fit, frame).view;
+            assert_eq!(view.rect, fit, "{c:?} {frame:?}");
+            let view = screen_on_frame(c, Platform::Nds, VideoMode::Stretch, frame).view;
+            assert_eq!(
+                view.rect,
+                [0.0, 0.0, c.w as f32, c.h as f32],
+                "{c:?} {frame:?}"
+            );
         }
     }
     let stacked = screen_on_frame(Canvas::WIDE, Platform::Nds, VideoMode::Fit, (256, 384)).view;
     assert_eq!(stacked.rect, [200.0, 0.0, 320.0, 480.0]);
-    let beside = screen_on_frame(Canvas::WIDE, Platform::Nds, VideoMode::Fit, (512, 192)).view;
-    assert_eq!(beside.rect, [0.0, 105.0, 720.0, 270.0]);
+    assert_eq!(VideoMode::Actual.word_for(Platform::Nds), "INTEGER");
+    assert_eq!(VideoMode::Actual.word_for(Platform::Psp), "ACTUAL");
+    assert_eq!(
+        VideoMode::DS[0],
+        VideoMode::Actual,
+        "Integer first, the default"
+    );
 }

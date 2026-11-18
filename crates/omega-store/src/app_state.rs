@@ -87,6 +87,8 @@ pub struct AppState {
     pub boot_animation: bool,
     /// The cart picked on the shelf has the holo sheen over its label.
     pub holo: bool,
+    /// A game whose picture leaves the screen bare is framed in omega-zero's own border.
+    pub borders: bool,
     /// Each present shows the frame after the one the game is at.
     pub run_ahead: bool,
     /// The name shown in online rooms, as typed; empty for the one made up for it.
@@ -116,6 +118,9 @@ pub struct AppState {
     pub picked_platform: Option<Platform>,
     /// How a PSP game is shown when it was not set for itself: `fit`, `actual` or `stretch`.
     pub psp_screen: String,
+    /// How a DS game's picture is shown when it was not set for itself: "actual" (Integer),
+    /// "fit" or "stretch".
+    pub ds_screen: String,
     /// How a DS game's two screens are laid out when it was not set for itself: `one-screen`,
     /// `focus`, `picture`, `stacked` or `side-by-side`.
     pub ds_layout: String,
@@ -191,6 +196,7 @@ impl Default for AppState {
             cheevos_hardcore: false,
             boot_animation: false,
             holo: true,
+            borders: true,
             run_ahead: false,
             online_name: String::new(),
             // Madrid's, the nearest of RetroArch's relays to most of Europe and the Middle East
@@ -208,6 +214,7 @@ impl Default for AppState {
             picked: String::new(),
             picked_platform: None,
             psp_screen: "fit".to_string(),
+            ds_screen: "actual".to_string(),
             ds_layout: "one-screen".to_string(),
             ds_cursor: "hold".to_string(),
             menu_sounds: true,
@@ -482,6 +489,7 @@ const FIELDS: &[Field] = &[
     flag!("cheevos_hardcore", cheevos_hardcore),
     flag!("boot_animation", boot_animation),
     flag!("holo", holo),
+    flag!("borders", borders),
     flag!("run_ahead", run_ahead),
     may!("online_name", |s| online_name(&s.online_name), |t, v| t
         .online_name =
@@ -520,6 +528,7 @@ const FIELDS: &[Field] = &[
         }
     ),
     text!("psp_screen", psp_screen),
+    text!("ds_screen", ds_screen),
     text!("ds_layout", ds_layout),
     text!("ds_cursor", ds_cursor),
     flag!("menu_sounds", menu_sounds),

@@ -122,7 +122,9 @@ impl PausePage {
                 PauseRow::Blending,
                 PauseRow::Brightness,
                 PauseRow::BlueLight,
+                PauseRow::Borders,
                 PauseRow::Picture,
+                PauseRow::DsPicture,
                 PauseRow::DsScreens,
                 PauseRow::SwapScreens,
             ],
@@ -206,8 +208,12 @@ pub enum PauseRow {
     Hardcore,
     /// The game's achievement at this place in the list.
     Achievement(usize),
+    /// omega-zero's border round a picture that leaves the screen bare, as Settings has it.
+    Borders,
     /// A PSP game's picture: Fit, Actual or Stretch, for this game.
     Picture,
+    /// A DS game's picture: Integer, Fit or Stretch, for this game (R2 steps it too).
+    DsPicture,
     /// A PSP game's D-pad as the stick: held L2, toggled by L2, or never, for this game.
     Stick,
     /// A DS game's screens laid out on the one: One Screen, Focus, Picture in Picture,
@@ -248,12 +254,14 @@ impl PauseRow {
             PauseRow::Blending => "Frame Blending",
             PauseRow::Brightness => "Brightness",
             PauseRow::BlueLight => "Blue Light Filter",
+            PauseRow::Borders => "Borders",
             PauseRow::FastForward => "Fast Forward",
             PauseRow::FastForwardSound => "Fast Forward Sound",
             PauseRow::Rewind => "Rewind",
             PauseRow::Turbo => "Turbo Buttons",
             PauseRow::RunAhead => "Run-Ahead",
             PauseRow::Picture => "PSP Screen",
+            PauseRow::DsPicture => "DS Picture",
             PauseRow::Stick => "D-Pad as Stick",
             PauseRow::DsScreens => "DS Screens",
             PauseRow::SwapScreens => "Swap Screens",
@@ -297,12 +305,14 @@ impl PauseRow {
             PauseRow::Blending => "Smooths flicker; ghosting is mGBA's",
             PauseRow::Brightness => "SELECT+Up and Down do this too",
             PauseRow::BlueLight => "Warms the picture for the dark",
+            PauseRow::Borders => "A little console round a smaller picture",
             PauseRow::FastForward => "The top speed while R2 is held",
             PauseRow::FastForwardSound => "Sound while fast-forwarding",
             PauseRow::Rewind => "Hold L2 to go back",
             PauseRow::Turbo => "Hold X and Y for turbo A and B",
             PauseRow::RunAhead => "A frame sooner on gpSP",
             PauseRow::Picture => "For this game: Fit fills the width",
+            PauseRow::DsPicture => "For this game: Integer keeps pixels even; R2 too",
             PauseRow::Stick => "For this game: L2 makes the D-pad the stick",
             PauseRow::DsScreens => "For this game: how its two screens show",
             PauseRow::SwapScreens => "SELECT+Y does this too",
@@ -525,6 +535,9 @@ impl App {
                 // gpSP's alone: run-ahead is for no other core
                 PauseRow::RunAhead => self.core == Core::Gpsp,
                 PauseRow::Picture | PauseRow::Stick => self.platform == Platform::Psp,
+                PauseRow::DsPicture => self.platform == Platform::Nds,
+                // a system whose picture fills the screen has no border to switch
+                PauseRow::Borders => omega_ui::border_colour(self.platform).is_some(),
                 PauseRow::DsScreens | PauseRow::SwapScreens | PauseRow::Cursor => {
                     self.platform == Platform::Nds
                 }
@@ -607,7 +620,10 @@ impl App {
             PauseRow::Rewind => self.option_text(OptionRow::Rewind),
             PauseRow::Turbo => self.option_text(OptionRow::Turbo),
             PauseRow::RunAhead => self.option_text(OptionRow::RunAhead),
-            PauseRow::Picture => self.video_mode.word().to_string(),
+            PauseRow::Borders => self.option_text(OptionRow::Borders),
+            PauseRow::Picture | PauseRow::DsPicture => {
+                self.video_mode.word_for(self.platform).to_string()
+            }
             PauseRow::Stick | PauseRow::Cursor => match self.stick_now() {
                 crate::input::Stick::HoldL2 => "HOLD L2",
                 crate::input::Stick::ToggleL2 => "PRESS L2",
@@ -794,7 +810,7 @@ impl App {
             PauseRow::ScreenFilter => self.step_filter(right),
             PauseRow::ColourCorrection => self.toggle_colour_correction(),
             PauseRow::FastForward => self.step_ff_speed(right),
-            PauseRow::Picture => self.step_picture(right),
+            PauseRow::Picture | PauseRow::DsPicture => self.step_picture(right),
             PauseRow::Stick | PauseRow::Cursor => self.step_stick(right),
             PauseRow::DsScreens => self.step_ds_layout(right),
             PauseRow::SwapScreens => self.swap_ds_screens(),
@@ -811,6 +827,7 @@ impl App {
                     PauseRow::Rewind => OptionRow::Rewind,
                     PauseRow::Turbo => OptionRow::Turbo,
                     PauseRow::RunAhead => OptionRow::RunAhead,
+                    PauseRow::Borders => OptionRow::Borders,
                     PauseRow::Rumble => OptionRow::Rumble,
                     PauseRow::LoadOnInsert => OptionRow::LoadOnInsert,
                     PauseRow::SaveOnEject => OptionRow::SaveOnEject,

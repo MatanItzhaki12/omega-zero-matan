@@ -1196,10 +1196,26 @@ impl App {
         VideoMode::parse(&self.state.psp_screen).unwrap_or(VideoMode::Fit)
     }
 
-    /// The game's menu: the PSP game's picture stepped on, kept for the game.
+    /// How a DS game is shown when it was not set for itself: Settings' NINTENDO DS panel's.
+    pub fn ds_screen(&self) -> VideoMode {
+        VideoMode::parse(&self.state.ds_screen).unwrap_or(VideoMode::Actual)
+    }
+
+    /// The game's menu, or R2 in a DS game: the game's picture stepped on among its system's
+    /// modes, kept for the game.
     pub(crate) fn step_picture(&mut self, right: bool) {
-        let to = self.video_mode.step_in(&VideoMode::PSP, right);
+        let Some(modes) = VideoMode::modes(self.platform) else {
+            return;
+        };
+        let to = self.video_mode.step_in(modes, right);
         self.set_picture(to);
+    }
+
+    /// R2 in a DS game: the next picture mode, said in a toast.
+    fn next_ds_picture(&mut self) {
+        self.step_picture(true);
+        let name = self.video_mode.name_for(self.platform);
+        self.hud.toast(Toast::Picture(name), self.now());
     }
 
     /// How a DS game's screens are laid out when it was not set for itself: Settings' NINTENDO
@@ -1831,6 +1847,8 @@ impl App {
                 Action::SaveState => self.save_state(),
                 Action::LoadState => self.load_newest(),
                 Action::RewindStart if !self.may_rewind() => self.refuse(),
+                // a DS game has no fast-forward: R2 steps its picture on (Integer, Fit, Stretch)
+                Action::FfStart if self.platform == Platform::Nds => self.next_ds_picture(),
                 // Fast Forward OFF: R2 does nothing, as on Slot
                 Action::FfStart if self.state.ff_speed == 0 => {}
                 Action::FfStart if !self.may_fast_forward() => self.refuse(),

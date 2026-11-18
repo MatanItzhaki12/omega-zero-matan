@@ -122,6 +122,7 @@ impl OptionsPage {
                 OptionRow::Blending,
                 OptionRow::Brightness,
                 OptionRow::BlueLight,
+                OptionRow::Borders,
                 OptionRow::PspScreen,
             ],
             OptionsPage::Gameplay => &[
@@ -138,7 +139,11 @@ impl OptionsPage {
                 OptionRow::Emulators,
             ],
             OptionsPage::Online => &[OptionRow::OnlineName, OptionRow::Relay],
-            OptionsPage::Ds => &[OptionRow::DsLayout, OptionRow::DsCursor],
+            OptionsPage::Ds => &[
+                OptionRow::DsLayout,
+                OptionRow::DsScreen,
+                OptionRow::DsCursor,
+            ],
             OptionsPage::Backup => &[
                 OptionRow::BackupOn,
                 OptionRow::BackupNas,
@@ -246,6 +251,8 @@ pub enum OptionRow {
     ColourCorrection,
     Brightness,
     BlueLight,
+    /// omega-zero's border round a picture that leaves the screen bare, on or off.
+    Borders,
     /// Fast Forward's speed, which stood in CONFIGS.
     FastForward,
     FastForwardSound,
@@ -293,6 +300,8 @@ pub enum OptionRow {
     Relay,
     /// How a PSP game is shown unless set for itself: Fit, Actual or Stretch.
     PspScreen,
+    /// How a DS game's picture is shown: Integer, Fit or Stretch, for a game not set itself.
+    DsScreen,
     /// GAMEPLAY's way into the NINTENDO DS panel.
     NintendoDs,
     /// How a DS game's two screens show unless set for itself.
@@ -419,6 +428,7 @@ impl OptionRow {
             OptionRow::ColourCorrection => "Color Correction",
             OptionRow::Brightness => "Brightness",
             OptionRow::BlueLight => "Blue Light Filter",
+            OptionRow::Borders => "Borders",
             OptionRow::FastForward => "Fast Forward",
             OptionRow::FastForwardSound => "Fast Forward Sound",
             OptionRow::Rumble => "Rumble",
@@ -454,6 +464,7 @@ impl OptionRow {
             OptionRow::OnlineName => "Name",
             OptionRow::Relay => "Relay",
             OptionRow::PspScreen => "PSP Screen",
+            OptionRow::DsScreen => "Picture",
             OptionRow::NintendoDs => "Nintendo DS",
             OptionRow::DsLayout => "Screens",
             OptionRow::DsCursor => "Touch Cursor",
@@ -499,6 +510,7 @@ impl OptionRow {
             OptionRow::ColourCorrection => "Colors as the old screens had",
             OptionRow::Brightness => "SELECT+Up and Down do this too",
             OptionRow::BlueLight => "Warms the picture for the dark",
+            OptionRow::Borders => "A little console round a smaller picture",
             OptionRow::FastForward => "How fast fast-forward plays",
             OptionRow::FastForwardSound => "Sound while fast-forwarding",
             OptionRow::Rumble => "For games with a rumble pak",
@@ -533,6 +545,7 @@ impl OptionRow {
             OptionRow::OnlineName => "What the other player sees",
             OptionRow::Relay => "The nearest is the quickest",
             OptionRow::PspScreen => "Fit fills the width; each game can differ",
+            OptionRow::DsScreen => "Integer keeps pixels even; R2 in a game steps it",
             OptionRow::NintendoDs => "The two screens and the touch screen",
             OptionRow::DsLayout => "One Screen lays both out as one; each game can differ",
             OptionRow::DsCursor => "L2 touches with the D-pad and A; each game can differ",
@@ -779,6 +792,7 @@ impl App {
             OptionRow::Rewind => on_off(s.rewind),
             OptionRow::Turbo => on_off(s.turbo),
             OptionRow::RunAhead => on_off(s.run_ahead),
+            OptionRow::Borders => on_off(s.borders),
             OptionRow::Blending => match s.blending {
                 Blending::Off => "OFF",
                 Blending::Mix => "MIX",
@@ -815,6 +829,7 @@ impl App {
             OptionRow::OnlineName => self.online_name(),
             OptionRow::Relay => relay_word(s.relay).to_string(),
             OptionRow::PspScreen => self.psp_screen().word().to_string(),
+            OptionRow::DsScreen => self.ds_screen().word_for(Platform::Nds).to_string(),
             OptionRow::NintendoDs => String::new(),
             OptionRow::DsLayout => self.ds_layout_default().word().to_string(),
             OptionRow::DsCursor => match self.ds_cursor_default() {
@@ -909,6 +924,7 @@ impl App {
             OptionRow::Rewind => s.rewind = !s.rewind,
             OptionRow::Turbo => s.turbo = !s.turbo,
             OptionRow::RunAhead => s.run_ahead = !s.run_ahead,
+            OptionRow::Borders => s.borders = !s.borders,
             OptionRow::Blending => {
                 s.blending = step(&Blending::ALL, s.blending, right);
                 self.queue_core_options();
@@ -968,6 +984,12 @@ impl App {
                 self.state.ds_cursor = to.as_str().to_string();
             }
             OptionRow::BackupOn => return self.change_backup(row),
+            OptionRow::DsScreen => {
+                let to = self
+                    .ds_screen()
+                    .step_in(&crate::video_mode::VideoMode::DS, right);
+                self.state.ds_screen = to.as_str().to_string();
+            }
             OptionRow::PspScreen => {
                 let to = self
                     .psp_screen()

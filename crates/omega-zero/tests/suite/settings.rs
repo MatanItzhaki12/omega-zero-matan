@@ -258,6 +258,7 @@ fn display_holds_how_games_are_drawn_as_the_games_menu_does() {
             OptionRow::Blending,
             OptionRow::Brightness,
             OptionRow::BlueLight,
+            OptionRow::Borders,
             OptionRow::PspScreen,
         ]
     );

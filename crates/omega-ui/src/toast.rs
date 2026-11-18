@@ -50,6 +50,8 @@ pub enum Toast {
     RecentRemoved,
     /// Settings › Saves backed a save up, put one back, or deleted one or a state.
     Saves(&'static str),
+    /// R2 in a DS game moved its picture to this mode.
+    Picture(&'static str),
 }
 
 /// What the toast says once disc `n` is in, for every disc a PlayStation game can have.
@@ -67,7 +69,7 @@ const DISC_IN: [&str; 9] = [
 
 impl Toast {
     /// Every toast there is, a disc's once, as disc 1.
-    pub const ALL: [Toast; 27] = [
+    pub const ALL: [Toast; 28] = [
         Toast::StateSaved,
         Toast::StateLoaded,
         Toast::NeedsGpsp,
@@ -95,6 +97,7 @@ impl Toast {
         Toast::Screenshot,
         Toast::RecentRemoved,
         Toast::Saves(""),
+        Toast::Picture(""),
     ];
 
     /// Its place in `ALL`: every disc's toast is the one place.
@@ -127,6 +130,7 @@ impl Toast {
             Toast::Screenshot => 24,
             Toast::RecentRemoved => 25,
             Toast::Saves(_) => 26,
+            Toast::Picture(_) => 27,
         }
     }
 
@@ -157,6 +161,7 @@ impl Toast {
             Toast::Screenshot => "SCREENSHOT",
             Toast::RecentRemoved => "RECENTS",
             Toast::Saves(_) => "SAVES",
+            Toast::Picture(_) => "PICTURE",
         }
     }
 
@@ -190,7 +195,8 @@ impl Toast {
             | Toast::Backup(title)
             | Toast::Headphones(title)
             | Toast::Update(title)
-            | Toast::Saves(title) => title,
+            | Toast::Saves(title)
+            | Toast::Picture(title) => title,
             Toast::Restarted => "Restarted",
             Toast::StateDeleted => "State deleted",
             Toast::Screenshot => "Saved",

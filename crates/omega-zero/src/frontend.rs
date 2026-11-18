@@ -137,6 +137,7 @@ pub struct Frontend {
     settings: SettingsTexes,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
+    borders: Vec<Border>,
     /// The Network modal's own faces.
     network_modal: NetworkTexes,
     /// The Bluetooth modal's own faces.
@@ -191,6 +192,15 @@ struct Overlay {
     face: Option<UndoFace>,
     tex: Option<TexId>,
     checked: Vec<([i32; 4], bool)>,
+}
+
+/// omega-zero's own border for a system, drawn round its picture where it last stood.
+struct Border {
+    platform: omega_store::Platform,
+    picture: [i32; 4],
+    tex: Option<TexId>,
+    /// Whether it is drawn there: not where the picture leaves no room for one.
+    shown: bool,
 }
 
 /// A console's wordmark, uploaded once for each system and height it has been printed at.
@@ -252,6 +262,7 @@ impl Frontend {
             settings: SettingsTexes::default(),
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
+            borders: Vec::new(),
             network_modal: NetworkTexes::default(),
             bluetooth_modal: BluetoothTexes::default(),
             keyboard: KeyboardTexes::default(),
@@ -636,6 +647,10 @@ impl Frontend {
             }
         };
         let root = self.session.app().root().map(std::path::Path::to_path_buf);
+        if self.overlays[at].face.is_none() {
+            // no border of the player's own: omega-zero's, where Settings has it on
+            return self.border(platform, picture, compositor);
+        }
         let o = &mut self.overlays[at];
         let face = o.face.as_ref()?;
         let key = picture.map(|v| v.round() as i32);
@@ -661,6 +676,48 @@ impl Frontend {
             o.tex = Some(compositor.create_texture(face.w, face.h, &face.rgba));
         }
         o.tex
+    }
+
+    /// omega-zero's own border for `platform`'s picture at `picture`, drawn once for each place
+    /// the picture stands: none where Settings has borders off, or for a picture with no room.
+    fn border(
+        &mut self,
+        platform: omega_store::Platform,
+        picture: [f32; 4],
+        compositor: &mut Compositor,
+    ) -> Option<TexId> {
+        if !self.session.app().state.borders {
+            return None;
+        }
+        let key = picture.map(|v| v.round() as i32);
+        let at = match self.borders.iter().position(|b| b.platform == platform) {
+            Some(at) if self.borders[at].picture == key => {
+                let b = &self.borders[at];
+                return b.shown.then_some(b.tex).flatten();
+            }
+            Some(at) => at,
+            None => {
+                self.borders.push(Border {
+                    platform,
+                    picture: key,
+                    tex: None,
+                    shown: false,
+                });
+                self.borders.len() - 1
+            }
+        };
+        // one texture a system, drawn again where its picture moves (a DS changing layouts)
+        let face = omega_ui::border_face(platform, out_w(), out_h(), picture);
+        let b = &mut self.borders[at];
+        b.picture = key;
+        b.shown = face.is_some();
+        if let Some(face) = face {
+            match b.tex {
+                Some(tex) => compositor.update_texture(tex, face.w, face.h, &face.rgba),
+                None => b.tex = Some(compositor.create_texture(face.w, face.h, &face.rgba)),
+            }
+        }
+        b.shown.then_some(b.tex).flatten()
     }
 
     fn bezel_mark(

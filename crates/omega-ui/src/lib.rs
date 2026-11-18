@@ -7,6 +7,7 @@ mod backdrop;
 mod battery;
 mod bezel;
 mod board;
+mod border;
 mod cart;
 mod chrome;
 mod clock;
@@ -56,6 +57,7 @@ pub use board::{
     LID_SHADOW_W, LID_TURN, ROM_H, ROM_W, ROM_X, ROM_Y, SHADOW_AT, SHADOW_H, SHADOW_W, SLIDE_SHARE,
     SLIDE_UP, SNES_SOCKETS, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
+pub use border::{border_colour, border_face};
 pub use cart::{
     cart_box, cart_face, cart_shadow, clean_label, face_labels, gb_cart_shadow, gb_label_panel,
     gb_shell_of, generated_face, holo_frames, label_colour, label_panel, label_tags, label_text,
