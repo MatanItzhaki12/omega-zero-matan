@@ -741,7 +741,11 @@ Everything credited in the [README](README.md#credits-and-licence) still applies
   function watch (`crates/omega-ds`, the core's `one-screen.patch`), Platinum's scenes and its
   function table, cut to the functions the layouts watch (`crates/omega-ds/data/CPUE.txt`), and
   HeartGold's and SoulSilver's scenes and tables, made from its SoulSilver table and HeartGold
-  shifts (`crates/omega-ds/data/hgss_tables.py`, `IPKE.txt`, `IPGE.txt`).
+  shifts (`crates/omega-ds/data/hgss_tables.py`, `IPKE.txt`, `IPGE.txt`), and Black's, White's,
+  Black 2's and White 2's scenes and tables, cut from the tables its tools make
+  (`crates/omega-ds/data/gen5_tables.py`). Their functions' names are the
+  [pokebw2](https://github.com/fuddlesworth/pokebw2) and
+  [aletheia](https://github.com/Project-Holon/aletheia) decompilations'.
 
 - The controls, settings and in-game menu follow [Slot](https://github.com/slot-cfw/slot) by
   Brandon T. Kowalski (GPL-3.0). The Game Boy palette list and the frame blending options are

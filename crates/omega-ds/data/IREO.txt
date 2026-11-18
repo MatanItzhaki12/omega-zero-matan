@@ -1,0 +1,34 @@
+# Pokemon Black 2 (IREO): the functions the one-screen layouts watch, cut from the table
+# Pokemon Fulldex's tools (mamesj/pokemon-fulldex, GPL-3.0) make from pokebw2's config/b2_us,
+# by gen5_tables.py. Each line: address, a (ARM) or t (Thumb), module, the function's first four
+# bytes (- for the main binary, always loaded; ? to read them from the player's own ROM, its
+# overlays sharing addresses), and its name.
+0217f6d4 t ov036 ? FieldmapProc_Update
+0215a874 t ov012 ? EventFieldMenu_Callback
+0215c548 t ov012 ? EventSave_Callback
+0206f888 t main - CARD_WaitBackupAsync
+02199c08 t ov167 ? BtlMain_ProcMain
+021cf030 t ov167 ? BtlvCore_WaitCommandSelect
+021cf140 t ov167 ? BtlvCore_WaitMoveSelect
+021cf174 t ov167 ? BtlvCore_WaitTargetSelect
+021f87a4 t ov287 ? BPlistMain_Task
+021f5c44 t ov286 ? BBagMain_Task
+021f44cc t ov289 ? BChoiceMain_Task
+021ec208 t ov168 ? BtlvInput_YesNoTask
+021d0828 t ov167 ? BtlvCore_PollYesNo
+021e3220 t ov284 ? ShinkaDemo_Main
+0219c6b4 t ov142 ? ItemMenuProc_Main
+02199b34 t ov165 ? PokeListProc_Main
+021a7864 t ov186 ? TrainerCard_Main
+0219d1e4 t ov144 ? TownMap_ProcMain
+0219d0ec t ov140 ? ConfigPanel_Main
+021b5348 t ov207 ? PStatus_ProcMain
+021a05dc t ov299 ? ZknListSeq_Main
+021a0538 t ov298 ? ZukanDetail_Main
+0219fbec t ov301 ? ZukanOpen_Main
+021bb794 t ov255 ? Box2Proc_Main
+0219d9a4 t ov162 ? StartMenu_Main
+0219df6c t ov162 ? StartMenu_Continue
+02025634 t main - ConfirmDialog_Update
+021a1c10 t ov294 ? IntroProc_Main
+021d9a50 t ov280 ? NameEntry_ProcMain

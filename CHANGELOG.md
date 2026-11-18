@@ -46,6 +46,15 @@
   commands and moves are laid in a band under the battle, as Platinum's are, the D-pad and A
   choosing them. Their function tables are made from Fulldex's SoulSilver table and its
   HeartGold shifts (`crates/omega-ds/data/hgss_tables.py`), and checked against the game.
+- **One Screen for Black, White, Black 2 and White 2**, after Pokémon Fulldex's: the overworld,
+  battles and the story fill the screen. The X menu's buttons stand at the right edge over the
+  world; a battle's commands, moves or targets are a panel in the lower right corner over the
+  message box, its questions' two answers beside the question; saving shows the saved game's
+  card in the upper corner and the question along the bottom. The games take the D-pad and A on
+  all of these and draw their own cursor on them. The party, the Bag, the town map, the trainer
+  card and the Pokédex show the touch screen, and naming a Pokémon or the player its keyboard
+  under the question. Their function tables are cut from the ones Fulldex's tools make from the
+  pokebw2 and aletheia decompilations (`crates/omega-ds/data/gen5_tables.py`).
 - **R2 steps a DS game's picture**: Integer, every DS pixel the same whole size (2x, as before),
   Fit, as big as the screen holds it, or Stretch, the whole screen, kept for the game, a toast
   saying which. Its default is Settings › Gameplay › Nintendo DS › Picture, and each game's menu

@@ -8,7 +8,9 @@
 //! the handheld has none of: L2 held makes the D-pad a cursor on it and A a touch, and One Screen
 //! touches the buttons it lays over the picture when they are chosen with the D-pad.
 
+mod fallback;
 pub mod gen4;
+pub mod gen5;
 pub mod layout;
 pub mod rom;
 pub mod scene;
@@ -18,6 +20,7 @@ pub mod watch;
 use std::path::Path;
 
 use gen4::Gen4;
+use gen5::Gen5;
 pub use layout::Layout;
 use scene::{Scene, OUT_H, OUT_W};
 use screen::{Screens, BOTTOM, H, PIXELS, TOP, W};
@@ -46,7 +49,48 @@ pub mod keys {
 /// A game with layouts of its own, and the functions it is told apart by.
 struct Game {
     watch: Watch,
-    gen4: Gen4,
+    layouts: Layouts,
+}
+
+/// A game's layouts, by its generation.
+enum Layouts {
+    Gen4(Gen4),
+    Gen5(Gen5),
+}
+
+impl Game {
+    /// The game whose header's code is `code`, its overlays' code read from `rom`; none for a
+    /// game with no layouts.
+    fn of(rom: &Path, code: &str) -> Option<Game> {
+        if let Some(game) = gen4::Game::of(code) {
+            let watch = Watch::new(watch::load(game.table(), rom));
+            let layouts = Layouts::Gen4(Gen4::new(game, &watch));
+            return Some(Game { watch, layouts });
+        }
+        let game = gen5::Game::of(code)?;
+        let watch = Watch::new(watch::load(game.table(), rom));
+        let layouts = Layouts::Gen5(Gen5::new(game, &watch));
+        Some(Game { watch, layouts })
+    }
+
+    fn input(
+        &mut self,
+        frame: u32,
+        keys: u16,
+        shown: Option<&Screens>,
+    ) -> (u16, Option<(i32, i32)>) {
+        match &mut self.layouts {
+            Layouts::Gen4(g) => g.input(frame, keys, &self.watch, shown),
+            Layouts::Gen5(g) => g.input(keys),
+        }
+    }
+
+    fn scene(&mut self, frame: u32, s: &Screens) -> Scene {
+        match &mut self.layouts {
+            Layouts::Gen4(g) => g.scene(frame, &self.watch, s),
+            Layouts::Gen5(g) => g.scene(frame, &self.watch, s),
+        }
+    }
 }
 
 /// The cursor on the touch screen, in its pixels.
@@ -90,11 +134,7 @@ pub struct Ds {
 impl Ds {
     /// The screens of the DS game at `rom`, whose header's game code is `code`, laid out `layout`.
     pub fn new(rom: &Path, code: &str, layout: Layout) -> Ds {
-        let game = gen4::Game::of(code).map(|game| {
-            let watch = Watch::new(watch::load(game.table(), rom));
-            let gen4 = Gen4::new(game, &watch);
-            Game { watch, gen4 }
-        });
+        let game = Game::of(rom, code);
         Ds {
             layout,
             swapped: false,
@@ -190,7 +230,7 @@ impl Ds {
             if self.layout == Layout::OneScreen && !self.swapped {
                 if let Some(g) = &mut self.game {
                     let shown = Screens::new(shown, size, [&[], &[]]);
-                    let (k, t) = g.gen4.input(self.frame, keys, &g.watch, shown.as_ref());
+                    let (k, t) = g.input(self.frame, keys, shown.as_ref());
                     keys = k;
                     touch = t;
                 }
@@ -258,7 +298,7 @@ impl Ds {
             }
             Layout::OneScreen if self.game.is_some() && !self.swapped => {
                 let scene = match &mut self.game {
-                    Some(g) => g.gen4.scene(self.frame, &g.watch, s),
+                    Some(g) => g.scene(self.frame, s),
                     None => Scene::only("top", TOP),
                 };
                 self.scene = scene.name;

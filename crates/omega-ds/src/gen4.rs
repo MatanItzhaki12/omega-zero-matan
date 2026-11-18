@@ -12,6 +12,7 @@
 //! answering them. HeartGold's and SoulSilver's applications played on the touch screen (the
 //! Bag, the party, the Pokégear, the PC's boxes and more) show the touch screen.
 
+use crate::fallback::Fallback;
 use crate::keys;
 use crate::scene::{
     Back, Piece, Scene, LAYER_BACKDROP, LAYER_BG0, LAYER_BG1, LAYER_BG2, LAYER_BG3,
@@ -342,10 +343,7 @@ pub struct Gen4 {
     /// A touch being held: frames left, and where.
     touch: Option<(u32, (i32, i32))>,
     prev_keys: u16,
-    /// The last scene a known screen had, and the frame it was picked in.
-    last: Option<(Scene, u32)>,
-    /// The screen shown alone while the other is blank, and the one wanted, since when.
-    alone: (Option<usize>, Option<usize>, u32),
+    fallback: Fallback,
 }
 
 impl Gen4 {
@@ -362,8 +360,7 @@ impl Gen4 {
             fight_only: false,
             touch: None,
             prev_keys: 0,
-            last: None,
-            alone: (None, None, 0),
+            fallback: Fallback::default(),
         }
     }
 
@@ -486,12 +483,9 @@ impl Gen4 {
             ))
         } else if ran(f.battle, 2) {
             Some(self.battle(frame, w, s))
-        } else if ran(f.saving, 8) && self.last.is_some() {
+        } else if let Some(last) = self.fallback.last().filter(|_| ran(f.saving, 8)) {
             // nothing else runs while the save is written: the layout up stays
-            return self
-                .last
-                .clone()
-                .map_or_else(|| Scene::only("top", TOP), |(sc, _)| sc);
+            return last.clone();
         } else if let Some(app) = self.app(w, s) {
             Some(app)
         } else if self.game == Game::Platinum && ran(f.field, 16) && underground(s) {
@@ -524,54 +518,10 @@ impl Gen4 {
             None
         };
         if let Some(sc) = known {
-            self.last = Some((sc.clone(), frame));
+            self.fallback.known(&sc, frame);
             return sc;
         }
-        self.unknown(frame, w, s)
-    }
-
-    /// A screen no layout knows: the last layout a moment longer, either screen alone while the
-    /// other is blank, else the top one.
-    fn unknown(&mut self, frame: u32, w: &Watch, s: &Screens) -> Scene {
-        let last = self.last.as_ref();
-        if let Some((sc, at)) = last {
-            if frame - at <= 45 {
-                return sc.clone();
-            }
-        }
-        let (top_blank, bottom_blank) = (s.blank(TOP), s.blank(BOTTOM));
-        if top_blank && bottom_blank {
-            if let Some((sc, _)) = last {
-                return sc.clone();
-            }
-            let mut sc = Scene::only("one-screen", TOP);
-            sc.back = Back::Sample(TOP, 0, 0);
-            return sc;
-        }
-        let alone = match (top_blank, bottom_blank) {
-            (true, false) => Some(BOTTOM),
-            (false, true) => Some(TOP),
-            _ => None,
-        };
-        // a change waits six frames, so a screen fading out first flashes no layout
-        if alone != self.alone.1 {
-            self.alone.1 = alone;
-            self.alone.2 = frame;
-        }
-        if self.alone.1 != self.alone.0 && frame - self.alone.2 >= 6 {
-            self.alone.0 = self.alone.1;
-        }
-        if let Some(screen) = self.alone.0 {
-            return Scene::only("one-screen", screen);
-        }
-        if let Some((sc, _)) = last {
-            if w.ran(self.f.field, 120) {
-                return sc.clone();
-            }
-        }
-        // (Fulldex spreads both side by side here, which a 4:3 view shows at half size: the top
-        // screen whole instead, the touch screen a press of L2 away)
-        Scene::only("top", TOP)
+        self.fallback.unknown(frame, s, w.ran(self.f.field, 120))
     }
 
     /// The game's screens other than battles and the overworld; none for a screen it has no
@@ -1080,7 +1030,7 @@ mod tests {
         assert_eq!(Game::of("CPUE"), Some(Game::Platinum));
         assert_eq!(Game::of("IPKE"), Some(Game::HeartGold));
         assert_eq!(Game::of("IPGE"), Some(Game::SoulSilver));
-        assert_eq!(Game::of("IRDO"), None, "White 2 has no layouts yet");
+        assert_eq!(Game::of("IRDO"), None, "White 2 is the fifth generation's");
         assert!(watch_of(Game::Platinum).find("FieldMap_Main").is_some());
     }
 

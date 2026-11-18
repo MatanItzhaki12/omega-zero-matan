@@ -2,11 +2,12 @@
 //! to check them by eye: each `--every` frames the view laid out is written as a PNG, named by
 //! its frame and the scene it is, and the scenes the run went through are listed at the end.
 //!
-//! `cargo run -p omega-zero --example ds_layouts -- CORE ROM OUT [--state FILE] [--system DIR]
-//! [--script FILE] [--frames N] [--every N] [--layout one-screen|focus|...]`
+//! `cargo run -p omega-zero --example ds_layouts -- CORE ROM OUT [--state FILE] [--state-out FILE]
+//! [--system DIR] [--script FILE] [--frames N] [--every N] [--layout one-screen|focus|...]`
 //!
 //! The script's lines are `FROM TO KEY...`: the keys held from frame FROM to before TO, among A B
-//! X Y L R START SELECT UP DOWN LEFT RIGHT L2 R2, counted from the run's start.
+//! X Y L R START SELECT UP DOWN LEFT RIGHT L2 R2, counted from the run's start. `--state-out`
+//! saves the game's state at the run's end, for the next run to go on from with `--state`.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -16,8 +17,8 @@ use omega_retro::{ButtonMask, LibretroCore, RetroCore};
 use omega_store::Core;
 use omega_zero::ds_screen::DsScreens;
 
-const USAGE: &str = "usage: ds_layouts CORE ROM OUT [--state FILE] [--system DIR] \
-[--script FILE] [--frames N] [--every N] [--layout NAME]";
+const USAGE: &str = "usage: ds_layouts CORE ROM OUT [--state FILE] [--state-out FILE] \
+[--system DIR] [--script FILE] [--frames N] [--every N] [--layout NAME]";
 
 /// libretro's joypad bits, as the script names them.
 const KEYS: [(&str, u16); 14] = [
@@ -87,12 +88,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut it = std::env::args().skip(1);
     let mut positional = Vec::new();
     let (mut state, mut system, mut steps) = (None::<PathBuf>, None::<PathBuf>, Vec::new());
+    let mut state_out = None::<PathBuf>;
     let (mut frames, mut every) = (600u32, 60u32);
     let mut layout = omega_ds::Layout::OneScreen;
     while let Some(arg) = it.next() {
         let mut value = || it.next().ok_or(USAGE);
         match arg.as_str() {
             "--state" => state = Some(value()?.into()),
+            "--state-out" => state_out = Some(value()?.into()),
             "--system" => system = Some(value()?.into()),
             "--script" => steps = script(Path::new(&value()?))?,
             "--frames" => frames = value()?.parse()?,
@@ -136,6 +139,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     for (scene, n) in seen {
         println!("{scene}: {n} frames");
+    }
+    if let Some(path) = state_out {
+        std::fs::write(path, core.serialize()?)?;
     }
     Ok(())
 }

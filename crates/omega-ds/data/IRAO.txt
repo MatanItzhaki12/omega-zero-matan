@@ -1,0 +1,38 @@
+# Pokemon White (IRAO): the functions the one-screen layouts watch, cut from the table
+# Pokemon Fulldex's tools (mamesj/pokemon-fulldex, GPL-3.0) make from aletheia's layout/function_addrs.tsv and Fulldex's White shifts,
+# by gen5_tables.py. Each line: address, a (ARM) or t (Thumb), module, the function's first four
+# bytes (- for the main binary, always loaded; ? to read them from the player's own ROM, its
+# overlays sharing addresses), and its name.
+02187ff0 t ov021 ? FieldmapProc_Update
+0215fd2c t ov010 ? EventFieldMenu_Callback
+02076b98 a main - CARD_WaitBackupAsync
+02169ad8 t ov010 ? REPORT_EVENT_Main
+021b6454 t ov093 ? BtlMain_ProcMain
+021e97c4 t ov093 ? BtlvCore_WaitCommandSelect
+021e98d4 t ov093 ? BtlvCore_WaitMoveSelect
+021e9908 t ov093 ? BtlvCore_WaitTargetSelect
+0220f498 t ov198 ? BPlistMain_Task
+0220c934 t ov197 ? BBagMain_Task
+02203d60 t ov094 ? BtlvInput_YesNoTask
+021eac74 t ov093 ? BtlvCore_PollYesNo
+02204100 t ov195 ? ShinkaDemo_Main
+021b8924 t ov070 ? ItemMenuProc_Main
+021b65d8 t ov091 ? PokeListProc_Main
+021c3f74 t ov111 ? TrainerCard_Main
+0216f3d0 t ov010 ? TRCARD_SYS_StateWaitBadgeProc
+0216f33c t ov010 ? TRCARD_SYS_StateWaitEditProc
+021b9918 t ov072 ? TownMap_ProcMain
+021b982c t ov068 ? ConfigPanel_Main
+021d65dc t ov131 ? PStatus_ProcMain
+021bcc78 t ov209 ? ZknListSeq_Main
+021bcbd4 t ov208 ? ZukanDetail_Main
+021c8f4c t ov212 ? ZUKAN_Update
+0220b0c4 t ov207 ? ZUKAN_TOROKU_GRAPHIC_Main
+02202de4 t ov094 ? BTLV_INPUT_ProcessTouchInput
+021dc920 t ov170 ? Box2Proc_Main
+02156c6c t ov010 ? MUSICAL_DRESSUP_SYS_Main
+021ba000 t ov088 ? StartMenu_Main
+021ba55c t ov088 ? StartMenu_Continue
+0201fed8 t main - ConfirmDialog_Update
+021bdb70 t ov204 ? IntroProc_Main
+021f1764 t ov194 ? NameEntry_ProcMain

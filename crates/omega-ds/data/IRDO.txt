@@ -1,0 +1,34 @@
+# Pokemon White 2 (IRDO): the functions the one-screen layouts watch, cut from the table
+# Pokemon Fulldex's tools (mamesj/pokemon-fulldex, GPL-3.0) make from pokebw2's config/w2_us,
+# by gen5_tables.py. Each line: address, a (ARM) or t (Thumb), module, the function's first four
+# bytes (- for the main binary, always loaded; ? to read them from the player's own ROM, its
+# overlays sharing addresses), and its name.
+0217f714 t ov036 ? FieldmapProc_Update
+0215a8b4 t ov012 ? EventFieldMenu_Callback
+0215c588 t ov012 ? EventSave_Callback
+0206f8b4 t main - CARD_WaitBackupAsync
+02199c48 t ov167 ? BtlMain_ProcMain
+021cf070 t ov167 ? BtlvCore_WaitCommandSelect
+021cf180 t ov167 ? BtlvCore_WaitMoveSelect
+021cf1b4 t ov167 ? BtlvCore_WaitTargetSelect
+021f87e4 t ov287 ? BPlistMain_Task
+021f5c84 t ov286 ? BBagMain_Task
+021f450c t ov289 ? BChoiceMain_Task
+021ec248 t ov168 ? BtlvInput_YesNoTask
+021d0868 t ov167 ? BtlvCore_PollYesNo
+021e3260 t ov284 ? ShinkaDemo_Main
+0219c6f4 t ov142 ? ItemMenuProc_Main
+02199b74 t ov165 ? PokeListProc_Main
+021a78a4 t ov186 ? TrainerCard_Main
+0219d224 t ov144 ? TownMap_ProcMain
+0219d12c t ov140 ? ConfigPanel_Main
+021b5388 t ov207 ? PStatus_ProcMain
+021a061c t ov299 ? ZknListSeq_Main
+021a0578 t ov298 ? ZukanDetail_Main
+0219fc2c t ov301 ? ZukanOpen_Main
+021bb7d4 t ov255 ? Box2Proc_Main
+0219d9e4 t ov162 ? StartMenu_Main
+0219dfac t ov162 ? StartMenu_Continue
+02025660 t main - ConfirmDialog_Update
+021a1c90 t ov294 ? IntroProc_Main
+021d9a90 t ov280 ? NameEntry_ProcMain
