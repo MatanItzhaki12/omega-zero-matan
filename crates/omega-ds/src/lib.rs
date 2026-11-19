@@ -167,10 +167,6 @@ impl Ds {
         self.game.is_some()
     }
 
-    pub fn arrangement(&self) -> Arrangement {
-        self.arrangement
-    }
-
     pub fn set_arrangement(&mut self, arrangement: Arrangement) {
         self.arrangement = arrangement;
     }
